@@ -135,4 +135,46 @@ class AuthenticationTest extends TestCase
             'last_login_at' => null,
         ]);
     }
+
+    public function test_authenticated_user_can_access_me_endpoint(): void
+    {
+    $role = Role::create([
+        'code' => 'TU',
+        'name' => 'Tata Usaha',
+    ]);
+
+    $user = User::create([
+        'role_id' => $role->id,
+        'username' => 'tu.me.test',
+        'name' => 'TU Me Test',
+        'email' => 'tu.me.test@siakad.test',
+        'password' => 'password-test',
+        'account_status' => 'active',
+    ]);
+
+    $token = $user->createToken('test-token')->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->getJson('/api/me');
+
+    $response
+        ->assertStatus(200)
+        ->assertJsonPath('data.user.id', $user->id)
+        ->assertJsonPath('data.user.username', 'tu.me.test')
+        ->assertJsonPath('data.user.name', 'TU Me Test')
+        ->assertJsonPath('data.user.account_status', 'active')
+        ->assertJsonPath('data.user.role.code', 'TU')
+        ->assertJsonPath('data.user.role.name', 'Tata Usaha');
+    }
+
+    public function test_unauthenticated_user_cannot_access_me_endpoint(): void
+    {
+        $response = $this->getJson('/api/me');
+
+        $response
+            ->assertStatus(401)
+            ->assertJson([
+                'message' => 'Unauthenticated.',
+            ]);
+    }
 }
