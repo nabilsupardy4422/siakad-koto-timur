@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\TeacherController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SubjectController;
+use App\Http\Controllers\Api\ClassController;
 
 Route::post('/login', LoginController::class);
 
@@ -76,6 +77,23 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/subjects', [SubjectController::class, 'store']);
         Route::put('/subjects/{subject}', [SubjectController::class, 'update']);
         Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Classes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/classes', [ClassController::class, 'index']);
+        Route::get('/classes/{class}', [ClassController::class, 'show']);
+    });
+
+    Route::middleware('role:TU')->group(function (): void {
+        Route::post('/classes', [ClassController::class, 'store']);
+        Route::put('/classes/{class}', [ClassController::class, 'update']);
+        Route::delete('/classes/{class}', [ClassController::class, 'destroy']);
     });
 });
 
