@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -138,33 +139,33 @@ class AuthenticationTest extends TestCase
 
     public function test_authenticated_user_can_access_me_endpoint(): void
     {
-    $role = Role::create([
-        'code' => 'TU',
-        'name' => 'Tata Usaha',
-    ]);
+        $role = Role::create([
+            'code' => 'TU',
+            'name' => 'Tata Usaha',
+        ]);
 
-    $user = User::create([
-        'role_id' => $role->id,
-        'username' => 'tu.me.test',
-        'name' => 'TU Me Test',
-        'email' => 'tu.me.test@siakad.test',
-        'password' => 'password-test',
-        'account_status' => 'active',
-    ]);
+        $user = User::create([
+            'role_id' => $role->id,
+            'username' => 'tu.me.test',
+            'name' => 'TU Me Test',
+            'email' => 'tu.me.test@siakad.test',
+            'password' => 'password-test',
+            'account_status' => 'active',
+        ]);
 
-    $token = $user->createToken('test-token')->plainTextToken;
+        $token = $user->createToken('test-token')->plainTextToken;
 
-    $response = $this->withToken($token)
-        ->getJson('/api/me');
+        $response = $this->withToken($token)
+            ->getJson('/api/me');
 
-    $response
-        ->assertStatus(200)
-        ->assertJsonPath('data.user.id', $user->id)
-        ->assertJsonPath('data.user.username', 'tu.me.test')
-        ->assertJsonPath('data.user.name', 'TU Me Test')
-        ->assertJsonPath('data.user.account_status', 'active')
-        ->assertJsonPath('data.user.role.code', 'TU')
-        ->assertJsonPath('data.user.role.name', 'Tata Usaha');
+        $response
+            ->assertStatus(200)
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.user.username', 'tu.me.test')
+            ->assertJsonPath('data.user.name', 'TU Me Test')
+            ->assertJsonPath('data.user.account_status', 'active')
+            ->assertJsonPath('data.user.role.code', 'TU')
+            ->assertJsonPath('data.user.role.name', 'Tata Usaha');
     }
 
     public function test_unauthenticated_user_cannot_access_me_endpoint(): void
@@ -172,6 +173,55 @@ class AuthenticationTest extends TestCase
         $response = $this->getJson('/api/me');
 
         $response
+            ->assertStatus(401)
+            ->assertJson([
+                'message' => 'Unauthenticated.',
+            ]);
+    }
+
+    public function test_user_can_logout_and_token_is_revoked(): void
+    {
+        $role = Role::create([
+            'code' => 'TU',
+            'name' => 'Tata Usaha',
+        ]);
+
+        $user = User::create([
+            'role_id' => $role->id,
+            'username' => 'tu.logout.test',
+            'name' => 'TU Logout Test',
+            'email' => 'tu.logout.test@siakad.test',
+            'password' => 'password-test',
+            'account_status' => 'active',
+        ]);
+
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        $meResponse = $this->withToken($token)
+            ->getJson('/api/me');
+
+        $meResponse
+            ->assertStatus(200)
+            ->assertJsonPath('data.user.username', 'tu.logout.test');
+
+        $logoutResponse = $this->withToken($token)
+            ->postJson('/api/logout');
+
+        $logoutResponse
+            ->assertStatus(200)
+            ->assertJson([
+                'data' => null,
+                'message' => 'Logout berhasil.',
+            ]);
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        Auth::forgetGuards();
+
+        $revokedTokenResponse = $this->withToken($token)
+            ->getJson('/api/me');
+
+        $revokedTokenResponse
             ->assertStatus(401)
             ->assertJson([
                 'message' => 'Unauthenticated.',
