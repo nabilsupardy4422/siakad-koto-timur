@@ -15,7 +15,6 @@ class Rapor extends Model
     protected $fillable = [
         'siswa_id',
         'tahun_akademik_id',
-        'semester',
         'jenis_rapor',
         'file_path',
         'file_name',
