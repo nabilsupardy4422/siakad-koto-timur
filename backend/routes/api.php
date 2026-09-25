@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\MeController;
 use App\Http\Controllers\Api\HealthController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\TeacherController;
 
 Route::post('/login', LoginController::class);
 
@@ -22,6 +23,17 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/academic-years', [AcademicYearController::class, 'store']);
         Route::put('/academic-years/{academicYear}', [AcademicYearController::class, 'update']);
         Route::delete('/academic-years/{academicYear}', [AcademicYearController::class, 'destroy']);
+    });
+
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/teachers', [TeacherController::class, 'index']);
+        Route::get('/teachers/{teacher}', [TeacherController::class, 'show']);
+    });
+
+    Route::middleware('role:TU')->group(function (): void {
+        Route::post('/teachers', [TeacherController::class, 'store']);
+        Route::put('/teachers/{teacher}', [TeacherController::class, 'update']);
+        Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy']);
     });
 });
 
