@@ -118,6 +118,8 @@ class StudentTest extends TestCase
         return AnggotaKelas::create([
             'siswa_id' => $student->id,
             'kelas_id' => $class->id,
+            'tanggal_mulai' => '2026-07-01',
+            'tanggal_selesai' => null,
         ]);
     }
 

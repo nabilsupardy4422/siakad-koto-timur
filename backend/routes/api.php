@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TeacherController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\ClassController;
+use App\Http\Controllers\Api\ClassMemberController;
 
 Route::post('/login', LoginController::class);
 
@@ -79,7 +80,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy']);
     });
 
-    /*
+      /*
     |--------------------------------------------------------------------------
     | Classes
     |--------------------------------------------------------------------------
@@ -94,6 +95,21 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/classes', [ClassController::class, 'store']);
         Route::put('/classes/{class}', [ClassController::class, 'update']);
         Route::delete('/classes/{class}', [ClassController::class, 'destroy']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Members
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/classes/{class}/students', [ClassMemberController::class, 'index']);
+    });
+
+    Route::middleware('role:TU,GURU')->group(function (): void {
+        Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
+        Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
     });
 });
 

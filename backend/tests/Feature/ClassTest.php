@@ -301,6 +301,8 @@ class ClassTest extends TestCase
         AnggotaKelas::create([
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
+            'tanggal_mulai' => '2026-07-01',
+            'tanggal_selesai' => null,
         ]);
 
         Sanctum::actingAs($user);
@@ -325,6 +327,8 @@ class ClassTest extends TestCase
         AnggotaKelas::create([
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
+            'tanggal_mulai' => '2026-07-01',
+            'tanggal_selesai' => null,
         ]);
 
         Sanctum::actingAs($user);
