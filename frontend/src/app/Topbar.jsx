@@ -16,11 +16,18 @@ export default function Topbar({ onMenuClick }) {
           <span />
         </button>
 
-        <Breadcrumb />
+        <div className="app-topbar__heading">
+          <Breadcrumb />
 
-        <div className="app-topbar__context">
-          <p>Sistem Informasi Akademik</p>
-          <h1>Portal Sekolah</h1>
+          <div className="app-topbar__context">
+            <span>
+              Sistem Informasi Akademik
+            </span>
+
+            <strong>
+              Portal Sekolah
+            </strong>
+          </div>
         </div>
       </div>
 

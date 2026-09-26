@@ -10,6 +10,10 @@ export default function AppShell() {
     setSidebarOpen(false)
   }
 
+  function openSidebar() {
+    setSidebarOpen(true)
+  }
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -18,9 +22,7 @@ export default function AppShell() {
       />
 
       <div className="app-shell__content">
-        <Topbar
-          onMenuClick={() => setSidebarOpen(true)}
-        />
+        <Topbar onMenuClick={openSidebar} />
 
         <main className="app-shell__main">
           <Outlet />
