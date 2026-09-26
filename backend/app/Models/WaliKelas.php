@@ -16,7 +16,17 @@ class WaliKelas extends Model
         'guru_id',
         'kelas_id',
         'tahun_akademik_id',
+        'tanggal_mulai',
+        'tanggal_selesai',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'tanggal_mulai' => 'date',
+            'tanggal_selesai' => 'date',
+        ];
+    }
 
     public function guru(): BelongsTo
     {

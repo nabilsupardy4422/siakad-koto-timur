@@ -138,6 +138,8 @@ class ClassMemberTest extends TestCase
             'guru_id' => $guru->id,
             'kelas_id' => $class->id,
             'tahun_akademik_id' => $academicYear->id,
+            'tanggal_mulai' => '2026-07-01',
+            'tanggal_selesai' => null,
         ]);
     }
 

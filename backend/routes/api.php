@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\ClassMemberController;
+use App\Http\Controllers\Api\WaliKelasController;
 
 Route::post('/login', LoginController::class);
 
@@ -110,6 +111,35 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::middleware('role:TU,GURU')->group(function (): void {
         Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
         Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
+    });
+
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU')->group(function (): void {
+        Route::get(
+            '/homeroom-assignments',
+            [WaliKelasController::class, 'index']
+        );
+
+        Route::get(
+            '/homeroom-assignments/{assignment}',
+            [WaliKelasController::class, 'show']
+        );
+    });
+
+    Route::middleware('role:TU')->group(function (): void {
+        Route::post(
+            '/homeroom-assignments',
+            [WaliKelasController::class, 'store']
+        );
+
+        Route::put(
+            '/homeroom-assignments/{assignment}',
+            [WaliKelasController::class, 'update']
+        );
+
+        Route::delete(
+            '/homeroom-assignments/{assignment}',
+            [WaliKelasController::class, 'destroy']
+        );
     });
 });
 
