@@ -34,6 +34,10 @@ export default function LoginPage() {
     return <Navigate to="/app/dashboard" replace />
   }
 
+  function handleBackToHome() {
+    navigate('/')
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
 
@@ -48,7 +52,8 @@ export default function LoginPage() {
     try {
       await login(username.trim(), password)
 
-      const destination = location.state?.from?.pathname || '/app/dashboard'
+      const destination =
+        location.state?.from?.pathname || '/app/dashboard'
 
       navigate(destination, { replace: true })
     } catch (requestError) {
@@ -61,6 +66,16 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-brand-panel">
+        <div className="login-brand-visual">
+          <img
+            src="/images/school/foto-sekolah-sman1-v-koto-timur.jpg"
+            alt="Gedung SMA Negeri 1 V Koto Timur"
+            className="login-school-photo"
+          />
+
+          <div className="login-brand-overlay" aria-hidden="true" />
+        </div>
+
         <div className="login-brand-inner">
           <img
             src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
@@ -91,6 +106,15 @@ export default function LoginPage() {
 
       <section className="login-form-panel">
         <div className="login-form-container">
+          <button
+            type="button"
+            className="login-back-link"
+            onClick={handleBackToHome}
+          >
+            <span aria-hidden="true">←</span>
+            <span>Kembali ke Beranda</span>
+          </button>
+
           <div className="login-heading">
             <p className="login-section-label">AKSES SISTEM</p>
 
@@ -135,7 +159,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="password-toggle"
-                  onClick={() => setShowPassword((current) => !current)}
+                  onClick={() =>
+                    setShowPassword((current) => !current)
+                  }
                   aria-label={
                     showPassword
                       ? 'Sembunyikan password'
@@ -150,7 +176,8 @@ export default function LoginPage() {
 
             {error && (
               <div className="login-error" role="alert">
-                {error}
+                <strong>Gagal masuk</strong>
+                <span>{error}</span>
               </div>
             )}
 
@@ -159,11 +186,20 @@ export default function LoginPage() {
               className="login-submit"
               disabled={submitting}
             >
-              <span>
-                {submitting ? 'Memproses...' : 'Masuk'}
-              </span>
-
-              {!submitting && <span aria-hidden="true">→</span>}
+              {submitting ? (
+                <>
+                  <span
+                    className="login-submit__spinner"
+                    aria-hidden="true"
+                  />
+                  <span>Memproses...</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk</span>
+                  <span aria-hidden="true">→</span>
+                </>
+              )}
             </button>
           </form>
 
