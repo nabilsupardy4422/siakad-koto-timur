@@ -15,7 +15,17 @@ class AnggotaKelas extends Model
     protected $fillable = [
         'kelas_id',
         'siswa_id',
+        'tanggal_mulai',
+        'tanggal_selesai',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'tanggal_mulai' => 'date',
+            'tanggal_selesai' => 'date',
+        ];
+    }
 
     public function kelas(): BelongsTo
     {

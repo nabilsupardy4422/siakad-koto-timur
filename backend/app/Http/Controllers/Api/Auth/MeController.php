@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
+use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,6 +26,8 @@ class MeController extends Controller
                     'name' => $user->role->name,
                 ],
             ],
+            'permissions' => Permissions::forRole($user->role->code),
+            'assignments' => [],
         ]);
     }
 }

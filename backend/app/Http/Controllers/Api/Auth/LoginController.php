@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 
@@ -58,6 +59,8 @@ class LoginController extends Controller
                     'name' => $user->role->name,
                 ],
             ],
+            'permissions' => Permissions::forRole($user->role->code),
+            'assignments' => [],
         ]);
     }
 }

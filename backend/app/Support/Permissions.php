@@ -19,6 +19,11 @@ class Permissions
     public const CLASSES_UPDATE = 'classes.update';
     public const CLASSES_DELETE = 'classes.delete';
 
+    public const SUBJECTS_VIEW = 'subjects.view';
+    public const SUBJECTS_CREATE = 'subjects.create';
+    public const SUBJECTS_UPDATE = 'subjects.update';
+    public const SUBJECTS_DELETE = 'subjects.delete';
+
     public const SCHEDULES_VIEW = 'schedules.view';
     public const SCHEDULES_CREATE = 'schedules.create';
     public const SCHEDULES_UPDATE = 'schedules.update';
@@ -77,6 +82,11 @@ class Permissions
             self::CLASSES_UPDATE,
             self::CLASSES_DELETE,
 
+            self::SUBJECTS_VIEW,
+            self::SUBJECTS_CREATE,
+            self::SUBJECTS_UPDATE,
+            self::SUBJECTS_DELETE,
+
             self::SCHEDULES_VIEW,
             self::SCHEDULES_CREATE,
             self::SCHEDULES_UPDATE,
@@ -121,110 +131,127 @@ class Permissions
 
     public static function forRole(string $role): array
     {
-    return match ($role) {
-        'TU' => [
-            self::STUDENTS_VIEW,
-            self::STUDENTS_CREATE,
-            self::STUDENTS_UPDATE,
-            self::STUDENTS_DELETE,
+        return match ($role) {
+            'TU' => [
+                self::STUDENTS_VIEW,
+                self::STUDENTS_CREATE,
+                self::STUDENTS_UPDATE,
+                self::STUDENTS_DELETE,
 
-            self::TEACHERS_VIEW,
-            self::TEACHERS_CREATE,
-            self::TEACHERS_UPDATE,
-            self::TEACHERS_DELETE,
+                self::TEACHERS_VIEW,
+                self::TEACHERS_CREATE,
+                self::TEACHERS_UPDATE,
+                self::TEACHERS_DELETE,
 
-            self::CLASSES_VIEW,
-            self::CLASSES_CREATE,
-            self::CLASSES_UPDATE,
-            self::CLASSES_DELETE,
+                self::CLASSES_VIEW,
+                self::CLASSES_CREATE,
+                self::CLASSES_UPDATE,
+                self::CLASSES_DELETE,
 
-            self::SCHEDULES_VIEW,
-            self::SCHEDULES_CREATE,
-            self::SCHEDULES_UPDATE,
-            self::SCHEDULES_DELETE,
+                self::SUBJECTS_VIEW,
+                self::SUBJECTS_CREATE,
+                self::SUBJECTS_UPDATE,
+                self::SUBJECTS_DELETE,
 
-            self::ATTENDANCE_VIEW,
-            self::ATTENDANCE_RECAP,
+                self::SCHEDULES_VIEW,
+                self::SCHEDULES_CREATE,
+                self::SCHEDULES_UPDATE,
+                self::SCHEDULES_DELETE,
 
-            self::GRADES_VIEW,
-            self::GRADES_RECAP,
+                self::ATTENDANCE_VIEW,
+                self::ATTENDANCE_RECAP,
 
-            self::MATERIALS_VIEW,
+                self::GRADES_VIEW,
+                self::GRADES_RECAP,
 
-            self::ASSIGNMENTS_VIEW,
+                self::MATERIALS_VIEW,
 
-            self::REPORTS_VIEW,
-            self::REPORTS_EXPORT,
+                self::ASSIGNMENTS_VIEW,
 
-            self::REPORT_CARDS_VIEW,
-            self::REPORT_CARDS_UPLOAD,
-            self::REPORT_CARDS_DELETE,
+                self::REPORTS_VIEW,
+                self::REPORTS_EXPORT,
 
-            self::USERS_VIEW,
-            self::USERS_CREATE,
-            self::USERS_UPDATE,
-            self::USERS_ACTIVATE,
-            self::USERS_DEACTIVATE,
-            self::USERS_RESET_PASSWORD,
-        ],
+                self::REPORT_CARDS_VIEW,
+                self::REPORT_CARDS_UPLOAD,
+                self::REPORT_CARDS_DELETE,
 
-        'KEPALA_SEKOLAH' => [
-            self::STUDENTS_VIEW,
-            self::TEACHERS_VIEW,
-            self::CLASSES_VIEW,
-            self::SCHEDULES_VIEW,
-            self::ATTENDANCE_VIEW,
-            self::ATTENDANCE_RECAP,
-            self::GRADES_VIEW,
-            self::GRADES_RECAP,
-            self::MATERIALS_VIEW,
-            self::ASSIGNMENTS_VIEW,
-            self::REPORTS_VIEW,
-            self::REPORTS_EXPORT,
-            self::REPORT_CARDS_VIEW,
-        ],
+                self::USERS_VIEW,
+                self::USERS_CREATE,
+                self::USERS_UPDATE,
+                self::USERS_ACTIVATE,
+                self::USERS_DEACTIVATE,
+                self::USERS_RESET_PASSWORD,
+            ],
 
-        'GURU' => [
-            self::STUDENTS_VIEW,
-            self::SCHEDULES_VIEW,
+            'KEPALA_SEKOLAH' => [
+                self::STUDENTS_VIEW,
+                self::TEACHERS_VIEW,
+                self::CLASSES_VIEW,
+                self::SUBJECTS_VIEW,
+                self::SCHEDULES_VIEW,
 
-            self::ATTENDANCE_VIEW,
-            self::ATTENDANCE_CREATE,
-            self::ATTENDANCE_UPDATE,
-            self::ATTENDANCE_RECAP,
+                self::ATTENDANCE_VIEW,
+                self::ATTENDANCE_RECAP,
 
-            self::GRADES_VIEW,
-            self::GRADES_CREATE,
-            self::GRADES_UPDATE,
-            self::GRADES_RECAP,
+                self::GRADES_VIEW,
+                self::GRADES_RECAP,
 
-            self::MATERIALS_VIEW,
-            self::MATERIALS_CREATE,
-            self::MATERIALS_UPDATE,
-            self::MATERIALS_DELETE,
+                self::MATERIALS_VIEW,
+                self::ASSIGNMENTS_VIEW,
 
-            self::ASSIGNMENTS_VIEW,
-            self::ASSIGNMENTS_CREATE,
-            self::ASSIGNMENTS_UPDATE,
-            self::ASSIGNMENTS_DELETE,
+                self::REPORTS_VIEW,
+                self::REPORTS_EXPORT,
 
-            self::REPORTS_VIEW,
+                self::REPORT_CARDS_VIEW,
+            ],
 
-            self::REPORT_CARDS_VIEW,
-        ],
+            'GURU' => [
+                self::STUDENTS_VIEW,
+                self::SUBJECTS_VIEW,
+                self::SCHEDULES_VIEW,
 
-        'SISWA' => [
-            self::STUDENTS_VIEW,
-            self::SCHEDULES_VIEW,
-            self::ATTENDANCE_VIEW,
-            self::GRADES_VIEW,
-            self::MATERIALS_VIEW,
-            self::ASSIGNMENTS_VIEW,
-            self::ASSIGNMENTS_SUBMIT,
-            self::REPORT_CARDS_VIEW,
-        ],
+                self::ATTENDANCE_VIEW,
+                self::ATTENDANCE_CREATE,
+                self::ATTENDANCE_UPDATE,
+                self::ATTENDANCE_RECAP,
 
-        default => [],
-    };
+                self::GRADES_VIEW,
+                self::GRADES_CREATE,
+                self::GRADES_UPDATE,
+                self::GRADES_RECAP,
+
+                self::MATERIALS_VIEW,
+                self::MATERIALS_CREATE,
+                self::MATERIALS_UPDATE,
+                self::MATERIALS_DELETE,
+
+                self::ASSIGNMENTS_VIEW,
+                self::ASSIGNMENTS_CREATE,
+                self::ASSIGNMENTS_UPDATE,
+                self::ASSIGNMENTS_DELETE,
+
+                self::REPORTS_VIEW,
+
+                self::REPORT_CARDS_VIEW,
+            ],
+
+            'SISWA' => [
+                self::STUDENTS_VIEW,
+                self::SUBJECTS_VIEW,
+                self::SCHEDULES_VIEW,
+
+                self::ATTENDANCE_VIEW,
+                self::GRADES_VIEW,
+
+                self::MATERIALS_VIEW,
+
+                self::ASSIGNMENTS_VIEW,
+                self::ASSIGNMENTS_SUBMIT,
+
+                self::REPORT_CARDS_VIEW,
+            ],
+
+            default => [],
+        };
     }
 }
