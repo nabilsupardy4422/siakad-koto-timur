@@ -10,13 +10,20 @@ export default function ForbiddenState({
   }
 
   return (
-    <div className="ui-state ui-state--forbidden" role="alert">
-      <div className="ui-state__icon" aria-hidden="true">
+    <div
+      className="ui-state ui-state--forbidden"
+      role="alert"
+    >
+      <div
+        className="ui-state__icon"
+        aria-hidden="true"
+      >
         403
       </div>
 
       <div className="ui-state__content">
         <strong>Akses ditolak</strong>
+
         <p>{message}</p>
 
         <button

@@ -4166,16 +4166,17 @@ body {
   color: #0f172a;
 }
 
-/* ========================================
-   UI STATE FOUNDATION
-   ======================================== */
+/* =========================================================
+   COMMON UI STATES
+   ========================================================= */
 
 .ui-state {
   display: flex;
   align-items: center;
   gap: 16px;
   width: 100%;
-  padding: 24px;
+  min-width: 0;
+  padding: 20px;
   border: 1px solid #dbe3ec;
   border-radius: 10px;
   background: #ffffff;
@@ -4183,16 +4184,18 @@ body {
 
 .ui-state__icon {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 0 44px;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
   border: 1px solid #dbe3ec;
-  border-radius: 50%;
-  color: #334155;
-  font-size: 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .ui-state__content {
@@ -4201,10 +4204,11 @@ body {
 
 .ui-state__content strong {
   display: block;
-  margin-bottom: 4px;
+  margin: 0 0 4px;
   color: #0f172a;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.4;
 }
 
 .ui-state__content p {
@@ -4217,17 +4221,17 @@ body {
 /* Loading */
 
 .ui-state--loading {
-  border-color: #dbe3ec;
+  min-height: 84px;
 }
 
 .ui-state__spinner {
   width: 24px;
   height: 24px;
-  flex: 0 0 auto;
-  border: 3px solid #dbe3ec;
-  border-top-color: #123f67;
+  flex: 0 0 24px;
+  border: 2px solid #dbe3ec;
+  border-top-color: #123f64;
   border-radius: 50%;
-  animation: ui-state-spin 0.8s linear infinite;
+  animation: ui-state-spin 700ms linear infinite;
 }
 
 @keyframes ui-state-spin {
@@ -4242,46 +4246,53 @@ body {
   background: #f8fafc;
 }
 
+.ui-state--empty .ui-state__icon {
+  background: #ffffff;
+}
+
 /* Error */
 
 .ui-state--error {
-  border-color: #fecaca;
+  border-color: #f0cccc;
   background: #fffafa;
 }
 
 .ui-state--error .ui-state__icon {
-  border-color: #fecaca;
-  color: #b42318;
+  border-color: #efc4c4;
+  background: #fff5f5;
+  color: #a43a3a;
 }
 
 /* Unauthorized */
 
 .ui-state--unauthorized {
-  border-color: #fed7aa;
-  background: #fffaf5;
+  border-color: #ead8bf;
+  background: #fffaf4;
 }
 
 .ui-state--unauthorized .ui-state__icon {
-  border-color: #fed7aa;
-  color: #c2410c;
+  border-color: #e8d2ae;
+  background: #fff8ed;
+  color: #9a641f;
 }
 
 /* Forbidden */
 
 .ui-state--forbidden {
-  border-color: #fecaca;
+  border-color: #efcccc;
   background: #fffafa;
 }
 
 .ui-state--forbidden .ui-state__icon {
-  border-color: #fecaca;
-  color: #b42318;
+  border-color: #efc4c4;
+  background: #fff5f5;
+  color: #a43a3a;
 }
 
-/* State button */
+/* Action */
 
 .ui-state__action {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .ui-state__button {
@@ -4289,158 +4300,49 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  margin-top: 14px;
-  padding: 8px 14px;
-  border: 1px solid #123f67;
-  border-radius: 7px;
-  background: #123f67;
+  margin-top: 12px;
+  padding: 8px 13px;
+  border: 1px solid #123f64;
+  border-radius: 6px;
+  background: #123f64;
   color: #ffffff;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 
 .ui-state__button:hover {
-  background: #0f3354;
+  border-color: #0e3453;
+  background: #0e3453;
 }
 
 .ui-state__button:focus-visible {
-  outline: 2px solid #123f67;
-  outline-offset: 2px;
+  outline: 2px solid #2c6a98;
+  outline-offset: 3px;
 }
+
+/* Mobile */
 
 @media (max-width: 640px) {
   .ui-state {
     align-items: flex-start;
-    padding: 18px;
+    gap: 12px;
+    padding: 16px;
   }
 
   .ui-state__icon {
+    flex-basis: 40px;
     width: 40px;
     height: 40px;
   }
 
   .ui-state__content strong {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .ui-state__content p {
     font-size: 12px;
-  }
-}
-
-/* ========================================
-   ACADEMIC CONTEXT FOUNDATION
-   ======================================== */
-
-.academic-context {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 18px;
-  border: 1px solid #dbe3ec;
-  border-radius: 10px;
-  background: #ffffff;
-}
-
-.academic-context__heading {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
-}
-
-.academic-context__heading span {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.academic-context__heading strong {
-  color: #0f172a;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.academic-context__fields {
-  display: flex;
-  gap: 12px;
-  min-width: 0;
-}
-
-.academic-context__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 190px;
-}
-
-.academic-context__field span {
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.academic-context__field select {
-  width: 100%;
-  min-height: 38px;
-  padding: 8px 34px 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #0f172a;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.academic-context__field select:hover:not(:disabled) {
-  border-color: #94a3b8;
-}
-
-.academic-context__field select:focus {
-  border-color: #123f67;
-  outline: 2px solid rgba(18, 63, 103, 0.12);
-  outline-offset: 1px;
-}
-
-.academic-context__field select:disabled {
-  background: #f8fafc;
-  color: #94a3b8;
-  cursor: not-allowed;
-}
-
-@media (max-width: 900px) {
-  .academic-context {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .academic-context__fields {
-    width: 100%;
-  }
-
-  .academic-context__field {
-    flex: 1;
-    min-width: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .academic-context {
-    padding: 14px;
-  }
-
-  .academic-context__fields {
-    flex-direction: column;
-  }
-
-  .academic-context__field {
-    width: 100%;
   }
 }
