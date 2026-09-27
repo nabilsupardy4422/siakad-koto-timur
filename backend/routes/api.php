@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\ClassMemberController;
 use App\Http\Controllers\Api\WaliKelasController;
 use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\AttendanceController;
 
 Route::post('/login', LoginController::class);
 
@@ -177,6 +178,38 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete(
             '/schedules/{schedule}',
             [ScheduleController::class, 'destroy']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Attendance
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/attendance',
+            [AttendanceController::class, 'index']
+        );
+
+        Route::get(
+            '/attendance/recap',
+            [AttendanceController::class, 'recap']
+        );
+    });
+
+    Route::middleware('role:GURU')->group(function (): void {
+        Route::post(
+            '/attendance',
+            [AttendanceController::class, 'store']
+        );
+
+        Route::put(
+            '/attendance/{attendance}',
+            [AttendanceController::class, 'update']
         );
     });
 });
