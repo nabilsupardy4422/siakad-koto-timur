@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ClassMemberController;
 use App\Http\Controllers\Api\WaliKelasController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\MaterialController;
 
 Route::post('/login', LoginController::class);
 
@@ -210,6 +211,48 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put(
             '/attendance/{attendance}',
             [AttendanceController::class, 'update']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Teaching Materials
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/materials',
+            [MaterialController::class, 'index']
+        );
+
+        Route::get(
+            '/materials/{material}',
+            [MaterialController::class, 'show']
+        );
+
+        Route::get(
+            '/materials/{material}/download',
+            [MaterialController::class, 'download']
+        );
+    });
+
+    Route::middleware('role:GURU')->group(function (): void {
+        Route::post(
+            '/materials',
+            [MaterialController::class, 'store']
+        );
+
+        Route::put(
+            '/materials/{material}',
+            [MaterialController::class, 'update']
+        );
+
+        Route::delete(
+            '/materials/{material}',
+            [MaterialController::class, 'destroy']
         );
     });
 });
