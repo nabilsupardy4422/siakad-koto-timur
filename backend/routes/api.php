@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\WaliKelasController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\MaterialController;
+use App\Http\Controllers\Api\GradeComponentController;
 
 Route::post('/login', LoginController::class);
 
@@ -253,6 +254,43 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete(
             '/materials/{material}',
             [MaterialController::class, 'destroy']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Grade Components
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/grade-components',
+            [GradeComponentController::class, 'index']
+        );
+
+        Route::get(
+            '/grade-components/{component}',
+            [GradeComponentController::class, 'show']
+        );
+    });
+
+    Route::middleware('role:GURU')->group(function (): void {
+        Route::post(
+            '/grade-components',
+            [GradeComponentController::class, 'store']
+        );
+
+        Route::put(
+            '/grade-components/{component}',
+            [GradeComponentController::class, 'update']
+        );
+
+        Route::delete(
+            '/grade-components/{component}',
+            [GradeComponentController::class, 'destroy']
         );
     });
 });
