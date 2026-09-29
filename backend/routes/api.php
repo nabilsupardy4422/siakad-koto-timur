@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\GradeComponentController;
+use App\Http\Controllers\Api\GradeController;
 
 Route::post('/login', LoginController::class);
 
@@ -291,6 +292,33 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete(
             '/grade-components/{component}',
             [GradeComponentController::class, 'destroy']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Grades
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/grades',
+            [GradeController::class, 'index']
+        );
+    });
+
+    Route::middleware('role:GURU')->group(function (): void {
+        Route::post(
+            '/grades',
+            [GradeController::class, 'store']
+        );
+
+        Route::put(
+            '/grades/{grade}',
+            [GradeController::class, 'update']
         );
     });
 });
