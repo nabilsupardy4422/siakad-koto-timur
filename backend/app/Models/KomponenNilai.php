@@ -35,4 +35,9 @@ class KomponenNilai extends Model
     {
         return $this->hasMany(Nilai::class);
     }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class);
+    }
 }

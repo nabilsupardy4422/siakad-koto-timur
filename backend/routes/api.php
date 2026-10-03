@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\GradeComponentController;
 use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\SubmissionController;
+use App\Http\Controllers\Api\AssignmentController;
 
 Route::post('/login', LoginController::class);
 
@@ -319,6 +321,78 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put(
             '/grades/{grade}',
             [GradeController::class, 'update']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assignments
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/assignments',
+            [AssignmentController::class, 'index']
+        );
+
+        Route::get(
+            '/assignments/{assignment}',
+            [AssignmentController::class, 'show']
+        );
+
+        Route::get(
+            '/assignments/{assignment}/download',
+            [AssignmentController::class, 'download']
+        )->name('assignments.download');
+    });
+
+    Route::middleware('role:GURU')->group(function (): void {
+        Route::post(
+            '/assignments',
+            [AssignmentController::class, 'store']
+        );
+
+        Route::put(
+            '/assignments/{assignment}',
+            [AssignmentController::class, 'update']
+        );
+
+        Route::delete(
+            '/assignments/{assignment}',
+            [AssignmentController::class, 'destroy']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Submissions
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:GURU,SISWA')->group(function (): void {
+        Route::get(
+            '/assignments/{assignment}/submissions',
+            [SubmissionController::class, 'index']
+        );
+
+        Route::get(
+            '/submissions/{submission}',
+            [SubmissionController::class, 'show']
+        );
+    });
+
+    Route::middleware('role:SISWA')->group(function (): void {
+        Route::post(
+            '/assignments/{assignment}/submissions',
+            [SubmissionController::class, 'store']
+        );
+
+        Route::put(
+            '/submissions/{submission}',
+            [SubmissionController::class, 'update']
         );
     });
 });

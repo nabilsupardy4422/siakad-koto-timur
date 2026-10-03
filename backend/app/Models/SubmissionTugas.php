@@ -13,8 +13,9 @@ class SubmissionTugas extends Model
     protected $table = 'submission_tugas';
 
     protected $fillable = [
-        'bahan_ajar_id',
+        'assignment_id',
         'siswa_id',
+        'jawaban',
         'file_path',
         'file_name',
         'file_mime_type',
@@ -32,9 +33,9 @@ class SubmissionTugas extends Model
         ];
     }
 
-    public function bahanAjar(): BelongsTo
+    public function assignment(): BelongsTo
     {
-        return $this->belongsTo(BahanAjar::class);
+        return $this->belongsTo(Assignment::class);
     }
 
     public function siswa(): BelongsTo
