@@ -1,26 +1,27 @@
 <?php
 
 use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AssignmentController;
+use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\MeController;
-use App\Http\Controllers\Api\HealthController;
-use App\Http\Controllers\Api\StudentController;
-use App\Http\Controllers\Api\TeacherController;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\ClassMemberController;
-use App\Http\Controllers\Api\WaliKelasController;
-use App\Http\Controllers\Api\ScheduleController;
-use App\Http\Controllers\Api\AttendanceController;
-use App\Http\Controllers\Api\MaterialController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GradeComponentController;
 use App\Http\Controllers\Api\GradeController;
-use App\Http\Controllers\Api\SubmissionController;
-use App\Http\Controllers\Api\AssignmentController;
+use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\ReportCardController;
-use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\SubmissionController;
+use App\Http\Controllers\Api\SubjectController;
+use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\WaliKelasController;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/login', LoginController::class);
 
@@ -453,6 +454,21 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete(
             '/report-cards/{reportCard}',
             [ReportCardController::class, 'destroy']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reporting / Rekap
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
+    )->group(function (): void {
+        Route::get(
+            '/reports/{reportType}',
+            [ReportController::class, 'index']
         );
     });
 });
