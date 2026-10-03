@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\GradeComponentController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\AssignmentController;
+use App\Http\Controllers\Api\ReportCardController;
 
 Route::post('/login', LoginController::class);
 
@@ -393,6 +394,41 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::put(
             '/submissions/{submission}',
             [SubmissionController::class, 'update']
+        );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Report Cards
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:TU,SISWA')->group(function (): void {
+        Route::get(
+            '/report-cards',
+            [ReportCardController::class, 'index']
+        );
+
+        Route::get(
+            '/report-cards/{reportCard}',
+            [ReportCardController::class, 'show']
+        );
+
+        Route::get(
+            '/report-cards/{reportCard}/download',
+            [ReportCardController::class, 'download']
+        );
+    });
+
+    Route::middleware('role:TU')->group(function (): void {
+        Route::post(
+            '/report-cards',
+            [ReportCardController::class, 'store']
+        );
+
+        Route::delete(
+            '/report-cards/{reportCard}',
+            [ReportCardController::class, 'destroy']
         );
     });
 });
