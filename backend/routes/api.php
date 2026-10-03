@@ -20,12 +20,24 @@ use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\ReportCardController;
+use App\Http\Controllers\Api\DashboardController;
 
 Route::post('/login', LoginController::class);
 
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', MeController::class);
     Route::post('/logout', LogoutController::class);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/dashboard',
+        DashboardController::class
+    )->middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA');
 
     /*
     |--------------------------------------------------------------------------
@@ -78,6 +90,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/students/{student}', [StudentController::class, 'destroy']);
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Subjects
+    |--------------------------------------------------------------------------
+    */
+
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/subjects', [SubjectController::class, 'index']);
         Route::get('/subjects/{subject}', [SubjectController::class, 'show']);
@@ -89,7 +107,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::delete('/subjects/{subject}', [SubjectController::class, 'destroy']);
     });
 
-      /*
+    /*
     |--------------------------------------------------------------------------
     | Classes
     |--------------------------------------------------------------------------
@@ -120,6 +138,12 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
         Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Homeroom Assignments
+    |--------------------------------------------------------------------------
+    */
 
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU')->group(function (): void {
         Route::get(
