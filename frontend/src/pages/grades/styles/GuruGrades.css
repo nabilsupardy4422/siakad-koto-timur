@@ -1,0 +1,231 @@
+.guru-grades {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .guru-grades__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  
+  .guru-grades__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .guru-grades__description {
+    margin: 0.4rem 0 0;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.9rem;
+  }
+  
+  .guru-grades__identity {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  
+  .guru-grades__identity > div,
+  .guru-grades__schedule-detail > div,
+  .guru-grades__selected-component > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  
+  .guru-grades__label {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.8rem;
+  }
+  
+  .guru-grades__schedule {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  
+  .guru-grades__schedule-detail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 0.75rem;
+  }
+  
+  .guru-grades__schedule-detail strong,
+  .guru-grades__selected-component strong {
+    overflow-wrap: anywhere;
+  }
+  
+  .guru-grades__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .guru-grades__action-column {
+    width: 150px;
+    white-space: nowrap;
+  }
+  
+  .guru-grades__readonly-notice {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 0.5rem;
+    color: var(--text-secondary, #64748b);
+    background: var(--surface-secondary, #f8fafc);
+    font-size: 0.85rem;
+  }
+  
+  .guru-grades__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .guru-grades__form-error {
+    padding: 0.75rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.875rem;
+  }
+  
+  /* =========================================
+     INPUT NILAI SISWA
+  ========================================= */
+  
+  .guru-grades__grade-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+  
+  .guru-grades__selected-component {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 0.75rem;
+    background: var(--surface-secondary, #f8fafc);
+  }
+  
+  .guru-grades__table-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
+  }
+  
+  .guru-grades__number-column {
+    width: 55px;
+    text-align: center;
+  }
+  
+  .guru-grades__grade-column {
+    width: 130px;
+    min-width: 110px;
+  }
+  
+  .guru-grades__note-column {
+    min-width: 200px;
+  }
+  
+  .guru-grades__grade-action-column {
+    width: 130px;
+    min-width: 110px;
+  }
+  
+  .guru-grades__student-name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 150px;
+  }
+  
+  .guru-grades__student-name strong {
+    overflow-wrap: anywhere;
+  }
+  
+  .guru-grades__grade-status {
+    color: #15803d;
+    font-size: 0.75rem;
+  }
+  
+  .guru-grades__grade-input,
+  .guru-grades__note-input {
+    min-width: 0;
+  }
+  
+  .guru-grades__grade-input .ui-field,
+  .guru-grades__note-input .ui-field {
+    margin: 0;
+  }
+  
+  .guru-grades__grade-input input,
+  .guru-grades__note-input input {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .guru-grades__grade-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  
+  .guru-grades__row-error {
+    max-width: 180px;
+    color: #b91c1c;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  
+  @media (max-width: 768px) {
+    .guru-grades__schedule-detail {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  
+    .guru-grades__selected-component {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .guru-grades__identity,
+    .guru-grades__schedule-detail,
+    .guru-grades__selected-component {
+      grid-template-columns: 1fr;
+    }
+  
+    .guru-grades__header {
+      flex-direction: column;
+    }
+  
+    .guru-grades__title {
+      font-size: 1.3rem;
+    }
+  
+    .guru-grades__table-info {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }

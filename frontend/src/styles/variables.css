@@ -1,0 +1,47 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@500;600;700;800&display=swap");
+
+/* ==================================================
+   SIAKAD KOTO TIMUR
+   Design Tokens
+   ================================================== */
+
+:root {
+  --color-white: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-soft: #f1f5f9;
+
+  --color-navy-950: #0f172a;
+  --color-navy-900: #172033;
+
+  --color-primary-800: #124d7c;
+  --color-primary-700: #155f96;
+  --color-primary-600: #1874b4;
+  --color-primary-100: #eaf4fb;
+
+  --color-text: #334155;
+  --color-text-muted: #64748b;
+  --color-text-soft: #94a3b8;
+
+  --color-border: #e2e8f0;
+  --color-border-soft: #edf1f5;
+
+  --font-heading: "Montserrat", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  --container: 1160px;
+  --container-wide: 1240px;
+
+  --space-section: clamp(5rem, 9vw, 8rem);
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+
+  --shadow-navbar: 0 8px 30px rgb(15 23 42 / 0.06);
+
+  --shadow-card: 0 10px 30px rgb(15 23 42 / 0.045);
+
+  --transition-fast: 160ms ease;
+  --transition-base: 220ms ease;
+}

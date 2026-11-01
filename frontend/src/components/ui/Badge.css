@@ -1,0 +1,35 @@
+.ui-badge--default {
+  border-color: #d8e1e8;
+  background: #f5f8fa;
+  color: #526a7d;
+}
+
+.ui-badge--neutral {
+  border-color: #dfe4e8;
+  background: #f7f8f9;
+  color: #687783;
+}
+
+.ui-badge--success {
+  border-color: #cfe1d7;
+  background: #f2f8f4;
+  color: #3f7353;
+}
+
+.ui-badge--warning {
+  border-color: #eadab9;
+  background: #fcf8ee;
+  color: #8a6a2f;
+}
+
+.ui-badge--danger {
+  border-color: #e7cccc;
+  background: #fdf5f5;
+  color: #9a4b4b;
+}
+
+.ui-badge--info {
+  border-color: #cbddea;
+  background: #f1f7fb;
+  color: #316587;
+}

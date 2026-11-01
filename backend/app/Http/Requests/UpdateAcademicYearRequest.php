@@ -19,6 +19,12 @@ class UpdateAcademicYearRequest extends FormRequest
                 'required',
                 'integer',
                 'digits:4',
+                Rule::unique('tahun_akademik', 'tahun_mulai')
+                    ->where(fn ($query) => $query
+                        ->where('tahun_selesai', $this->input('tahun_selesai'))
+                        ->where('semester', $this->input('semester'))
+                    )
+                    ->ignore($this->route('academicYear')->id),
             ],
             'tahun_selesai' => [
                 'required',
@@ -42,6 +48,7 @@ class UpdateAcademicYearRequest extends FormRequest
             'tahun_mulai.required' => 'Tahun mulai wajib diisi.',
             'tahun_mulai.integer' => 'Tahun mulai harus berupa angka.',
             'tahun_mulai.digits' => 'Tahun mulai harus terdiri dari 4 digit.',
+            'tahun_mulai.unique' => 'Kombinasi tahun akademik dan semester tersebut sudah terdaftar.',
 
             'tahun_selesai.required' => 'Tahun selesai wajib diisi.',
             'tahun_selesai.integer' => 'Tahun selesai harus berupa angka.',

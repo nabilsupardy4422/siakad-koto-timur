@@ -9,6 +9,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+use App\Models\Kelas;
+use App\Models\TahunAkademik;
+use App\Models\WaliKelas;
 
 class TeacherTest extends TestCase
 {
@@ -67,6 +70,81 @@ class TeacherTest extends TestCase
             'alamat' => 'Alamat Test',
         ], $overrides));
     }
+
+
+
+    public function test_tu_can_view_available_teacher_accounts(): void
+    {
+        $tu = $this->createUser('TU');
+        $availableUser = $this->createTeacherUser();
+        $anotherAvailableUser = $this->createTeacherUser();
+
+        // Akun ini sudah memiliki profil Guru, sehingga tidak boleh tersedia.
+        $this->createTeacher();
+
+        Sanctum::actingAs($tu);
+
+        $response = $this->getJson('/api/teacher-accounts/available');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment([
+                'id' => $availableUser->id,
+                'username' => $availableUser->username,
+                'name' => $availableUser->name,
+                'email' => $availableUser->email,
+            ])
+            ->assertJsonFragment([
+                'id' => $anotherAvailableUser->id,
+                'username' => $anotherAvailableUser->username,
+                'name' => $anotherAvailableUser->name,
+                'email' => $anotherAvailableUser->email,
+            ]);
+    }
+
+
+    public function test_available_teacher_accounts_only_include_active_accounts(): void
+    {
+        $tu = $this->createUser('TU');
+        $activeUser = $this->createTeacherUser();
+
+        $inactiveUser = $this->createTeacherUser();
+        $inactiveUser->update([
+            'account_status' => 'inactive',
+        ]);
+
+        Sanctum::actingAs($tu);
+
+        $response = $this->getJson('/api/teacher-accounts/available');
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonFragment([
+                'id' => $activeUser->id,
+            ])
+            ->assertJsonMissing([
+                'id' => $inactiveUser->id,
+            ]);
+    }
+
+    public function test_non_tu_cannot_view_available_teacher_accounts(): void
+    {
+        $guru = $this->createUser('GURU');
+
+        Sanctum::actingAs($guru);
+
+        $this->getJson('/api/teacher-accounts/available')
+            ->assertForbidden();
+    }
+
+    public function test_guest_cannot_view_available_teacher_accounts(): void
+    {
+        $this->getJson('/api/teacher-accounts/available')
+            ->assertUnauthorized();
+    }
+
 
     public function test_guest_cannot_access_teacher_list(): void
     {
@@ -217,6 +295,53 @@ class TeacherTest extends TestCase
 
         $this->assertDatabaseMissing('guru', [
             'id' => $teacher->id,
+        ]);
+    }
+
+
+
+    public function test_tu_cannot_delete_teacher_with_homeroom_history(): void
+    {
+        $tu = $this->createUser('TU');
+        $teacher = $this->createTeacher();
+
+        $academicYear = TahunAkademik::create([
+            'tahun_mulai' => 2026,
+            'tahun_selesai' => 2027,
+            'semester' => 'GANJIL',
+            'is_active' => true,
+        ]);
+
+        $class = Kelas::create([
+            'tahun_akademik_id' => $academicYear->id,
+            'nama' => 'IPA 1',
+            'tingkat' => 10,
+        ]);
+
+        $assignment = WaliKelas::create([
+            'guru_id' => $teacher->id,
+            'kelas_id' => $class->id,
+            'tahun_akademik_id' => $academicYear->id,
+            'tanggal_mulai' => '2026-07-01',
+            'tanggal_selesai' => null,
+        ]);
+
+        Sanctum::actingAs($tu);
+
+        $this->deleteJson("/api/teachers/{$teacher->id}")
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'message',
+                'Data guru tidak dapat dihapus karena masih memiliki riwayat penugasan Wali Kelas.'
+            );
+
+        $this->assertDatabaseHas('guru', [
+            'id' => $teacher->id,
+        ]);
+
+        $this->assertDatabaseHas('wali_kelas', [
+            'id' => $assignment->id,
+            'guru_id' => $teacher->id,
         ]);
     }
 

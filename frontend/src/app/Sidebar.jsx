@@ -1,23 +1,32 @@
 import { NavLink } from 'react-router-dom'
 import navigation from '../Config/navigation'
 import { useAuth } from '../context/useAuth'
+import './Sidebar.css'
 
 function hasPermission(item, permissions) {
-  if (!item.permission) {
-    return true
-  }
-
+  if (!item.permission) return true
   return permissions.includes(item.permission)
 }
 
 function hasAssignment(item, assignments) {
-  if (!item.assignment) {
-    return true
+  if (!item.assignment) return true
+  return assignments.some((assignment) => assignment.type === item.assignment)
+}
+
+function canAccessMenuByRole(item, role) {
+  const roleValue =
+    typeof role === 'string'
+      ? role
+      : role?.code || role?.name || role?.nama || ''
+
+  const normalizedRole = String(roleValue).trim().toUpperCase()
+
+  // Bahan Ajar hanya ditampilkan untuk Guru dan Siswa.
+  if (item.label === 'Bahan Ajar') {
+    return normalizedRole.includes('GURU') || normalizedRole.includes('SISWA')
   }
 
-  return assignments.some(
-    (assignment) => assignment.type === item.assignment,
-  )
+  return true
 }
 
 function MenuIcon({ label }) {
@@ -76,6 +85,15 @@ function MenuIcon({ label }) {
         <svg {...commonProps}>
           <rect x="5" y="4" width="14" height="16" rx="2" />
           <path d="M8 8h8M8 12h8M8 16h5" />
+        </svg>
+      )
+
+    case 'Anggota Kelas':
+      return (
+        <svg {...commonProps}>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3.5 20c.5-3.2 2.3-5 5.5-5" />
+          <path d="M16 11v6M13 14h6" />
         </svg>
       )
 
@@ -165,17 +183,18 @@ function MenuIcon({ label }) {
 }
 
 export default function Sidebar({ open, onClose }) {
-  const { role, permissions, assignments } = useAuth()
+  const { role, permissions = [], assignments = [] } = useAuth()
 
   const roleCode =
     typeof role === 'string'
-      ? role
-      : role?.code || role?.name || null
+      ? role.trim().toUpperCase()
+      : String(role?.code || role?.name || role?.nama || '').trim().toUpperCase()
 
   const items = navigation[roleCode] || []
 
   const visibleItems = items.filter(
     (item) =>
+      canAccessMenuByRole(item, role) &&
       hasPermission(item, permissions) &&
       hasAssignment(item, assignments),
   )
@@ -183,31 +202,21 @@ export default function Sidebar({ open, onClose }) {
   return (
     <>
       <div
-        className={`app-sidebar-backdrop ${
-          open ? 'is-visible' : ''
-        }`}
+        className={`app-sidebar-backdrop ${open ? 'is-visible' : ''}`}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <aside
-        className={`app-sidebar ${
-          open ? 'is-open' : ''
-        }`}
-      >
+      <aside className={`app-sidebar ${open ? 'is-open' : ''}`}>
         <div className="app-sidebar__header">
           <div className="app-sidebar__brand">
             <img
               src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
               alt="Logo SMA Negeri 1 V Koto Timur"
             />
-
             <div>
               <strong>SIAKAD</strong>
-
-              <span>
-                SMA Negeri 1 V Koto Timur
-              </span>
+              <span>SMA Negeri 1 V Koto Timur</span>
             </div>
           </div>
 
@@ -221,10 +230,7 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        <nav
-          className="app-sidebar__nav"
-          aria-label="Navigasi utama"
-        >
+        <nav className="app-sidebar__nav" aria-label="Navigasi utama">
           {visibleItems.map((item, index) =>
             item.section ? (
               <div
@@ -237,26 +243,16 @@ export default function Sidebar({ open, onClose }) {
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={
-                  item.path ===
-                  '/app/dashboard'
-                }
+                end={item.path === '/app/dashboard'}
                 className={({ isActive }) =>
-                  `app-sidebar__link ${
-                    isActive
-                      ? 'is-active'
-                      : ''
-                  }`
+                  `app-sidebar__link ${isActive ? 'is-active' : ''}`
                 }
                 onClick={onClose}
               >
                 <span className="app-sidebar__link-icon">
                   <MenuIcon label={item.label} />
                 </span>
-
-                <span className="app-sidebar__link-label">
-                  {item.label}
-                </span>
+                <span className="app-sidebar__link-label">{item.label}</span>
               </NavLink>
             ),
           )}
@@ -264,9 +260,7 @@ export default function Sidebar({ open, onClose }) {
 
         <div className="app-sidebar__footer">
           <strong>SIAKAD Koto Timur</strong>
-          <span>
-            Academic Information System
-          </span>
+          <span>Academic Information System</span>
         </div>
       </aside>
     </>

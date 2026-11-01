@@ -7,6 +7,7 @@ use App\Models\TahunAkademik;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use App\Models\Kelas;
 
 class AcademicYearTest extends TestCase
 {
@@ -172,14 +173,13 @@ class AcademicYearTest extends TestCase
     public function test_tu_can_update_academic_year(): void
     {
         $user = $this->createUserWithRole('TU');
-
         $academicYear = TahunAkademik::create($this->validPayload());
 
         $payload = [
             'tahun_mulai' => 2027,
             'tahun_selesai' => 2028,
             'semester' => 'GENAP',
-            'is_active' => false,
+            'is_active' => true,
         ];
 
         $response = $this
@@ -191,14 +191,71 @@ class AcademicYearTest extends TestCase
             ->assertJsonPath('data.tahun_mulai', 2027)
             ->assertJsonPath('data.tahun_selesai', 2028)
             ->assertJsonPath('data.semester', 'GENAP')
-            ->assertJsonPath('data.is_active', false);
+            ->assertJsonPath('data.is_active', true);
 
         $this->assertDatabaseHas('tahun_akademik', [
             'id' => $academicYear->id,
             'tahun_mulai' => 2027,
             'tahun_selesai' => 2028,
             'semester' => 'GENAP',
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_tu_cannot_deactivate_the_only_active_academic_year(): void
+    {
+        $user = $this->createUserWithRole('TU');
+        $academicYear = TahunAkademik::create($this->validPayload());
+
+        $response = $this
+            ->withToken($this->tokenFor($user))
+            ->putJson("/api/academic-years/{$academicYear->id}", array_merge(
+                $this->validPayload(),
+                ['is_active' => false]
+            ));
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_active']);
+
+        $this->assertDatabaseHas('tahun_akademik', [
+            'id' => $academicYear->id,
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_activating_another_academic_year_deactivates_the_previous_one(): void
+    {
+        $user = $this->createUserWithRole('TU');
+        $activeYear = TahunAkademik::create($this->validPayload());
+        $nextYear = TahunAkademik::create([
+            'tahun_mulai' => 2027,
+            'tahun_selesai' => 2028,
+            'semester' => 'GENAP',
             'is_active' => false,
+        ]);
+
+        $response = $this
+            ->withToken($this->tokenFor($user))
+            ->putJson("/api/academic-years/{$nextYear->id}", [
+                'tahun_mulai' => 2027,
+                'tahun_selesai' => 2028,
+                'semester' => 'GENAP',
+                'is_active' => true,
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('data.id', $nextYear->id)
+            ->assertJsonPath('data.is_active', true);
+
+        $this->assertDatabaseHas('tahun_akademik', [
+            'id' => $activeYear->id,
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('tahun_akademik', [
+            'id' => $nextYear->id,
+            'is_active' => true,
         ]);
     }
 
@@ -226,7 +283,10 @@ class AcademicYearTest extends TestCase
     {
         $user = $this->createUserWithRole('TU');
 
-        $academicYear = TahunAkademik::create($this->validPayload());
+        $academicYear = TahunAkademik::create(array_merge(
+            $this->validPayload(),
+            ['is_active' => false]
+        ));
 
         $response = $this
             ->withToken($this->tokenFor($user))
@@ -258,6 +318,64 @@ class AcademicYearTest extends TestCase
             ->assertJson([
                 'message' => 'Anda tidak memiliki akses ke resource ini.',
             ]);
+    }
+
+    public function test_tu_cannot_delete_active_academic_year(): void
+    {
+        $user = $this->createUserWithRole('TU');
+        $academicYear = TahunAkademik::create($this->validPayload());
+
+        $response = $this
+            ->withToken($this->tokenFor($user))
+            ->deleteJson("/api/academic-years/{$academicYear->id}");
+
+        $response
+            ->assertUnprocessable()
+            ->assertJson([
+                'message' => 'Tahun akademik aktif tidak dapat dihapus. Aktifkan periode pengganti terlebih dahulu.',
+            ]);
+
+        $this->assertDatabaseHas('tahun_akademik', [
+            'id' => $academicYear->id,
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_tu_cannot_delete_academic_year_used_by_class(): void
+    {
+        $user = $this->createUserWithRole('TU');
+
+        $academicYear = TahunAkademik::create(array_merge(
+            $this->validPayload(),
+            ['is_active' => false]
+        ));
+
+        $class = Kelas::create([
+            'tahun_akademik_id' => $academicYear->id,
+            'nama' => 'IPA 1',
+            'tingkat' => 10,
+        ]);
+
+        $response = $this
+            ->withToken($this->tokenFor($user))
+            ->deleteJson("/api/academic-years/{$academicYear->id}");
+
+        $response
+            ->assertUnprocessable()
+            ->assertJson([
+                'message' => 'Tahun akademik tidak dapat dihapus karena masih digunakan oleh data kelas atau data akademik lainnya.',
+            ]);
+
+        $this->assertDatabaseHas('tahun_akademik', [
+            'id' => $academicYear->id,
+        ]);
+
+        $this->assertDatabaseHas('kelas', [
+            'id' => $class->id,
+            'tahun_akademik_id' => $academicYear->id,
+            'nama' => 'IPA 1',
+            'tingkat' => 10,
+        ]);
     }
 
     public function test_unauthenticated_user_cannot_access_academic_years(): void

@@ -1,0 +1,46 @@
+.ui-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 24px;
+}
+
+.ui-page-header__content {
+  min-width: 0;
+}
+
+.ui-page-header__eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: #246a9f;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.ui-page-header__title {
+  margin: 0;
+  color: #102a40;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.ui-page-header__description {
+  max-width: 650px;
+  margin: 9px 0 0;
+  color: #718394;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ui-page-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}

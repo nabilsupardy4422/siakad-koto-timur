@@ -1,0 +1,32 @@
+/* =========================================================
+   BREADCRUMB
+   ========================================================= */
+
+   .app-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: #718292;
+    font-size: 10px;
+    line-height: 1;
+  }
+  
+  .app-breadcrumb a {
+    color: #718292;
+    font-weight: 550;
+    text-decoration: none;
+  }
+  
+  .app-breadcrumb a:hover {
+    color: #1d608f;
+  }
+  
+  .app-breadcrumb span[aria-hidden="true"] {
+    color: #b0bcc6;
+  }
+  
+  .app-breadcrumb span[aria-current="page"] {
+    color: #263f55;
+    font-weight: 700;
+  }

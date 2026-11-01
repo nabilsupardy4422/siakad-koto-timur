@@ -639,4 +639,40 @@ class ClassTest extends TestCase
             'nama' => 'Mapel Test ' . uniqid(),
         ]);
     }
+
+
+public function test_same_class_name_is_allowed_in_different_grade_levels(): void
+{
+    $user = $this->createUser('TU');
+    $academicYear = $this->createAcademicYear();
+
+    $this->createClass($academicYear, 'IPA 1', 10);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/classes', [
+        'tahun_akademik_id' => $academicYear->id,
+        'nama' => 'IPA 1',
+        'tingkat' => 11,
+    ])->assertCreated();
+}
+
+public function test_class_rejects_grade_level_outside_sma_levels(): void
+{
+    $user = $this->createUser('TU');
+    $academicYear = $this->createAcademicYear();
+
+    Sanctum::actingAs($user);
+
+    foreach ([0, 9, 13, 255] as $grade) {
+        $this->postJson('/api/classes', [
+            'tahun_akademik_id' => $academicYear->id,
+            'nama' => 'Kelas Uji ' . $grade,
+            'tingkat' => $grade,
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['tingkat']);
+    }
+}
+
 }

@@ -1,0 +1,62 @@
+  .ui-input {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+    padding: 0 11px;
+    border: 1px solid #cfd9e1;
+    border-radius: 7px;
+    outline: none;
+    background: #ffffff;
+    color: #20394f;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      background-color 140ms ease;
+  }
+  
+  .ui-input::placeholder {
+    color: #a1adb7;
+  }
+  
+  .ui-input:hover:not(:disabled):not(:focus) {
+    border-color: #b9c7d2;
+  }
+  
+  .ui-input:focus {
+    border-color: #3978a5;
+    box-shadow: 0 0 0 3px rgba(57, 120, 165, 0.1);
+  }
+  
+  .ui-input:disabled {
+    background: #f3f6f8;
+    color: #8b99a5;
+    cursor: not-allowed;
+  }
+  
+  .ui-input[readonly] {
+    background: #f8fafb;
+  }
+  
+  .ui-input--error {
+    border-color: #c87979;
+  }
+  
+  .ui-input--error:focus {
+    border-color: #a94c4c;
+    box-shadow: 0 0 0 3px rgba(169, 76, 76, 0.1);
+  }
+  
+  @media (max-width: 640px) {
+    .ui-input {
+      min-height: 42px;
+    }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .ui-input {
+      transition: none;
+    }
+  }

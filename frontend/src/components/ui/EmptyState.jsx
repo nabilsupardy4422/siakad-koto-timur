@@ -1,3 +1,5 @@
+import './State.css'
+
 export default function EmptyState({
   title = "Belum ada data",
   message = "Belum ada data yang tersedia untuk ditampilkan.",

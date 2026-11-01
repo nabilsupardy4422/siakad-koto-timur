@@ -1,0 +1,244 @@
+
+.tu-grades {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .tu-grades__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  
+  .tu-grades__title {
+    margin: 0;
+    color: var(--text-primary, #0f172a);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .tu-grades__description {
+    margin: 0.4rem 0 0;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  
+  .tu-grades__filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  
+  .tu-grades__filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+  }
+  
+  .tu-grades__inline-error {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    color: #b91c1c;
+    background: #fef2f2;
+    font-size: 0.85rem;
+  }
+  
+  .tu-grades__filter-info {
+    margin: 1rem 0 0;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.8rem;
+  }
+  
+  .tu-grades__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.45rem;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  
+  .tu-grades__button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+  
+  .tu-grades__button--primary {
+    border-color: var(--primary-color, #16456b);
+    color: #fff;
+    background: var(--primary-color, #16456b);
+  }
+  
+  .tu-grades__button--primary:hover:not(:disabled) {
+    background: var(--primary-hover, #123957);
+  }
+  
+  .tu-grades__button--secondary {
+    border-color: var(--border-color, #cbd5e1);
+    color: var(--text-primary, #334155);
+    background: var(--surface-primary, #fff);
+  }
+  
+  .tu-grades__button--secondary:hover:not(:disabled) {
+    background: var(--surface-secondary, #f1f5f9);
+  }
+  
+  .tu-grades__summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 0.65rem;
+    background: var(--surface-secondary, #f8fafc);
+  }
+  
+  .tu-grades__summary > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 130px;
+  }
+  
+  .tu-grades__summary span {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.8rem;
+  }
+  
+  .tu-grades__summary strong {
+    color: var(--text-primary, #0f172a);
+    font-size: 1.15rem;
+  }
+  
+  .tu-grades__table-wrapper {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+  }
+  
+  .tu-grades__number {
+    width: 55px;
+    text-align: center;
+  }
+  
+  .tu-grades__score {
+    color: var(--text-primary, #0f172a);
+    font-weight: 700;
+  }
+  
+  .tu-grades__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
+  }
+  
+  .tu-grades__pagination-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  @media (max-width: 1024px) {
+    .tu-grades__filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .tu-grades__header {
+      flex-direction: column;
+    }
+  
+    .tu-grades__title {
+      font-size: 1.3rem;
+    }
+  
+    .tu-grades__filters {
+      grid-template-columns: 1fr;
+    }
+  
+    .tu-grades__pagination {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  
+    .tu-grades__pagination-actions {
+      width: 100%;
+    }
+  
+    .tu-grades__pagination-actions .tu-grades__button {
+      flex: 1;
+    }
+  }
+  
+  
+.tu-grades__status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  .tu-grades__status--complete {
+    color: #166534;
+    background: #dcfce7;
+  }
+  
+  .tu-grades__status--pending {
+    color: #92400e;
+    background: #fef3c7;
+  }
+  
+  .tu-grades__unassessed {
+    color: var(--text-secondary, #64748b);
+  }
+  
+  .tu-grades__page-info {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
+  }
+  
+  .tu-grades__filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  
+  @media (max-width: 1024px) {
+    .tu-grades__filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .tu-grades__filters {
+      grid-template-columns: 1fr;
+    }
+  }
+  

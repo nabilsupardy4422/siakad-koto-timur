@@ -1,5 +1,6 @@
 import Breadcrumb from './Breadcrumb'
 import UserMenu from './UserMenu'
+import './Topbar.css'
 
 export default function Topbar({ onMenuClick }) {
   return (

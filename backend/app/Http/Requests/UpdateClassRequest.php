@@ -27,17 +27,21 @@ class UpdateClassRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('kelas', 'nama')
-                    ->where(fn ($query) => $query->where(
-                        'tahun_akademik_id',
-                        $this->integer('tahun_akademik_id')
-                    ))
+                    ->where(fn ($query) => $query
+                        ->where(
+                            'tahun_akademik_id',
+                            $this->integer('tahun_akademik_id')
+                        )
+                        ->where(
+                            'tingkat',
+                            $this->integer('tingkat')
+                        ))
                     ->ignore($class->id),
             ],
             'tingkat' => [
                 'required',
                 'integer',
-                'min:0',
-                'max:255',
+                Rule::in([10, 11, 12]),
             ],
         ];
     }

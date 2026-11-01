@@ -1,0 +1,49 @@
+/* =========================================================
+   APPLICATION SHELL
+   ========================================================= */
+
+   .app-shell {
+    min-height: 100vh;
+    background: #f5f7fa;
+    color: #162b3d;
+  }
+  
+  .app-shell__content {
+    min-height: 100vh;
+    margin-left: 268px;
+  }
+  
+  .app-shell__main {
+    width: min(1360px, calc(100% - 64px));
+    margin: 0 auto;
+    padding: 32px 0 56px;
+  }
+  
+  
+  /* =========================================================
+     APP SHELL RESPONSIVE
+     ========================================================= */
+  
+  @media (max-width: 1100px) {
+    .app-shell__main {
+      width: calc(100% - 48px);
+    }
+  }
+  
+  @media (max-width: 900px) {
+    .app-shell__content {
+      margin-left: 0;
+    }
+  
+    .app-shell__main {
+      width: calc(100% - 40px);
+      padding-top: 27px;
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .app-shell__main {
+      width: calc(100% - 28px);
+      padding-top: 22px;
+    }
+  }

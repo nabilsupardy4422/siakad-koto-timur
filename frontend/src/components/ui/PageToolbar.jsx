@@ -1,3 +1,5 @@
+import './PageToolbar.css'
+
 export default function PageToolbar({
   search = null,
   filters = null,

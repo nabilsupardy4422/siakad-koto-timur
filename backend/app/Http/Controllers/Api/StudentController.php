@@ -312,4 +312,19 @@ class StudentController extends Controller
             ->whereIn('kelas_id', $classIds)
             ->exists();
     }
+
+    public function availableAccounts(): JsonResponse
+    {
+        $accounts = User::query()
+            ->select(['id', 'username', 'name', 'email'])
+            ->where('account_status', 'active')
+            ->whereHas('role', function (Builder $query): void {
+                $query->where('code', 'SISWA');
+            })
+            ->whereDoesntHave('siswa')
+            ->orderBy('name')
+            ->get();
+
+        return ApiResponse::success($accounts);
+    }
 }

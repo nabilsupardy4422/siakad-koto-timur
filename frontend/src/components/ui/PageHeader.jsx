@@ -1,3 +1,5 @@
+import './PageHeader.css'
+
 export default function PageHeader({
     eyebrow = '',
     title,

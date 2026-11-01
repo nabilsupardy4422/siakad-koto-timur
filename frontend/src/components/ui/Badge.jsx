@@ -1,3 +1,5 @@
+import './Badge.css'
+
 const variants = {
     default: 'default',
     success: 'success',

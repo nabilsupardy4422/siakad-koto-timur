@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTeacherRequest;
 use App\Http\Requests\UpdateTeacherRequest;
@@ -10,6 +13,7 @@ use App\Models\Guru;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\WaliKelas;
 
 class TeacherController extends Controller
 {
@@ -95,10 +99,35 @@ class TeacherController extends Controller
 
     public function destroy(Guru $teacher): JsonResponse
     {
+        $hasHomeroomHistory = WaliKelas::query()
+            ->where('guru_id', $teacher->id)
+            ->exists();
+
+        if ($hasHomeroomHistory) {
+            return response()->json([
+                'message' => 'Data guru tidak dapat dihapus karena masih memiliki riwayat penugasan Wali Kelas.',
+            ], 422);
+        }
+
         $teacher->delete();
 
         return ApiResponse::message(
             'Data guru berhasil dihapus.'
         );
+    }
+
+    public function availableAccounts(): JsonResponse
+    {
+        $accounts = User::query()
+            ->select(['id', 'username', 'name', 'email'])
+            ->where('account_status', 'active')
+            ->whereHas('role', function (Builder $query): void {
+                $query->where('code', 'GURU');
+            })
+            ->whereDoesntHave('guru')
+            ->orderBy('name')
+            ->get();
+
+        return ApiResponse::success($accounts);
     }
 }

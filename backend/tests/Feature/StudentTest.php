@@ -633,6 +633,39 @@ class StudentTest extends TestCase
         ]);
     }
 
+
+    public function test_update_student_rejects_duplicate_nis(): void
+    {
+        $tu = $this->createUser('TU');
+
+        $existingStudent = $this->createStudent([
+            'nis' => 'NIS-DUPLICATE-UPDATE-001',
+        ]);
+
+        $studentToUpdate = $this->createStudent([
+            'nis' => 'NIS-ORIGINAL-UPDATE-001',
+        ]);
+
+        Sanctum::actingAs($tu);
+
+        $this->putJson("/api/students/{$studentToUpdate->id}", [
+            'user_id' => $studentToUpdate->user_id,
+            'nisn' => $studentToUpdate->nisn,
+            'nis' => $existingStudent->nis,
+            'nama_lengkap' => $studentToUpdate->nama_lengkap,
+            'jenis_kelamin' => $studentToUpdate->jenis_kelamin,
+            'tanggal_lahir' => $studentToUpdate->tanggal_lahir->format('Y-m-d'),
+            'tempat_lahir' => $studentToUpdate->tempat_lahir,
+            'no_telepon' => $studentToUpdate->no_telepon,
+            'alamat' => $studentToUpdate->alamat,
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'nis',
+            ]);
+    }
+
+
     public function test_non_tu_cannot_update_student(): void
     {
         $guru = $this->createUser('GURU');
@@ -840,4 +873,27 @@ class StudentTest extends TestCase
         ])
             ->assertNotFound();
     }
+
+
+    public function test_create_student_rejects_duplicate_nis(): void
+    {
+        $tu = $this->createUser('TU');
+        $student = $this->createStudent([
+            'nis' => 'NIS-DUPLICATE-001',
+        ]);
+
+        Sanctum::actingAs($tu);
+
+        $this->postJson('/api/students', [
+            'user_id' => $this->createUser('SISWA')->id,
+            'nisn' => 'NISN-UNIQUE-001',
+            'nis' => $student->nis,
+            'nama_lengkap' => 'Siswa Duplicate NIS',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'nis',
+            ]);
+    }
+
 }

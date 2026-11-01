@@ -1,0 +1,147 @@
+/* ==================================================
+   SIAKAD KOTO TIMUR
+   Global Foundation
+   ================================================== */
+
+/* --------------------------------------------------
+   RESET
+   -------------------------------------------------- */
+
+   *,
+   *::before,
+   *::after {
+     box-sizing: border-box;
+   }
+   
+   html {
+     scroll-behavior: smooth;
+   }
+   
+   body {
+     margin: 0;
+   
+     background: var(--color-white);
+     color: var(--color-text);
+   
+     font-family: var(--font-body);
+     font-size: 16px;
+     line-height: 1.6;
+   
+     -webkit-font-smoothing: antialiased;
+     text-rendering: optimizeLegibility;
+   }
+   
+   body,
+   button,
+   input,
+   textarea,
+   select {
+     font-family: var(--font-body);
+   }
+   
+   button,
+   a {
+     -webkit-tap-highlight-color: transparent;
+   }
+   
+   button {
+     font: inherit;
+   }
+   
+   img {
+     display: block;
+     max-width: 100%;
+   }
+   
+   a {
+     color: inherit;
+   }
+   
+   h1,
+   h2,
+   h3,
+   h4,
+   p {
+     margin-top: 0;
+   }
+   
+   /* --------------------------------------------------
+      APP / GLOBAL LAYOUT
+      -------------------------------------------------- */
+   
+   #root {
+     min-height: 100vh;
+   }
+   
+   .app {
+     width: 100%;
+     min-height: 100vh;
+     max-width: 100%;
+     overflow-x: clip;
+   }
+   
+   main {
+     overflow: clip;
+   }
+   
+   /* --------------------------------------------------
+      GLOBAL CONTAINER
+      -------------------------------------------------- */
+   
+   .container {
+     width: min(calc(100% - 2rem), var(--container));
+     margin-inline: auto;
+   }
+   
+   /* --------------------------------------------------
+      GLOBAL SECTION
+      -------------------------------------------------- */
+   
+   .section {
+     padding-block: var(--space-section);
+   }
+   
+   /* --------------------------------------------------
+      GLOBAL TYPOGRAPHY
+      -------------------------------------------------- */
+   
+   .section-title {
+     color: var(--color-navy-950);
+   
+     font-family: var(--font-heading);
+     font-size: clamp(2.25rem, 5vw, 4rem);
+     font-weight: 800;
+     letter-spacing: -0.055em;
+     line-height: 1.02;
+   }
+   
+   .section-title span {
+     color: var(--color-primary-600);
+   }
+   
+   .section-description {
+     max-width: 640px;
+   
+     color: var(--color-text-muted);
+   
+     font-size: 0.95rem;
+     line-height: 1.8;
+   }
+
+   /* --------------------------------------------------
+   ACCESSIBILITY
+   -------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

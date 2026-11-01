@@ -1,3 +1,5 @@
+import './Footer.css'
+
 const footerNavigation = [
     { label: 'Beranda', href: '#beranda' },
     { label: 'Fitur', href: '#fitur' },

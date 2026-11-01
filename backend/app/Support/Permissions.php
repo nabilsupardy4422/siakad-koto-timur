@@ -164,8 +164,6 @@ class Permissions
                 self::GRADES_VIEW,
                 self::GRADES_RECAP,
 
-                self::MATERIALS_VIEW,
-
                 self::ASSIGNMENTS_VIEW,
 
                 self::REPORTS_VIEW,
@@ -196,7 +194,6 @@ class Permissions
                 self::GRADES_VIEW,
                 self::GRADES_RECAP,
 
-                self::MATERIALS_VIEW,
                 self::ASSIGNMENTS_VIEW,
 
                 self::REPORTS_VIEW,

@@ -1,0 +1,302 @@
+/* =========================================================
+   SIAKAD KOTO TIMUR
+   About Section Component
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   ABOUT SECTION
+   --------------------------------------------------------- */
+
+   .about-section {
+    position: relative;
+    background: #f7f9fc;
+    padding: 8rem 0;
+    overflow: hidden;
+  }
+  
+  .about-container {
+    width: min(1120px, calc(100% - 3rem));
+    margin: 0 auto;
+  }
+  
+  /* Intro */
+  
+  .about-intro {
+    max-width: 760px;
+  }
+  
+  .about-intro h2 {
+    margin: 1.35rem 0 0;
+  
+    color: #101828;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: clamp(3rem, 5vw, 4.8rem);
+    font-weight: 700;
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+  }
+  
+  .about-intro h2 span {
+    color: #176fb0;
+  }
+  
+  /* Main content */
+  
+  .about-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 6rem;
+  
+    margin-top: 5rem;
+    padding-top: 2.5rem;
+  
+    border-top: 1px solid #dce3eb;
+  }
+  
+  .about-copy {
+    max-width: 650px;
+  }
+  
+  .about-lead {
+    margin: 0;
+  
+    color: #243b53;
+  
+    font-family: "Inter", sans-serif;
+    font-size: 1.2rem;
+    font-weight: 400;
+    line-height: 1.8;
+  }
+  
+  .about-description {
+    max-width: 600px;
+    margin: 1.5rem 0 0;
+  
+    color: #62748a;
+  
+    font-family: "Inter", sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.8;
+  }
+  
+  /* School identity */
+  
+  .about-school {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  
+    align-self: start;
+  
+    padding: 1.25rem 0 1.25rem 1.75rem;
+  
+    border-left: 2px solid #176fb0;
+  }
+  
+  .about-school img {
+    width: 72px;
+    height: 72px;
+  
+    object-fit: contain;
+    flex: 0 0 auto;
+  }
+  
+  .about-school-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  
+  .about-school-info strong {
+    color: #101828;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  
+  .about-school-info span {
+    color: #718096;
+  
+    font-family: "Inter", sans-serif;
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+  
+  /* Highlights */
+  
+  .about-highlights {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  
+    margin-top: 5rem;
+  
+    border-top: 1px solid #dce3eb;
+    border-bottom: 1px solid #dce3eb;
+  }
+  
+  .about-highlight {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 1.25rem;
+  
+    min-height: 150px;
+  
+    padding: 2rem 2.25rem 2rem 0;
+  }
+  
+  .about-highlight + .about-highlight {
+    padding-left: 2.25rem;
+  
+    border-left: 1px solid #dce3eb;
+  }
+  
+  .about-highlight-number {
+    color: #176fb0;
+  
+    font-family: "Inter", sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  
+  .about-highlight strong {
+    display: block;
+  
+    color: #101828;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  
+  .about-highlight span:not(.about-highlight-number) {
+    display: block;
+  
+    max-width: 220px;
+    margin-top: 0.55rem;
+  
+    color: #718096;
+  
+    font-family: "Inter", sans-serif;
+    font-size: 0.78rem;
+    line-height: 1.65;
+  }
+  
+  /* ---------------------------------------------------------
+     ABOUT — TABLET
+     --------------------------------------------------------- */
+  
+  @media (max-width: 900px) {
+    .about-section {
+      padding: 6rem 0;
+    }
+  
+    .about-main {
+      grid-template-columns: 1fr;
+      gap: 3rem;
+  
+      margin-top: 4rem;
+    }
+  
+    .about-school {
+      width: fit-content;
+    }
+  
+    .about-highlights {
+      grid-template-columns: 1fr;
+    }
+  
+    .about-highlight {
+      min-height: auto;
+      padding: 1.5rem 0;
+    }
+  
+    .about-highlight + .about-highlight {
+      padding-left: 0;
+  
+      border-left: 0;
+      border-top: 1px solid #dce3eb;
+    }
+  }
+  
+  /* ---------------------------------------------------------
+     ABOUT — MOBILE
+     --------------------------------------------------------- */
+  
+  @media (max-width: 640px) {
+    .about-section {
+      padding: 4.75rem 0;
+    }
+  
+    .about-container {
+      width: min(100% - 2rem, 1120px);
+    }
+  
+    .about-intro h2 {
+      margin-top: 1rem;
+  
+      font-size: clamp(2.4rem, 11vw, 3.25rem);
+      line-height: 1;
+      letter-spacing: -0.045em;
+    }
+  
+    .about-main {
+      gap: 2.5rem;
+  
+      margin-top: 3rem;
+      padding-top: 1.75rem;
+    }
+  
+    .about-lead {
+      font-size: 1rem;
+      line-height: 1.75;
+    }
+  
+    .about-description {
+      margin-top: 1.25rem;
+  
+      font-size: 0.86rem;
+      line-height: 1.75;
+    }
+  
+    .about-school {
+      width: 100%;
+  
+      padding: 1rem 0 1rem 1.25rem;
+    }
+  
+    .about-school img {
+      width: 58px;
+      height: 58px;
+    }
+  
+    .about-school-info strong {
+      font-size: 0.82rem;
+    }
+  
+    .about-school-info span {
+      font-size: 0.72rem;
+    }
+  
+    .about-highlights {
+      margin-top: 3rem;
+    }
+  
+    .about-highlight {
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 1rem;
+  
+      padding: 1.25rem 0;
+    }
+  
+    .about-highlight strong {
+      font-size: 0.86rem;
+    }
+  
+    .about-highlight span:not(.about-highlight-number) {
+      font-size: 0.74rem;
+    }
+  }

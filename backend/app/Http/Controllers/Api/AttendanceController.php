@@ -12,6 +12,10 @@ use App\Models\Presensi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\AnggotaKelas;
+use App\Models\Kelas;
+use App\Models\TahunAkademik;
+use App\Http\Requests\BulkAttendanceRequest;
 
 class AttendanceController extends Controller
 {
@@ -347,6 +351,167 @@ class AttendanceController extends Controller
         $query->whereRaw('1 = 0');
     }
 
+
+    public function classRecap(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'academic_year_id' => ['required', 'integer', 'min:1'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'class_id' => ['nullable', 'integer', 'min:1'],
+            'semester' => ['nullable', 'in:GANJIL,GENAP'],
+        ]);
+
+        $academicYear = TahunAkademik::query()
+            ->find($validated['academic_year_id']);
+
+        if (!$academicYear) {
+            return response()->json([
+                'message' => 'Tahun akademik tidak ditemukan.',
+            ], 404);
+        }
+
+        if (isset($validated['class_id'])) {
+            $selectedClass = Kelas::query()->find($validated['class_id']);
+
+            if (!$selectedClass) {
+                return response()->json([
+                    'message' => 'Kelas tidak ditemukan.',
+                ], 404);
+            }
+
+            if ((int) $selectedClass->tahun_akademik_id !== (int) $academicYear->id) {
+                return response()->json([
+                    'message' => 'Kelas tidak termasuk dalam tahun akademik yang dipilih.',
+                ], 422);
+            }
+        }
+
+        if (
+            isset($validated['semester']) &&
+            $academicYear->semester !== $validated['semester']
+        ) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'date' => $validated['date'],
+                    'academic_year_id' => $academicYear->id,
+                    'semester' => $validated['semester'],
+                    'total_classes' => 0,
+                ],
+            ]);
+        }
+
+        $date = $validated['date'];
+
+        $classesQuery = Kelas::query()
+            ->where('tahun_akademik_id', $academicYear->id)
+            ->orderBy('tingkat')
+            ->orderBy('nama');
+
+        if (isset($validated['class_id'])) {
+            $classesQuery->where('id', $validated['class_id']);
+        }
+
+        $classes = $classesQuery->get();
+
+        $data = $classes->map(function (Kelas $class) use (
+            $date,
+            $academicYear
+        ): array {
+            // Ambil anggota kelas yang aktif pada tanggal rekap.
+            $members = AnggotaKelas::query()
+                ->where('kelas_id', $class->id)
+                ->whereDate('tanggal_mulai', '<=', $date)
+                ->where(function ($query) use ($date) {
+                    $query->whereNull('tanggal_selesai')
+                        ->orWhereDate('tanggal_selesai', '>=', $date);
+                })
+                ->get(['siswa_id']);
+
+            $studentIds = $members->pluck('siswa_id')
+                ->unique()
+                ->values();
+
+            // Inisialisasi status untuk semua siswa terdaftar.
+            // Gunakan array PHP biasa agar elemen status dapat ditambahkan.
+            $statusByStudent = [];
+
+            foreach ($studentIds as $studentId) {
+                $statusByStudent[$studentId] = [];
+            }
+
+            // Ambil catatan semua jadwal kelas pada tanggal tersebut.
+            $attendanceRecords = Presensi::query()
+                ->whereDate('tanggal', $date)
+                ->whereIn('siswa_id', $studentIds)
+                ->whereHas('jadwalPelajaran', function ($query) use (
+                    $class,
+                    $academicYear
+                ) {
+                    $query->where('kelas_id', $class->id)
+                        ->where(
+                            'tahun_akademik_id',
+                            $academicYear->id
+                        );
+                })
+                ->get(['siswa_id', 'status']);
+
+            foreach ($attendanceRecords as $record) {
+                $statusByStudent[$record->siswa_id][] = $record->status;
+            }
+
+            $counts = [
+                'hadir' => 0,
+                'izin' => 0,
+                'sakit' => 0,
+                'alpa' => 0,
+                'belum_ada_data' => 0,
+            ];
+
+            foreach ($studentIds as $studentId) {
+                $statuses = $statusByStudent[$studentId] ?? [];
+
+                if (empty($statuses)) {
+                    $counts['belum_ada_data']++;
+                    continue;
+                }
+
+                // Prioritas status harian:
+                // ALPA > SAKIT > IZIN > HADIR.
+                if (in_array('ALPA', $statuses, true)) {
+                    $counts['alpa']++;
+                } elseif (in_array('SAKIT', $statuses, true)) {
+                    $counts['sakit']++;
+                } elseif (in_array('IZIN', $statuses, true)) {
+                    $counts['izin']++;
+                } elseif (in_array('HADIR', $statuses, true)) {
+                    $counts['hadir']++;
+                } else {
+                    $counts['belum_ada_data']++;
+                }
+            }
+
+            return [
+                'class_id' => $class->id,
+                'nama_kelas' => $class->nama,
+                'tingkat' => $class->tingkat,
+                'total_siswa' => $studentIds->count(),
+                ...$counts,
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'date' => $date,
+                'academic_year_id' => $academicYear->id,
+                'semester' => $academicYear->semester,
+                'total_classes' => $data->count(),
+            ],
+        ]);
+    }
+
+
     private function canManageAttendance(
         $user,
         JadwalPelajaran $schedule
@@ -365,4 +530,116 @@ class AttendanceController extends Controller
 
         return (int) $schedule->guru_id === (int) $guru->id;
     }
+
+    public function bulkStore(
+        BulkAttendanceRequest $request
+    ): JsonResponse {
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $schedule = JadwalPelajaran::query()
+            ->findOrFail($validated['jadwal_pelajaran_id']);
+
+        if (!$this->canManageAttendance($user, $schedule)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses ke jadwal ini.',
+            ], 403);
+        }
+
+        $date = $validated['tanggal'];
+
+        $classId = (int) $schedule->kelas_id;
+
+        $attendanceRows = collect($validated['presensi']);
+
+        $studentIds = $attendanceRows
+            ->pluck('siswa_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        // Pastikan seluruh siswa merupakan anggota aktif kelas
+        // pada tanggal presensi yang dipilih.
+        $validStudentIds = AnggotaKelas::query()
+            ->where('kelas_id', $classId)
+            ->whereIn('siswa_id', $studentIds)
+            ->whereDate('tanggal_mulai', '<=', $date)
+            ->where(function ($query) use ($date): void {
+                $query->whereNull('tanggal_selesai')
+                    ->orWhereDate('tanggal_selesai', '>=', $date);
+            })
+            ->pluck('siswa_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $invalidStudentIds = array_values(
+            array_diff($studentIds, $validStudentIds)
+        );
+
+        if ($invalidStudentIds !== []) {
+            return response()->json([
+                'message' => 'Terdapat siswa yang bukan anggota aktif kelas pada tanggal tersebut.',
+                'invalid_student_ids' => $invalidStudentIds,
+            ], 422);
+        }
+
+        // Seluruh perubahan berada dalam satu transaksi.
+        $result = DB::transaction(function () use (
+            $attendanceRows,
+            $schedule,
+            $date
+        ): array {
+            $created = 0;
+            $updated = 0;
+
+            foreach ($attendanceRows as $row) {
+                $attendance = Presensi::query()
+                    ->where(
+                        'jadwal_pelajaran_id',
+                        $schedule->id
+                    )
+                    ->where('siswa_id', $row['siswa_id'])
+                    ->whereDate('tanggal', $date)
+                    ->lockForUpdate()
+                    ->first();
+
+                $attributes = [
+                    'status' => $row['status'],
+                    'catatan' => $row['catatan'] ?? null,
+                ];
+
+                if ($attendance) {
+                    $attendance->update($attributes);
+                    $updated++;
+
+                    continue;
+                }
+
+                Presensi::create([
+                    'jadwal_pelajaran_id' => $schedule->id,
+                    'siswa_id' => $row['siswa_id'],
+                    'tanggal' => $date,
+                    ...$attributes,
+                ]);
+
+                $created++;
+            }
+
+            return [
+                'created' => $created,
+                'updated' => $updated,
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Presensi kelas berhasil disimpan.',
+            'data' => [
+                'jadwal_pelajaran_id' => $schedule->id,
+                'tanggal' => $date,
+                'total_siswa' => count($studentIds),
+                'created' => $result['created'],
+                'updated' => $result['updated'],
+            ],
+        ]);
+    }
+
 }

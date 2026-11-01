@@ -7,6 +7,7 @@ use App\Http\Requests\LoginRequest;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
+use App\Support\UserAssignments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 
@@ -16,7 +17,7 @@ class LoginController extends Controller
     {
         $credentials = $request->validated();
 
-        $user = User::with('role')
+        $user = User::with(['role', 'guru'])
             ->where('username', $credentials['username'])
             ->first();
 
@@ -59,8 +60,10 @@ class LoginController extends Controller
                     'name' => $user->role->name,
                 ],
             ],
-            'permissions' => Permissions::forRole($user->role->code),
-            'assignments' => [],
+            'permissions' => Permissions::forRole(
+                $user->role->code
+            ),
+            'assignments' => UserAssignments::forUser($user),
         ]);
     }
 }

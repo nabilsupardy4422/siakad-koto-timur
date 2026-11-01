@@ -1,0 +1,234 @@
+.students-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+  
+  .students-page__card {
+    min-width: 0;
+  }
+  
+  .students-page__list-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .students-page__list-header h2 {
+    margin: 0.25rem 0 0.4rem;
+    color: var(--color-text, #172033);
+    font-size: 1.125rem;
+    font-weight: 700;
+  }
+  
+  .students-page__list-header p {
+    margin: 0;
+    color: var(--color-muted, #64748b);
+    font-size: 0.875rem;
+  }
+  
+  .students-page__eyebrow {
+    color: var(--color-primary-600, #2457a7) !important;
+    font-size: 0.75rem !important;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  
+  .students-page__count {
+    flex-shrink: 0;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--color-border, #dbe2ea);
+    border-radius: 999px;
+    color: var(--color-text, #172033);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  
+  .students-page__search {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  
+  .students-page__search > :first-child {
+    flex: 1;
+    min-width: 12rem;
+  }
+  
+  .students-page__search-actions,
+  .students-page__actions,
+  .students-page__pagination > div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .students-page__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 10rem;
+  }
+  
+  .students-page__identity strong {
+    color: var(--color-text, #172033);
+    font-weight: 650;
+  }
+  
+  .students-page__identity span,
+  .students-page__identity small {
+    color: var(--color-muted, #64748b);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  
+  .students-page__pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1rem;
+    margin-top: 1rem;
+    border-top: 1px solid var(--color-border, #dbe2ea);
+  }
+  
+  .students-page__pagination > span {
+    color: var(--color-muted, #64748b);
+    font-size: 0.875rem;
+  }
+  
+  .students-page__success {
+    padding: 0.8rem 1rem;
+    border: 1px solid #a7dfc0;
+    border-radius: 0.65rem;
+    background: #effaf3;
+    color: #17683c;
+    font-size: 0.9rem;
+  }
+  
+  .students-page__form-error {
+    margin-bottom: 1rem;
+  }
+  
+  .students-page__form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  
+  .students-page__full-width {
+    grid-column: 1 / -1;
+  }
+  
+  @media (max-width: 700px) {
+    .students-page__list-header {
+      flex-direction: column;
+    }
+  
+    .students-page__search {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  
+    .students-page__search > :first-child {
+      min-width: 0;
+    }
+  
+    .students-page__form-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  
+    .students-page__full-width {
+      grid-column: auto;
+    }
+  
+    .students-page__pagination {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  
+    .students-page__pagination > div {
+      width: 100%;
+    }
+  }
+  /* ========================================
+   MODAL KONFIRMASI HAPUS SISWA
+======================================== */
+
+.students-page__delete-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.25rem 0 0.5rem;
+  text-align: center;
+}
+
+.students-page__delete-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex-shrink: 0;
+  border: 1px solid #fecaca;
+  border-radius: 50%;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.students-page__delete-content p {
+  margin: 0;
+  color: var(--color-text, #172033);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.students-page__delete-content strong {
+  font-weight: 700;
+}
+
+.students-page__delete-content .students-page__delete-warning {
+  color: var(--color-muted, #64748b);
+  font-size: 0.8125rem;
+}
+
+.students-page__delete-confirm {
+  border-color: #dc2626 !important;
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+.students-page__delete-confirm:hover:not(:disabled) {
+  border-color: #b91c1c !important;
+  background: #b91c1c !important;
+}
+
+.students-page__delete-confirm:focus-visible {
+  outline: 3px solid #fca5a5;
+  outline-offset: 2px;
+}
+
+.students-page__delete-confirm:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.students-page__delete-error {
+  width: 100%;
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  .students-page__delete-content {
+    gap: 0.75rem;
+  }
+}

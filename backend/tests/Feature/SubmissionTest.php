@@ -144,7 +144,7 @@ class SubmissionTest extends TestCase
             'jadwal_pelajaran_id' => $schedule->id,
             'judul' => 'Tugas Test',
             'deskripsi' => 'Deskripsi tugas test',
-            'deadline' => '2026-10-10 23:59:00',
+            'deadline' => now()->addDay(),
             'created_by' => $creator->id,
         ], $attributes));
     }
@@ -628,6 +628,67 @@ class SubmissionTest extends TestCase
         );
     }
 
+    public function test_student_can_submit_multiple_files(): void
+    {
+        Storage::fake('local');
+
+        [
+            ,
+            ,
+            $studentUser,
+            $student,
+            ,
+            ,
+            ,
+            $assignment,
+        ] = $this->prepareStudentAssignment();
+
+        Sanctum::actingAs($studentUser);
+
+        $file1 = UploadedFile::fake()->create(
+            'jawaban1.pdf',
+            100,
+            'application/pdf'
+        );
+
+        $file2 = UploadedFile::fake()->create(
+            'jawaban2.pdf',
+            150,
+            'application/pdf'
+        );
+
+        $response = $this->post(
+            "/api/assignments/{$assignment->id}/submissions",
+            [
+                'jawaban' => 'Jawaban dengan dua lampiran.',
+                'files' => [$file1, $file2],
+            ],
+            ['Accept' => 'application/json']
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath(
+                'data.jawaban',
+                'Jawaban dengan dua lampiran.'
+            )
+            ->assertJsonCount(2, 'data.files');
+
+        $this->assertDatabaseCount('submission_tugas_lampiran', 2);
+
+        $submission = SubmissionTugas::query()
+            ->where('assignment_id', $assignment->id)
+            ->where('siswa_id', $student->id)
+            ->firstOrFail();
+
+        $this->assertNotNull($submission->file_path);
+
+        foreach ($submission->lampiran as $lampiran) {
+            Storage::disk('local')->assertExists($lampiran->file_path);
+        }
+    }
+
+
     public function test_teacher_can_view_submissions_for_own_assignment(): void
     {
         [
@@ -827,4 +888,226 @@ class SubmissionTest extends TestCase
                 'file',
             ]);
     }
+
+    public function test_student_revision_adds_attachment_and_preserves_existing_file(): void
+    {
+        Storage::fake('local');
+
+        [
+            ,
+            ,
+            $studentUser,
+            $student,
+            ,
+            ,
+            ,
+            $assignment,
+        ] = $this->prepareStudentAssignment();
+
+        $oldPath = 'submissions/jawaban_lama.pdf';
+
+        Storage::disk('local')->put($oldPath, 'isi file lama');
+
+        $submission = $this->createSubmission(
+            $assignment,
+            $student,
+            [
+                'file_path' => $oldPath,
+                'file_name' => 'jawaban_lama.pdf',
+                'file_mime_type' => 'application/pdf',
+                'file_size' => strlen('isi file lama'),
+            ]
+        );
+
+        Sanctum::actingAs($studentUser);
+
+        $newFile = UploadedFile::fake()->create(
+            'jawaban_tambahan.pdf',
+            100,
+            'application/pdf'
+        );
+
+        $response = $this->post(
+            "/api/submissions/{$submission->id}",
+            [
+                '_method' => 'PUT',
+                'jawaban' => 'Jawaban yang sudah direvisi.',
+                'files' => [$newFile],
+            ],
+            ['Accept' => 'application/json']
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.jawaban',
+                'Jawaban yang sudah direvisi.'
+            )
+            ->assertJsonCount(2, 'data.files');
+
+        $this->assertDatabaseCount('submission_tugas', 1);
+        $this->assertDatabaseCount('submission_tugas_lampiran', 2);
+
+        Storage::disk('local')->assertExists($oldPath);
+
+        $this->assertDatabaseHas('submission_tugas_lampiran', [
+            'submission_tugas_id' => $submission->id,
+            'file_path' => $oldPath,
+            'file_name' => 'jawaban_lama.pdf',
+        ]);
+    }
+
+    public function test_student_cannot_revise_submission_after_deadline(): void
+    {
+        [
+            ,
+            ,
+            $studentUser,
+            $student,
+            ,
+            ,
+            ,
+            $assignment,
+        ] = $this->prepareStudentAssignment();
+
+        $assignment->update([
+            'deadline' => now()->subMinute(),
+        ]);
+
+        $submission = $this->createSubmission(
+            $assignment,
+            $student,
+            [
+                'jawaban' => 'Jawaban sebelum revisi.',
+            ]
+        );
+
+        Sanctum::actingAs($studentUser);
+
+        $response = $this->putJson(
+            "/api/submissions/{$submission->id}",
+            [
+                'jawaban' => 'Jawaban yang seharusnya ditolak.',
+            ]
+        );
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'Batas waktu revisi telah berakhir. Jawaban tidak dapat diubah lagi.'
+            );
+
+        $this->assertDatabaseHas('submission_tugas', [
+            'id' => $submission->id,
+            'jawaban' => 'Jawaban sebelum revisi.',
+        ]);
+    }
+
+
+    public function test_submission_rejects_file_larger_than_10_mb(): void
+    {
+        Storage::fake('local');
+
+        [
+            ,
+            ,
+            $studentUser,
+            $student,
+            ,
+            ,
+            ,
+            $assignment,
+        ] = $this->prepareStudentAssignment();
+
+        Sanctum::actingAs($studentUser);
+
+        $file = UploadedFile::fake()->create(
+            'jawaban_besar.pdf',
+            10241,
+            'application/pdf'
+        );
+
+        $response = $this->post(
+            "/api/assignments/{$assignment->id}/submissions",
+            [
+                'jawaban' => 'Jawaban dengan lampiran besar.',
+                'files' => [$file],
+            ],
+            ['Accept' => 'application/json']
+        );
+
+        $response
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['files.0']);
+
+        $this->assertDatabaseMissing('submission_tugas', [
+            'assignment_id' => $assignment->id,
+            'siswa_id' => $student->id,
+        ]);
+
+        $this->assertDatabaseCount('submission_tugas_lampiran', 0);
+    }
+
+public function test_revision_rejects_file_larger_than_10_mb_and_preserves_old_attachment(): void
+{
+    Storage::fake('local');
+
+    [
+        ,
+        ,
+        $studentUser,
+        $student,
+        ,
+        ,
+        ,
+        $assignment,
+    ] = $this->prepareStudentAssignment();
+
+    $oldPath = 'submissions/jawaban_lama.pdf';
+    Storage::disk('local')->put($oldPath, 'isi file lama');
+
+    $submission = $this->createSubmission(
+        $assignment,
+        $student,
+        [
+            'file_path' => $oldPath,
+            'file_name' => 'jawaban_lama.pdf',
+            'file_mime_type' => 'application/pdf',
+            'file_size' => strlen('isi file lama'),
+        ]
+    );
+
+    Sanctum::actingAs($studentUser);
+
+    $file = UploadedFile::fake()->create(
+        'jawaban_besar.pdf',
+        10241,
+        'application/pdf'
+    );
+
+    $response = $this->post(
+        "/api/submissions/{$submission->id}",
+        [
+            '_method' => 'PUT',
+            'jawaban' => 'Jawaban revisi.',
+            'files' => [$file],
+        ],
+        ['Accept' => 'application/json']
+    );
+
+    $response
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['files.0']);
+
+    $this->assertDatabaseHas('submission_tugas', [
+        'id' => $submission->id,
+        'jawaban' => 'Jawaban submission test.',
+        'file_path' => $oldPath,
+    ]);
+
+    $this->assertDatabaseCount('submission_tugas_lampiran', 0);
+    Storage::disk('local')->assertExists($oldPath);
+}
+
 }

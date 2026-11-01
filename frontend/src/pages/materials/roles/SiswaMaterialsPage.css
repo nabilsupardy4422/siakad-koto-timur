@@ -1,0 +1,392 @@
+.student-materials-page {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    color: var(--text-primary, #172033);
+  }
+  
+  .student-materials-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  
+  .student-materials-heading h1 {
+    margin: 2px 0 8px;
+    font-size: clamp(1.6rem, 3vw, 2rem);
+    font-weight: 750;
+    letter-spacing: -0.03em;
+  }
+  
+  .student-materials-heading p {
+    margin: 0;
+    color: var(--text-secondary, #64748b);
+  }
+  
+  .student-materials-eyebrow {
+    margin-bottom: 7px !important;
+    color: var(--primary, #475be8) !important;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+  }
+  
+  .student-materials-refresh,
+  .student-materials-reset {
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 9px;
+    padding: 9px 13px;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #172033);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  
+  .student-materials-refresh:disabled,
+  .student-materials-filters select:disabled,
+  .student-materials-attachments button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .student-materials-panel {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 16px;
+    background: var(--surface, #fff);
+    box-shadow: 0 3px 14px #0f172a08;
+  }
+  
+  .student-materials-panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  
+  .student-materials-panel-title h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 750;
+  }
+  
+  .student-materials-panel-title span {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.82rem;
+    text-align: right;
+  }
+  
+  .student-materials-filters {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(125px, 1fr)) minmax(135px, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    background: var(--surface-muted, #f8fafc);
+  }
+  
+  .student-materials-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-primary, #334155);
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+  
+  .student-materials-filter-field input,
+  .student-materials-filter-field select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    padding: 7px 9px;
+    border: 1px solid var(--border, #cbd5e1);
+    border-radius: 8px;
+    outline: none;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #172033);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  
+  .student-materials-filter-field input:focus,
+  .student-materials-filter-field select:focus {
+    border-color: var(--primary, #5865d9);
+    box-shadow: 0 0 0 3px #5865d91a;
+  }
+  
+  .student-materials-filter-field input::placeholder {
+    color: var(--text-secondary, #94a3b8);
+  }
+  
+  .student-materials-reset {
+    height: 36px;
+    padding: 7px 11px;
+  }
+  
+  .student-materials-reset:hover,
+  .student-materials-refresh:hover {
+    border-color: var(--primary, #5865d9);
+  }
+  
+  .student-materials-state {
+    padding: 28px 8px;
+    color: var(--text-secondary, #64748b);
+    text-align: center;
+  }
+  
+  .student-materials-list {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .student-material-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    min-width: 0;
+    padding: 17px 0;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+  
+  .student-material-card:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+  
+  .student-material-symbol {
+    display: grid;
+    place-items: center;
+    flex: 0 0 46px;
+    height: 48px;
+    border-radius: 12px;
+    background: #ecfeff;
+    color: #0e7490;
+    font-size: 0.67rem;
+    font-weight: 850;
+  }
+  
+  .student-material-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .student-material-info h3 {
+    margin: 0 0 6px;
+    overflow-wrap: anywhere;
+    font-size: 0.98rem;
+    font-weight: 750;
+  }
+  
+  .student-material-meta,
+  .student-material-description {
+    margin: 0 0 6px;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.84rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  
+  .student-material-description {
+    color: var(--text-primary, #334155);
+    white-space: pre-wrap;
+  }
+  
+  .student-material-info small {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.78rem;
+  }
+  
+  .student-material-upload-date {
+    margin: 0 0 8px;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  
+  .student-material-upload-date span {
+    font-weight: 700;
+  }
+  
+  .student-material-attachments {
+    margin-top: 12px;
+  }
+  
+  .student-material-attachments > strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.88rem;
+  }
+  
+  .student-material-attachments ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .student-material-attachments li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+  
+  .student-material-file-info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  
+  .student-material-filename {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 0.85rem;
+  }
+  
+  .student-material-attachment-date,
+  .student-material-file-size {
+    display: block;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  
+  .student-material-attachments button {
+    flex: 0 0 auto;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    padding: 7px 12px;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #172033);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  
+  .student-material-attachments button:hover {
+    border-color: var(--primary, #5865d9);
+  }
+  
+  .student-materials-alert {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+  
+  .student-materials-alert.error {
+    border: 1px solid #fecdd3;
+    background: #fff1f2;
+    color: #9f1239;
+  }
+  
+  .student-materials-alert.success {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+  }
+  
+  @media (max-width: 1100px) {
+    .student-materials-filters {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  
+    .student-materials-search {
+      grid-column: span 2;
+    }
+  }
+  
+  @media (max-width: 700px) {
+    .student-materials-page {
+      padding: 16px;
+    }
+  
+    .student-materials-heading {
+      flex-direction: column;
+    }
+  
+    .student-materials-heading > div {
+      min-width: 0;
+    }
+  
+    .student-materials-panel {
+      padding: 16px;
+    }
+  
+    .student-materials-filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  
+    .student-materials-search {
+      grid-column: 1 / -1;
+    }
+  
+    .student-materials-reset {
+      width: 100%;
+    }
+  
+    .student-material-card {
+      flex-wrap: wrap;
+    }
+  
+    .student-material-info {
+      min-width: calc(100% - 65px);
+    }
+  
+    .student-material-attachments li {
+      align-items: flex-start;
+    }
+  }
+  
+  @media (max-width: 420px) {
+    .student-materials-panel-title {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  
+    .student-materials-panel-title span {
+      text-align: left;
+    }
+  
+    .student-materials-filters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  
+    .student-materials-search {
+      grid-column: auto;
+    }
+  
+    .student-materials-reset {
+      width: 100%;
+    }
+  
+    .student-material-attachments li {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    .student-material-attachments button {
+      align-self: flex-start;
+    }
+  }
+  

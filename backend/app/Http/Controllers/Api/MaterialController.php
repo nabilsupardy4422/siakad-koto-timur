@@ -7,7 +7,9 @@ use App\Http\Requests\StoreMaterialRequest;
 use App\Http\Requests\UpdateMaterialRequest;
 use App\Http\Resources\MaterialResource;
 use App\Models\BahanAjar;
+use App\Models\BahanAjarLampiran;
 use App\Models\JadwalPelajaran;
+use App\Models\TahunAkademik;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,19 +30,28 @@ class MaterialController extends Controller
                 'jadwalPelajaran.mapel',
                 'jadwalPelajaran.guru',
                 'createdBy',
+                'lampiran',
             ]);
 
         $this->applyViewScope($query, $request->user());
 
-        if ($request->filled('academic_year_id')) {
+        // Default to the active academic year unless a specific period is selected.
+        $academicYearId = $request->filled('academic_year_id')
+            ? $request->integer('academic_year_id')
+            : TahunAkademik::query()
+                ->where('is_active', true)
+                ->value('id');
+
+        if ($academicYearId === null) {
+            // Fail closed: do not expose materials from every period if no active year exists.
+            $query->whereRaw('1 = 0');
+        } else {
             $query->whereHas(
                 'jadwalPelajaran',
-                function ($schedule) use ($request): void {
-                    $schedule->where(
-                        'tahun_akademik_id',
-                        $request->integer('academic_year_id')
-                    );
-                }
+                fn ($schedule) => $schedule->where(
+                    'tahun_akademik_id',
+                    $academicYearId
+                )
             );
         }
 
@@ -115,40 +126,58 @@ class MaterialController extends Controller
             );
         }
 
-        $storedFile = null;
+        $storedFiles = [];
 
         try {
-            if ($request->hasFile('file')) {
-                $storedFile = $this->storeMaterialFile(
-                    $request->file('file')
-                );
+            // Support the plural `files[]` contract and retain backward
+            // compatibility with clients that still send a single `file`.
+            $uploads = $request->file('files', []);
+            if (!is_array($uploads)) {
+                $uploads = [$uploads];
             }
+            $uploads = array_values(array_filter($uploads));
+
+            if ($uploads === [] && $request->hasFile('file')) {
+                $uploads = [$request->file('file')];
+            }
+
+            foreach ($uploads as $upload) {
+                $storedFiles[] = $this->storeMaterialFile($upload);
+            }
+
+            $primaryFile = $storedFiles[0] ?? null;
 
             $material = DB::transaction(
                 function () use (
                     $request,
-                    $storedFile
+                    $storedFiles,
+                    $primaryFile
                 ): BahanAjar {
-                    return BahanAjar::create([
+                    $material = BahanAjar::create([
                         'jadwal_pelajaran_id' =>
-                            $request->integer(
-                                'jadwal_pelajaran_id'
-                            ),
-                        'judul' =>
-                            $request->string('judul')->toString(),
-                        'deskripsi' =>
-                            $request->input('deskripsi'),
-                        'file_path' =>
-                            $storedFile['path'] ?? null,
-                        'file_name' =>
-                            $storedFile['name'] ?? null,
-                        'file_mime_type' =>
-                            $storedFile['mime_type'] ?? null,
-                        'file_size' =>
-                            $storedFile['size'] ?? null,
-                        'created_by' =>
-                            $request->user()->id,
+                            $request->integer('jadwal_pelajaran_id'),
+                        'judul' => $request->string('judul')->toString(),
+                        'deskripsi' => $request->input('deskripsi'),
+                        // Keep the first upload in the legacy columns so the
+                        // existing single-file download remains compatible.
+                        'file_path' => $primaryFile['path'] ?? null,
+                        'file_name' => $primaryFile['name'] ?? null,
+                        'file_mime_type' => $primaryFile['mime_type'] ?? null,
+                        'file_size' => $primaryFile['size'] ?? null,
+                        'created_by' => $request->user()->id,
                     ]);
+
+                    foreach ($storedFiles as $storedFile) {
+                        $material->lampiran()->create([
+                            'file_path' => $storedFile['path'],
+                            'file_name' => $storedFile['name'],
+                            'file_mime_type' => $storedFile['mime_type'],
+                            'file_size' => $storedFile['size'],
+                            'uploaded_by' => $request->user()->id,
+                        ]);
+                    }
+
+                    return $material;
                 }
             );
 
@@ -157,22 +186,19 @@ class MaterialController extends Controller
                 'jadwalPelajaran.mapel',
                 'jadwalPelajaran.guru',
                 'createdBy',
+                'lampiran',
             ]);
 
             return response()->json(
                 [
-                    'message' =>
-                        'Bahan ajar berhasil dibuat.',
-                    'data' =>
-                        new MaterialResource($material),
+                    'message' => 'Bahan ajar berhasil dibuat.',
+                    'data' => new MaterialResource($material),
                 ],
                 201
             );
         } catch (\Throwable $exception) {
-            if ($storedFile !== null) {
-                $this->deleteMaterialFile(
-                    $storedFile['path']
-                );
+            foreach ($storedFiles as $storedFile) {
+                $this->deleteMaterialFile($storedFile['path'] ?? null);
             }
 
             throw $exception;
@@ -191,6 +217,7 @@ class MaterialController extends Controller
             'jadwalPelajaran.mapel',
             'jadwalPelajaran.guru',
             'createdBy',
+            'lampiran',
         ]);
 
         if (
@@ -223,152 +250,153 @@ class MaterialController extends Controller
             'jadwalPelajaran.mapel',
             'jadwalPelajaran.guru',
             'createdBy',
+            'lampiran',
         ]);
 
         $currentSchedule = $material->jadwalPelajaran;
 
-        if (
-            !$this->canManageMaterial(
-                $request->user(),
-                $currentSchedule
-            )
-        ) {
-            return response()->json(
-                [
-                    'message' =>
-                        'Anda tidak memiliki akses untuk mengubah bahan ajar ini.',
-                ],
-                403
-            );
+        if (!$this->canManageMaterial($request->user(), $currentSchedule)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses untuk mengubah bahan ajar ini.',
+            ], 403);
         }
 
         $targetSchedule = $currentSchedule;
-
         if ($request->filled('jadwal_pelajaran_id')) {
             $targetSchedule = JadwalPelajaran::query()
-                ->with([
-                    'kelas',
-                    'mapel',
-                    'guru',
-                ])
-                ->findOrFail(
-                    $request->integer(
-                        'jadwal_pelajaran_id'
-                    )
-                );
+                ->with(['kelas', 'mapel', 'guru'])
+                ->findOrFail($request->integer('jadwal_pelajaran_id'));
 
-            if (
-                !$this->canManageMaterial(
-                    $request->user(),
-                    $targetSchedule
-                )
-            ) {
-                return response()->json(
-                    [
-                        'message' =>
-                            'Anda tidak memiliki akses untuk memindahkan bahan ajar ke jadwal tersebut.',
-                    ],
-                    403
-                );
+            if (!$this->canManageMaterial($request->user(), $targetSchedule)) {
+                return response()->json([
+                    'message' => 'Anda tidak memiliki akses untuk memindahkan bahan ajar ke jadwal tersebut.',
+                ], 403);
             }
         }
 
-        $oldFilePath = $material->file_path;
-        $newStoredFile = null;
-        $fileChanged = false;
+        $newStoredFiles = [];
+        $pathsToDelete = [];
 
         try {
+            // Accept multiple files from the current frontend (files[]) and
+            // retain compatibility with older clients that send a single file.
+            $uploadedFiles = array_values(array_filter(
+                (array) $request->file('files', []),
+                static fn ($file): bool => $file !== null
+            ));
+
             if ($request->hasFile('file')) {
-                $newStoredFile = $this->storeMaterialFile(
-                    $request->file('file')
-                );
-
-                $fileChanged = true;
-            } elseif (
-                $request->boolean('remove_file')
-                && $material->file_path !== null
-            ) {
-                $fileChanged = true;
+                $uploadedFiles[] = $request->file('file');
             }
 
-            DB::transaction(
-                function () use (
-                    $request,
-                    $material,
-                    $targetSchedule,
-                    $newStoredFile,
-                    $fileChanged
-                ): void {
-                    $data = [];
+            foreach ($uploadedFiles as $uploadedFile) {
+                $newStoredFiles[] = $this->storeMaterialFile($uploadedFile);
+            }
 
-                    if ($request->has('jadwal_pelajaran_id')) {
-                        $data['jadwal_pelajaran_id'] =
-                            $targetSchedule->id;
-                    }
-
-                    if ($request->has('judul')) {
-                        $data['judul'] =
-                            $request->string(
-                                'judul'
-                            )->toString();
-                    }
-
-                    if ($request->has('deskripsi')) {
-                        $data['deskripsi'] =
-                            $request->input('deskripsi');
-                    }
-
-                    if ($fileChanged) {
-                        $data['file_path'] =
-                            $newStoredFile['path']
-                            ?? null;
-
-                        $data['file_name'] =
-                            $newStoredFile['name']
-                            ?? null;
-
-                        $data['file_mime_type'] =
-                            $newStoredFile['mime_type']
-                            ?? null;
-
-                        $data['file_size'] =
-                            $newStoredFile['size']
-                            ?? null;
-                    }
-
-                    $material->update($data);
+            DB::transaction(function () use (
+                $request,
+                $material,
+                $targetSchedule,
+                $newStoredFiles,
+                &$pathsToDelete
+            ): void {
+                $data = [];
+                if ($request->has('jadwal_pelajaran_id')) {
+                    $data['jadwal_pelajaran_id'] = $targetSchedule->id;
                 }
-            );
+                if ($request->has('judul')) {
+                    $data['judul'] = $request->string('judul')->toString();
+                }
+                if ($request->has('deskripsi')) {
+                    $data['deskripsi'] = $request->input('deskripsi');
+                }
+                $material->update($data);
 
-            if (
-                $fileChanged
-                && $oldFilePath !== null
-                && $oldFilePath !== (
-                    $newStoredFile['path'] ?? null
-                )
-            ) {
-                $this->deleteMaterialFile(
-                    $oldFilePath
-                );
+                // Backfill legacy primary-file metadata for records created before
+                // the attachment table was introduced. Avoid duplicate paths.
+                if ($material->file_path && !$material->lampiran()->where('file_path', $material->file_path)->exists()) {
+                    $material->lampiran()->create([
+                        'file_path' => $material->file_path,
+                        'file_name' => $material->file_name ?? basename($material->file_path),
+                        'file_mime_type' => $material->file_mime_type,
+                        'file_size' => $material->file_size,
+                        'uploaded_by' => $request->user()->id,
+                    ]);
+                }
+
+                // New uploads append all selected files. Existing attachments
+                // remain available and are not replaced by an edit upload.
+                if ($newStoredFiles !== []) {
+                    foreach ($newStoredFiles as $storedFile) {
+                        $material->lampiran()->create([
+                            'file_path' => $storedFile['path'],
+                            'file_name' => $storedFile['name'],
+                            'file_mime_type' => $storedFile['mime_type'],
+                            'file_size' => $storedFile['size'],
+                            'uploaded_by' => $request->user()->id,
+                        ]);
+
+                        // Keep the legacy primary-file columns populated when
+                        // a material did not have a primary file before.
+                        if (!$material->file_path) {
+                            $material->update([
+                                'file_path' => $storedFile['path'],
+                                'file_name' => $storedFile['name'],
+                                'file_mime_type' => $storedFile['mime_type'],
+                                'file_size' => $storedFile['size'],
+                            ]);
+                        }
+                    }
+                } elseif ($request->boolean('remove_file') && $material->file_path) {
+                    $primaryPath = $material->file_path;
+                    $primaryAttachment = $material->lampiran()
+                        ->where('file_path', $primaryPath)
+                        ->first();
+
+                    if ($primaryAttachment) {
+                        $primaryAttachment->delete();
+                    }
+
+                    $replacement = $material->lampiran()->orderBy('created_at')->orderBy('id')->first();
+                    if ($replacement) {
+                        $material->update([
+                            'file_path' => $replacement->file_path,
+                            'file_name' => $replacement->file_name,
+                            'file_mime_type' => $replacement->file_mime_type,
+                            'file_size' => $replacement->file_size,
+                        ]);
+                    } else {
+                        $material->update([
+                            'file_path' => null,
+                            'file_name' => null,
+                            'file_mime_type' => null,
+                            'file_size' => null,
+                        ]);
+                    }
+
+                    if (!$material->lampiran()->where('file_path', $primaryPath)->exists()) {
+                        $pathsToDelete[] = $primaryPath;
+                    }
+                }
+            });
+
+            foreach (array_unique($pathsToDelete) as $path) {
+                $this->deleteMaterialFile($path);
             }
 
-            $material->refresh();
-
-            $material->load([
+            $material->refresh()->load([
                 'jadwalPelajaran.kelas',
                 'jadwalPelajaran.mapel',
                 'jadwalPelajaran.guru',
                 'createdBy',
+                'lampiran',
             ]);
 
             return new MaterialResource($material);
         } catch (\Throwable $exception) {
-            if ($newStoredFile !== null) {
-                $this->deleteMaterialFile(
-                    $newStoredFile['path']
-                );
+            foreach ($newStoredFiles as $storedFile) {
+                $this->deleteMaterialFile($storedFile['path']);
             }
-
             throw $exception;
         }
     }
@@ -380,41 +408,29 @@ class MaterialController extends Controller
         Request $request,
         BahanAjar $material
     ): JsonResponse {
-        $material->load([
-            'jadwalPelajaran',
-        ]);
+        $material->load(['jadwalPelajaran', 'lampiran']);
 
-        if (
-            !$this->canManageMaterial(
-                $request->user(),
-                $material->jadwalPelajaran
-            )
-        ) {
-            return response()->json(
-                [
-                    'message' =>
-                        'Anda tidak memiliki akses untuk menghapus bahan ajar ini.',
-                ],
-                403
-            );
+        if (!$this->canManageMaterial($request->user(), $material->jadwalPelajaran)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses untuk menghapus bahan ajar ini.',
+            ], 403);
         }
 
-        $filePath = $material->file_path;
+        $paths = $material->lampiran->pluck('file_path')->push($material->file_path)
+            ->filter()->unique()->values()->all();
 
-        DB::transaction(
-            function () use ($material): void {
-                $material->delete();
-            }
-        );
+        DB::transaction(function () use ($material): void {
+            $material->lampiran()->delete();
+            $material->delete();
+        });
 
-        $this->deleteMaterialFile($filePath);
+        foreach ($paths as $path) {
+            $this->deleteMaterialFile($path);
+        }
 
-        return response()->json(
-            [
-                'message' =>
-                    'Bahan ajar berhasil dihapus.',
-            ]
-        );
+        return response()->json([
+            'message' => 'Bahan ajar berhasil dihapus.',
+        ]);
     }
 
     /**
@@ -483,6 +499,86 @@ class MaterialController extends Controller
         );
     }
 
+    /** Download one attachment after applying the material's access policy. */
+    public function downloadAttachment(
+        Request $request,
+        BahanAjar $material,
+        BahanAjarLampiran $attachment
+    ): BinaryFileResponse|JsonResponse {
+        $material->load(['jadwalPelajaran.kelas', 'jadwalPelajaran.mapel', 'jadwalPelajaran.guru']);
+
+        if (!$this->canViewMaterial($request->user(), $material)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses untuk mengunduh bahan ajar ini.',
+            ], 403);
+        }
+
+        if ((int) $attachment->bahan_ajar_id !== (int) $material->id) {
+            abort(404);
+        }
+
+        $disk = Storage::disk('local');
+        if (!$disk->exists($attachment->file_path)) {
+            return response()->json([
+                'message' => 'File lampiran tidak ditemukan.',
+            ], 404);
+        }
+
+        return response()->download(
+            $disk->path($attachment->file_path),
+            $attachment->file_name ?? basename($attachment->file_path),
+            $attachment->file_mime_type
+                ? ['Content-Type' => $attachment->file_mime_type]
+                : []
+        );
+    }
+
+    /** Delete one attachment without removing the other attachments. */
+    public function destroyAttachment(
+        Request $request,
+        BahanAjar $material,
+        BahanAjarLampiran $attachment
+    ): JsonResponse {
+        $material->load('jadwalPelajaran');
+
+        if (!$this->canManageMaterial($request->user(), $material->jadwalPelajaran)) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses untuk mengubah bahan ajar ini.',
+            ], 403);
+        }
+
+        if ((int) $attachment->bahan_ajar_id !== (int) $material->id) {
+            abort(404);
+        }
+
+        $path = $attachment->file_path;
+        DB::transaction(function () use ($material, $attachment, $path): void {
+            $isPrimary = $material->file_path === $path;
+            $attachment->delete();
+
+            if ($isPrimary) {
+                $replacement = $material->lampiran()->orderBy('created_at')->orderBy('id')->first();
+                $material->update([
+                    'file_path' => $replacement?->file_path,
+                    'file_name' => $replacement?->file_name,
+                    'file_mime_type' => $replacement?->file_mime_type,
+                    'file_size' => $replacement?->file_size,
+                ]);
+            }
+        });
+
+        // Keep the physical file if any remaining record still references it.
+        $stillReferenced = BahanAjarLampiran::query()->where('file_path', $path)->exists()
+            || BahanAjar::query()->where('file_path', $path)->exists();
+        if (!$stillReferenced) {
+            $this->deleteMaterialFile($path);
+        }
+
+        return response()->json([
+            'message' => 'Lampiran berhasil dihapus.',
+        ]);
+    }
+
     /**
      * Apply role-based viewing scope.
      */
@@ -502,17 +598,13 @@ class MaterialController extends Controller
             'siswa',
         ]);
 
-        /*
-         * TU and Kepala Sekolah can view according to
-         * the current application policy.
-         */
+        // Only Guru and Siswa may access teaching materials.
         if (
-            $this->hasRole($user, 'TU')
-            || $this->hasRole(
-                $user,
-                'KEPALA_SEKOLAH'
-            )
+            !$this->hasRole($user, 'GURU')
+            && !$this->hasRole($user, 'SISWA')
         ) {
+            $query->whereRaw('1 = 0');
+
             return;
         }
 
@@ -572,10 +664,18 @@ class MaterialController extends Controller
 
             $query->whereHas(
                 'jadwalPelajaran.kelas.anggotaKelas',
-                fn ($member) => $member->where(
-                    'siswa_id',
-                    $siswaId
-                )
+                function ($member) use ($siswaId): void {
+                    $member->where('siswa_id', $siswaId)
+                        ->where(function ($membership): void {
+                            // Keanggotaan aktif: materi kelas saat ini.
+                            $membership->whereNull('tanggal_selesai')
+                                // Keanggotaan lama: hanya materi yang sudah
+                                // dibuat sebelum/tepat pada tanggal pindah.
+                                ->orWhereRaw(
+                                    'DATE(bahan_ajar.created_at) <= anggota_kelas.tanggal_selesai'
+                                );
+                        });
+                }
             );
 
             return;
@@ -604,17 +704,12 @@ class MaterialController extends Controller
             'siswa',
         ]);
 
-        /*
-         * TU and Kepala Sekolah.
-         */
+        // Only Guru and Siswa may view or download teaching materials.
         if (
-            $this->hasRole($user, 'TU')
-            || $this->hasRole(
-                $user,
-                'KEPALA_SEKOLAH'
-            )
+            !$this->hasRole($user, 'GURU')
+            && !$this->hasRole($user, 'SISWA')
         ) {
-            return true;
+            return false;
         }
 
         $schedule = $material->jadwalPelajaran;
@@ -667,6 +762,14 @@ class MaterialController extends Controller
             return $schedule->kelas
                 ->anggotaKelas()
                 ->where('siswa_id', $siswaId)
+                ->where(function ($membership) use ($material): void {
+                    $membership->whereNull('tanggal_selesai')
+                        ->orWhereDate(
+                            'tanggal_selesai',
+                            '>=',
+                            $material->created_at
+                        );
+                })
                 ->exists();
         }
 

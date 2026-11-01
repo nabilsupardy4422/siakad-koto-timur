@@ -1,0 +1,321 @@
+/* ==================================================
+   SIAKAD KOTO TIMUR
+   Feature Highlights Component
+   ================================================== */
+
+/* --------------------------------------------------
+   FEATURES
+   -------------------------------------------------- */
+
+   .features-section {
+    padding: clamp(5rem, 9vw, 8rem) 0;
+  
+    background: #ffffff;
+  }
+  
+  .features-container {
+    width: min(1180px, calc(100% - 48px));
+    margin: 0 auto;
+  }
+  
+  .features-heading {
+    padding-bottom: 2.8rem;
+  
+    border-bottom: 1px solid var(--color-border);
+  }
+  
+  .section-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+  
+    color: var(--color-primary-700);
+  
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  
+  .section-eyebrow > span:first-child {
+    width: 28px;
+    height: 1px;
+  
+    background: var(--color-primary-600);
+  }
+  
+  .features-heading-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    align-items: end;
+    gap: 4rem;
+  
+    margin-top: 1.5rem;
+  }
+  
+  .features-heading h2 {
+    margin: 0;
+  
+    color: var(--color-navy-950);
+  
+    font-family: var(--font-heading);
+    font-size: clamp(2.65rem, 4.4vw, 4.2rem);
+    font-weight: 800;
+    letter-spacing: -0.06em;
+    line-height: 0.98;
+  }
+  
+  .features-heading h2 span {
+    color: var(--color-primary-600);
+  }
+  
+  .features-heading p {
+    max-width: 430px;
+  
+    margin: 0 0 0.25rem;
+  
+    color: var(--color-text-muted);
+  
+    font-size: 0.9rem;
+    line-height: 1.8;
+  }
+  
+  /* --------------------------------------------------
+     FEATURE LIST
+     -------------------------------------------------- */
+  
+  .features-list {
+    border-bottom: 1px solid var(--color-border);
+  }
+  
+  .feature-item {
+    min-height: 142px;
+  
+    display: grid;
+    grid-template-columns: 60px 58px minmax(0, 1fr) 32px;
+    align-items: center;
+    gap: 1.5rem;
+  
+    padding: 1.65rem 0;
+  
+    border-bottom: 1px solid var(--color-border);
+  
+    transition:
+      padding 220ms ease,
+      background-color 220ms ease;
+  }
+  
+  .feature-content p {
+    max-width: 590px;
+  
+    margin: 0.45rem 0 0;
+  
+    color: var(--color-text-muted);
+  
+    font-size: 0.8rem;
+    line-height: 1.65;
+  }
+  
+  .feature-item:last-child {
+    border-bottom: 0;
+  }
+  
+  .feature-item:hover {
+    padding-inline: 1rem;
+  
+    background: #f8fafc;
+  }
+  
+  .feature-number {
+    align-self: start;
+  
+    padding-top: 0.3rem;
+  
+    color: var(--color-primary-600);
+  
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+  
+  .feature-icon {
+    width: 48px;
+    height: 48px;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    border: 1px solid #dbe7f1;
+    border-radius: 12px;
+  
+    background: #f3f8fc;
+    color: var(--color-primary-600);
+  }
+  
+  .feature-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+  
+  .feature-content {
+    max-width: 650px;
+  }
+  
+  .feature-content h3 {
+    margin: 0;
+  
+    color: var(--color-navy-950);
+  
+    font-family: var(--font-heading);
+    font-size: 1.15rem;
+    font-weight: 750;
+    letter-spacing: -0.025em;
+  }
+  
+  .feature-content p {
+    max-width: 590px;
+  
+    margin: 0.6rem 0 0;
+  
+    color: var(--color-text-muted);
+  
+    font-size: 0.82rem;
+    line-height: 1.7;
+  }
+  
+  .feature-link {
+    justify-self: end;
+  
+    color: #94a3b8;
+  
+    font-size: 1.15rem;
+  
+    transition:
+      color 180ms ease,
+      transform 180ms ease;
+  }
+  
+  .feature-item:hover .feature-link {
+    color: var(--color-primary-600);
+    transform: translateX(3px);
+  }
+  
+  /* ==================================================
+     FEATURES — TABLET
+     ================================================== */
+  
+  @media (max-width: 900px) {
+    .features-heading-layout {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+  
+    .features-heading p {
+      max-width: 600px;
+    }
+  
+    .feature-item {
+      min-height: 160px;
+    }
+  }
+  
+  /* ==================================================
+     FEATURES — MOBILE
+     ================================================== */
+  
+  @media (max-width: 560px) {
+    .features-section {
+      padding: 4.5rem 0 5rem;
+    }
+  
+    .features-container {
+      width: min(100% - 32px, 1180px);
+    }
+  
+    .features-heading {
+      padding-bottom: 2.5rem;
+    }
+  
+    .section-eyebrow {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+    }
+  
+    .section-eyebrow > span:first-child {
+      width: 22px;
+    }
+  
+    .features-heading-layout {
+      margin-top: 1.25rem;
+      gap: 1.25rem;
+    }
+  
+    .features-heading h2 {
+      font-size: clamp(2.45rem, 12vw, 3.5rem);
+      letter-spacing: -0.055em;
+    }
+  
+    .features-heading p {
+      font-size: 0.8rem;
+      line-height: 1.75;
+    }
+  
+    .feature-item {
+      min-height: 0;
+  
+      grid-template-columns: 32px 42px minmax(0, 1fr) 20px;
+      gap: 0.75rem;
+  
+      padding: 1.5rem 0;
+    }
+  
+    .feature-content p {
+      max-width: 590px;
+  
+      margin: 0.45rem 0 0;
+  
+      color: var(--color-text-muted);
+  
+      font-size: 0.8rem;
+      line-height: 1.65;
+    }
+  
+    .feature-item:hover {
+      padding-inline: 0.5rem;
+    }
+  
+    .feature-number {
+      padding-top: 0.15rem;
+  
+      font-size: 0.57rem;
+    }
+  
+    .feature-icon {
+      width: 38px;
+      height: 38px;
+  
+      border-radius: 9px;
+    }
+  
+    .feature-icon svg {
+      width: 17px;
+      height: 17px;
+    }
+  
+    .feature-content h3 {
+      font-size: 0.84rem;
+    }
+  
+    .feature-content p {
+      margin-top: 0.35rem;
+  
+      font-size: 0.68rem;
+      line-height: 1.6;
+    }
+  
+    .feature-link {
+      font-size: 0.9rem;
+    }
+  }

@@ -1,0 +1,65 @@
+.ui-card {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #dce5eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.ui-card--padding-none .ui-card__body {
+  padding: 0;
+}
+
+.ui-card--padding-small .ui-card__body {
+  padding: 16px;
+}
+
+.ui-card--padding-medium .ui-card__body {
+  padding: 20px;
+}
+
+.ui-card--padding-large .ui-card__body {
+  padding: 26px;
+}
+
+.ui-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e4e9ee;
+}
+
+.ui-card__heading {
+  min-width: 0;
+}
+
+.ui-card__title {
+  margin: 0;
+  color: #203b52;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.ui-card__description {
+  max-width: 650px;
+  margin: 5px 0 0;
+  color: #81909d;
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.ui-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-card__body {
+  min-width: 0;
+}

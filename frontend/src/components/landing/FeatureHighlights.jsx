@@ -1,3 +1,6 @@
+import './FeatureHighlights.css'
+import './Landing.css'
+
 const features = [
     {
       number: '01',

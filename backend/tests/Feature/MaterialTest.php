@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AnggotaKelas;
 use App\Models\BahanAjar;
+use App\Models\BahanAjarLampiran;
 use App\Models\Guru;
 use App\Models\JadwalPelajaran;
 use App\Models\Kelas;
@@ -168,9 +169,19 @@ class MaterialTest extends TestCase
             ->assertUnauthorized();
     }
 
+
     public function test_authenticated_roles_can_view_material_list(): void
     {
-        foreach (['TU', 'KEPALA_SEKOLAH', 'GURU', 'SISWA'] as $role) {
+        foreach (['TU', 'KEPALA_SEKOLAH'] as $role) {
+            $user = $this->createUser($role);
+
+            Sanctum::actingAs($user);
+
+            $this->getJson('/api/materials')
+                ->assertForbidden();
+        }
+
+        foreach (['GURU', 'SISWA'] as $role) {
             $user = $this->createUser($role);
 
             Sanctum::actingAs($user);
@@ -183,6 +194,7 @@ class MaterialTest extends TestCase
                 ]);
         }
     }
+
 
     public function test_teacher_can_create_material_in_own_teaching_context(): void
     {
@@ -571,12 +583,14 @@ class MaterialTest extends TestCase
         )->assertForbidden();
     }
 
-    public function test_teacher_can_replace_material_file(): void
+
+    public function test_teacher_can_append_material_file_without_removing_old_file(): void
     {
         [$user, $guru] = $this->createTeacher();
 
         $academicYear = $this->createAcademicYear();
         $class = $this->createClass($academicYear);
+
         $schedule = $this->createSchedule(
             $academicYear,
             $class,
@@ -587,13 +601,14 @@ class MaterialTest extends TestCase
 
         Sanctum::actingAs($user);
 
+        // 1. Buat bahan ajar dengan file pertama.
         $firstFile = UploadedFile::fake()->create(
             'materi-lama.pdf',
             100,
             'application/pdf'
         );
 
-        $createResponse = $this->post(
+        $this->post(
             '/api/materials',
             [
                 'jadwal_pelajaran_id' => $schedule->id,
@@ -607,12 +622,24 @@ class MaterialTest extends TestCase
 
         $material = BahanAjar::query()->latest('id')->first();
 
+        $this->assertNotNull($material);
+
         $oldPath = $material->file_path;
 
+        $this->assertNotNull($oldPath);
+
         $this->assertTrue(
-            Storage::disk('local')->exists($material->file_path)
+            Storage::disk('local')->exists($oldPath)
         );
 
+        // Pastikan file pertama sudah tercatat sebagai lampiran.
+        $this->assertDatabaseHas('bahan_ajar_lampiran', [
+            'bahan_ajar_id' => $material->id,
+            'file_name' => 'materi-lama.pdf',
+            'file_path' => $oldPath,
+        ]);
+
+        // 2. Tambahkan file kedua melalui proses edit.
         $secondFile = UploadedFile::fake()->create(
             'materi-baru.pdf',
             100,
@@ -632,24 +659,40 @@ class MaterialTest extends TestCase
 
         $material->refresh();
 
-        $this->assertNotSame(
-            $oldPath,
-            $material->file_path
+        // 3. File lama harus tetap tersimpan.
+        $this->assertTrue(
+            Storage::disk('local')->exists($oldPath),
+            'File lama tidak boleh dihapus ketika menambahkan lampiran.'
         );
 
+        // File utama tetap menunjuk ke lampiran pertama.
+        $this->assertSame($oldPath, $material->file_path);
+
         $this->assertSame(
-            'materi-baru.pdf',
+            'materi-lama.pdf',
             $material->file_name
         );
 
-        $this->assertFalse(
-            Storage::disk('local')->exists($oldPath)
-        );
+        // 4. File kedua harus tercatat sebagai lampiran tambahan.
+        $this->assertDatabaseHas('bahan_ajar_lampiran', [
+            'bahan_ajar_id' => $material->id,
+            'file_name' => 'materi-baru.pdf',
+        ]);
 
-        $this->assertTrue(
-            Storage::disk('local')->exists($material->file_path)
-        );
+        $this->assertDatabaseCount('bahan_ajar_lampiran', 2);
+
+        // 5. Resource harus mengembalikan kedua lampiran.
+        $this->getJson("/api/materials/{$material->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.lampiran')
+            ->assertJsonFragment([
+                'file_name' => 'materi-lama.pdf',
+            ])
+            ->assertJsonFragment([
+                'file_name' => 'materi-baru.pdf',
+            ]);
     }
+
 
     public function test_teacher_can_remove_material_file(): void
     {
@@ -1025,4 +1068,165 @@ class MaterialTest extends TestCase
             '/api/materials/999999'
         )->assertNotFound();
     }
+
+    public function test_student_can_download_individual_material_attachment(): void
+    {
+        [, $guru] = $this->createTeacher();
+        [$studentUser, $student] = $this->createStudent();
+
+        $academicYear = $this->createAcademicYear();
+        $class = $this->createClass($academicYear);
+
+        $this->createMembership($student, $class);
+
+        $schedule = $this->createSchedule(
+            $academicYear,
+            $class,
+            $guru
+        );
+
+        Storage::fake('local');
+
+        Sanctum::actingAs($guru->user);
+
+        $this->post(
+            '/api/materials',
+            [
+                'jadwal_pelajaran_id' => $schedule->id,
+                'judul' => 'Materi Unduhan',
+                'files' => [
+                    UploadedFile::fake()->create(
+                        'modul.pdf',
+                        100,
+                        'application/pdf'
+                    ),
+                    UploadedFile::fake()->create(
+                        'latihan.docx',
+                        100,
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ),
+                ],
+            ],
+            ['Accept' => 'application/json']
+        )->assertCreated();
+
+        $material = BahanAjar::query()->latest('id')->firstOrFail();
+
+        $attachments = BahanAjarLampiran::query()
+            ->where('bahan_ajar_id', $material->id)
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $attachments);
+
+        $targetAttachment = $attachments->firstWhere(
+            'file_name',
+            'latihan.docx'
+        );
+
+        $this->assertNotNull($targetAttachment);
+
+        Sanctum::actingAs($studentUser);
+
+        $this->get(
+            "/api/materials/{$material->id}"
+            . "/attachments/{$targetAttachment->id}/download"
+        )
+            ->assertOk()
+            ->assertDownload('latihan.docx');
+    }
+
+    public function test_teacher_can_delete_one_attachment_without_deleting_others(): void
+    {
+        [$user, $guru] = $this->createTeacher();
+
+        $academicYear = $this->createAcademicYear();
+        $class = $this->createClass($academicYear);
+
+        $schedule = $this->createSchedule(
+            $academicYear,
+            $class,
+            $guru
+        );
+
+        Storage::fake('local');
+
+        Sanctum::actingAs($user);
+
+        $this->post(
+            '/api/materials',
+            [
+                'jadwal_pelajaran_id' => $schedule->id,
+                'judul' => 'Materi Penghapusan',
+                'files' => [
+                    UploadedFile::fake()->create(
+                        'modul.pdf',
+                        100,
+                        'application/pdf'
+                    ),
+                    UploadedFile::fake()->create(
+                        'latihan.pdf',
+                        100,
+                        'application/pdf'
+                    ),
+                ],
+            ],
+            ['Accept' => 'application/json']
+        )->assertCreated();
+
+        $material = BahanAjar::query()->latest('id')->firstOrFail();
+
+        $attachments = BahanAjarLampiran::query()
+            ->where('bahan_ajar_id', $material->id)
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $attachments);
+
+        $attachmentToDelete = $attachments->firstWhere(
+            'file_name',
+            'latihan.pdf'
+        );
+
+        $attachmentToKeep = $attachments->firstWhere(
+            'file_name',
+            'modul.pdf'
+        );
+
+        $this->assertNotNull($attachmentToDelete);
+        $this->assertNotNull($attachmentToKeep);
+
+        $deletedPath = $attachmentToDelete->file_path;
+        $keptPath = $attachmentToKeep->file_path;
+
+        $this->deleteJson(
+            "/api/materials/{$material->id}"
+            . "/attachments/{$attachmentToDelete->id}"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Lampiran berhasil dihapus.'
+            );
+
+        $this->assertDatabaseMissing('bahan_ajar_lampiran', [
+            'id' => $attachmentToDelete->id,
+        ]);
+
+        $this->assertDatabaseHas('bahan_ajar_lampiran', [
+            'id' => $attachmentToKeep->id,
+            'bahan_ajar_id' => $material->id,
+        ]);
+
+        $this->assertFalse(
+            Storage::disk('local')->exists($deletedPath)
+        );
+
+        $this->assertTrue(
+            Storage::disk('local')->exists($keptPath)
+        );
+
+        $this->assertDatabaseCount('bahan_ajar_lampiran', 1);
+    }
+
 }

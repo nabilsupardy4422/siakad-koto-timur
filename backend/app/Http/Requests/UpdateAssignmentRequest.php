@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Guru;
 use App\Models\JadwalPelajaran;
+use App\Models\KomponenNilai;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -47,14 +48,34 @@ class UpdateAssignmentRequest extends FormRequest
                 'date',
             ],
 
-            'file' => [
+            'files' => [
                 'sometimes',
                 'nullable',
+                'array',
+                'max:10',
+            ],
+
+            'files.*' => [
+                'bail',
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
 
+            'remove_attachment_ids' => [
+                'sometimes',
+                'array',
+                'max:10',
+            ],
+
+            'remove_attachment_ids.*' => [
+                'required',
+                'integer',
+                'distinct',
+                'min:1',
+            ],
+
+            // Kompatibilitas dengan frontend lama.
             'remove_file' => [
                 'sometimes',
                 'boolean',
@@ -64,7 +85,7 @@ class UpdateAssignmentRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator) {
+        $validator->after(function (Validator $validator): void {
             $jadwalId = $this->input('jadwal_pelajaran_id');
 
             if (! $jadwalId) {
@@ -77,9 +98,15 @@ class UpdateAssignmentRequest extends FormRequest
                 return;
             }
 
-            $guru = Guru::where('user_id', $this->user()->id)->first();
+            $user = $this->user();
 
-            if (! $guru || $jadwal->guru_id !== $guru->id) {
+            if (! $user) {
+                return;
+            }
+
+            $guru = Guru::where('user_id', $user->id)->first();
+
+            if (! $guru || (int) $jadwal->guru_id !== (int) $guru->id) {
                 $validator->errors()->add(
                     'jadwal_pelajaran_id',
                     'Jadwal pelajaran tidak berada dalam kewenangan guru yang sedang login.'
@@ -88,14 +115,18 @@ class UpdateAssignmentRequest extends FormRequest
                 return;
             }
 
-            if ($this->has('komponen_nilai_id') && $this->filled('komponen_nilai_id')) {
-                $komponen = \App\Models\KomponenNilai::find(
+            if (
+                $this->has('komponen_nilai_id')
+                && $this->filled('komponen_nilai_id')
+            ) {
+                $komponen = KomponenNilai::find(
                     $this->input('komponen_nilai_id')
                 );
 
                 if (
-                    ! $komponen ||
-                    $komponen->jadwal_pelajaran_id !== $jadwal->id
+                    ! $komponen
+                    || (int) $komponen->jadwal_pelajaran_id
+                        !== (int) $jadwal->id
                 ) {
                     $validator->errors()->add(
                         'komponen_nilai_id',
@@ -114,7 +145,10 @@ class UpdateAssignmentRequest extends FormRequest
             'judul' => 'judul tugas',
             'deskripsi' => 'deskripsi',
             'deadline' => 'deadline',
-            'file' => 'file tugas',
+            'files' => 'lampiran tugas',
+            'files.*' => 'file lampiran',
+            'remove_attachment_ids' => 'daftar lampiran yang dihapus',
+            'remove_attachment_ids.*' => 'ID lampiran',
             'remove_file' => 'hapus file',
         ];
     }

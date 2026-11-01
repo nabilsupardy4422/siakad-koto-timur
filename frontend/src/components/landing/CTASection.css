@@ -1,0 +1,508 @@
+/* =========================================================
+   SIAKAD KOTO TIMUR
+   CTA Section Component
+   ========================================================= */
+
+   .cta-section {
+    padding: 5rem 0 6rem;
+    background: #ffffff;
+  }
+  
+  .cta-container {
+    position: relative;
+    isolation: isolate;
+  
+    width: min(960px, calc(100% - 48px));
+    min-height: 420px;
+  
+    margin: 0 auto;
+    padding: 4rem 4.25rem;
+  
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 230px;
+    align-items: center;
+    gap: 4rem;
+  
+    overflow: hidden;
+  
+    background: #123f64;
+    color: #ffffff;
+  
+    border-radius: 16px;
+  }
+  
+  /* Decorative background */
+  
+  .cta-pattern {
+    position: absolute;
+    inset: 0;
+  
+    z-index: 0;
+  
+    overflow: hidden;
+    pointer-events: none;
+  }
+  
+  .cta-pattern-line {
+    position: absolute;
+  
+    top: -45%;
+    width: 1px;
+    height: 190%;
+  
+    background: rgba(255, 255, 255, 0.055);
+  
+    transform: rotate(24deg);
+  }
+  
+  .cta-pattern-line-one {
+    right: 25%;
+  }
+  
+  .cta-pattern-line-two {
+    right: 17%;
+  }
+  
+  .cta-pattern-line-three {
+    right: 9%;
+  }
+  
+  .cta-pattern-circle {
+    position: absolute;
+  
+    right: -205px;
+    bottom: -245px;
+  
+    width: 360px;
+    height: 360px;
+  
+    border: 1px solid rgba(255, 255, 255, 0.065);
+  
+    border-radius: 50%;
+  }
+  
+  .cta-pattern-circle::before,
+  .cta-pattern-circle::after {
+    content: "";
+  
+    position: absolute;
+  
+    border: 1px solid rgba(255, 255, 255, 0.045);
+  
+    border-radius: 50%;
+  }
+  
+  .cta-pattern-circle::before {
+    inset: 45px;
+  }
+  
+  .cta-pattern-circle::after {
+    inset: 90px;
+  }
+  
+  /* Main content */
+  
+  .cta-main {
+    position: relative;
+  
+    z-index: 3;
+  
+    max-width: 570px;
+  }
+  
+  .cta-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  
+    margin-bottom: 1.5rem;
+  
+    color: #79b9df;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+  
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  
+  .cta-eyebrow span {
+    display: block;
+  
+    width: 20px;
+    height: 1px;
+  
+    background: #69afd9;
+  }
+  
+  /* CTA title */
+  
+  .cta-main h2 {
+    margin: 0;
+  
+    max-width: 570px;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: clamp(3rem, 4.5vw, 4.55rem);
+  
+    line-height: 0.94;
+    letter-spacing: -0.055em;
+  
+    font-weight: 800;
+  }
+  
+  .cta-main h2 span {
+    color: #5baee0;
+  }
+  
+  /* Description */
+  
+  .cta-main p {
+    max-width: 470px;
+  
+    margin: 1.65rem 0 0;
+  
+    color: #bfd3e3;
+  
+    font-size: 0.82rem;
+    line-height: 1.75;
+  }
+  
+  /* Action area */
+  
+  .cta-actions {
+    position: relative;
+  
+    z-index: 5;
+  
+    width: 100%;
+  
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Button base */
+  
+  .cta-primary,
+  .cta-secondary {
+    position: relative;
+  
+    width: 100%;
+    min-height: 56px;
+  
+    padding: 0.45rem 0.5rem 0.45rem 1.15rem;
+  
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  
+    border-radius: 7px;
+  
+    text-decoration: none;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+  
+    box-sizing: border-box;
+  
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+  
+  /* Primary */
+  
+  .cta-primary {
+    color: #123f64;
+  
+    background: #ffffff;
+  
+    border: 1px solid #ffffff;
+  }
+  
+  .cta-primary:hover {
+    background: #edf7fd;
+  
+    transform: translateX(4px);
+  }
+  
+  /* Secondary */
+  
+  .cta-secondary {
+    color: #ffffff;
+  
+    background: rgba(255, 255, 255, 0.025);
+  
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .cta-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+  
+    border-color: rgba(255, 255, 255, 0.6);
+  
+    transform: translateX(4px);
+  }
+  
+  /* Button arrow box */
+  
+  .cta-primary span:last-child,
+  .cta-secondary span:last-child {
+    width: 38px;
+    height: 38px;
+  
+    flex: 0 0 38px;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    border-radius: 5px;
+  
+    font-size: 0.9rem;
+  
+    box-sizing: border-box;
+  
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+  
+  .cta-primary span:last-child {
+    color: #ffffff;
+  
+    background: #123f64;
+  
+    border: 1px solid #123f64;
+  }
+  
+  .cta-secondary span:last-child {
+    color: #ffffff;
+  
+    background: rgba(255, 255, 255, 0.08);
+  
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  
+  .cta-primary:hover span:last-child {
+    color: #ffffff;
+  
+    background: #176fae;
+    border-color: #176fae;
+  
+    transform: translateX(2px);
+  }
+  
+  .cta-secondary:hover span:last-child {
+    color: #123f64;
+  
+    background: #ffffff;
+    border-color: #ffffff;
+  
+    transform: translateX(2px);
+  }
+  
+  /* School information */
+  
+  .cta-school {
+    position: relative;
+  
+    z-index: 3;
+  
+    margin-top: 2.2rem;
+    padding-top: 1rem;
+  
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  
+  .cta-school strong {
+    color: #ffffff;
+  
+    font-family: "Montserrat", "Inter", sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  
+  .cta-school span {
+    color: #91aec4;
+  
+    font-size: 0.62rem;
+  }
+  
+  /* Watermark logo */
+  
+  .cta-watermark {
+    position: absolute;
+  
+    z-index: 1;
+  
+    right: -1rem;
+    bottom: -7rem;
+  
+    width: 240px;
+  
+    opacity: 0.045;
+  
+    pointer-events: none;
+  }
+  
+  .cta-watermark img {
+    display: block;
+  
+    width: 100%;
+    height: auto;
+  }
+  
+  /* Tablet */
+  
+  @media (max-width: 900px) {
+    .cta-container {
+      width: min(760px, calc(100% - 40px));
+  
+      grid-template-columns: minmax(0, 1fr) 210px;
+  
+      gap: 2.5rem;
+  
+      padding: 3.5rem;
+    }
+  
+    .cta-main h2 {
+      font-size: clamp(2.7rem, 6vw, 4rem);
+    }
+  }
+  
+  /* Mobile */
+  
+  @media (max-width: 640px) {
+    .cta-section {
+      padding: 3.5rem 0 4rem;
+    }
+  
+    .cta-container {
+      width: calc(100% - 32px);
+  
+      min-height: auto;
+  
+      margin: 0 auto;
+  
+      padding: 2.25rem 1.25rem 2rem;
+  
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+  
+      gap: 2rem;
+  
+      border-radius: 13px;
+    }
+  
+    .cta-main {
+      max-width: none;
+    }
+  
+    .cta-eyebrow {
+      margin-bottom: 1.15rem;
+  
+      font-size: 0.58rem;
+    }
+  
+    .cta-eyebrow span {
+      width: 17px;
+    }
+  
+    .cta-main h2 {
+      max-width: none;
+  
+      font-size: clamp(2.35rem, 10vw, 3.2rem);
+  
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+  
+    .cta-main p {
+      max-width: none;
+  
+      margin-top: 1.25rem;
+  
+      font-size: 0.76rem;
+      line-height: 1.7;
+    }
+  
+    .cta-actions {
+      width: 100%;
+    }
+  
+    .cta-primary,
+    .cta-secondary {
+      min-height: 52px;
+  
+      padding-left: 0.9rem;
+      padding-right: 0.45rem;
+  
+      border-radius: 7px;
+    }
+  
+    .cta-primary span:last-child,
+    .cta-secondary span:last-child {
+      width: 34px;
+      height: 34px;
+  
+      flex-basis: 34px;
+  
+      border-radius: 4px;
+    }
+  
+    .cta-school {
+      margin-top: 1.7rem;
+    }
+  
+    .cta-school strong {
+      font-size: 0.62rem;
+    }
+  
+    .cta-school span {
+      font-size: 0.56rem;
+    }
+  
+    .cta-watermark {
+      right: -3rem;
+      bottom: -4rem;
+  
+      width: 180px;
+    }
+  
+    .cta-pattern-line {
+      top: -30%;
+      height: 160%;
+    }
+  
+    .cta-pattern-line-one {
+      right: 5%;
+    }
+  
+    .cta-pattern-line-two {
+      right: -15%;
+    }
+  
+    .cta-pattern-line-three {
+      display: none;
+    }
+  
+    .cta-pattern-circle {
+      width: 260px;
+      height: 260px;
+  
+      right: -170px;
+      bottom: -180px;
+    }
+  }

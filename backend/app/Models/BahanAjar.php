@@ -45,4 +45,11 @@ class BahanAjar extends Model
     {
         return $this->hasMany(SubmissionTugas::class);
     }
+
+    public function lampiran(): HasMany
+    {
+        return $this->hasMany(BahanAjarLampiran::class)
+            ->orderBy('created_at')
+            ->orderBy('id');
+    }
 }

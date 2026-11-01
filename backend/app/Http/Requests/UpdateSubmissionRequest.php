@@ -6,9 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateSubmissionRequest extends FormRequest
 {
-    /**
-     * Determine whether the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         $user = $this->user();
@@ -17,7 +14,6 @@ class UpdateSubmissionRequest extends FormRequest
             return false;
         }
 
-        // Revisi submission hanya dapat dilakukan oleh siswa.
         if ($user->role?->code !== 'SISWA') {
             return false;
         }
@@ -34,13 +30,11 @@ class UpdateSubmissionRequest extends FormRequest
             return false;
         }
 
-        // Siswa hanya dapat merevisi submission miliknya sendiri.
-        return (int) $submission->siswa_id === (int) $student->id;
+        // Siswa hanya boleh merevisi submission miliknya.
+        return (int) $submission->siswa_id
+            === (int) $student->id;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     */
     public function rules(): array
     {
         return [
@@ -49,8 +43,22 @@ class UpdateSubmissionRequest extends FormRequest
                 'string',
             ],
 
+            // Kompatibilitas dengan frontend lama.
             'file' => [
                 'nullable',
+                'file',
+                'max:10240',
+                'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+            ],
+
+            // Maksimal 10 file tambahan per request.
+            'files' => [
+                'nullable',
+                'array',
+                'max:10',
+            ],
+
+            'files.*' => [
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
@@ -58,32 +66,24 @@ class UpdateSubmissionRequest extends FormRequest
         ];
     }
 
-    /**
-     * Configure the validator instance.
-     */
     public function withValidator($validator): void
     {
         /*
-         * Tidak melakukan validasi "jawaban atau file wajib"
-         * pada tahap request.
+         * Field yang tidak dikirim saat revisi akan
+         * mempertahankan data sebelumnya.
          *
-         * Pada PUT, field yang tidak dikirim dapat berarti
-         * data sebelumnya tetap dipertahankan.
-         *
-         * Validasi akhir mengenai minimal satu sumber jawaban
-         * dilakukan oleh SubmissionController setelah submission
-         * lama dimuat.
+         * Validasi akhir bahwa submission memiliki
+         * jawaban atau file dilakukan oleh controller.
          */
     }
 
-    /**
-     * Get custom attributes for validator errors.
-     */
     public function attributes(): array
     {
         return [
             'jawaban' => 'jawaban',
             'file' => 'file',
+            'files' => 'daftar file',
+            'files.*' => 'file lampiran',
         ];
     }
 }

@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\WaliKelasController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\SubmissionAttachmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', LoginController::class);
@@ -34,7 +36,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Dashboard
     |--------------------------------------------------------------------------
     */
-
     Route::get(
         '/dashboard',
         DashboardController::class
@@ -45,7 +46,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Academic Years
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/academic-years', [AcademicYearController::class, 'index']);
         Route::get('/academic-years/{academicYear}', [AcademicYearController::class, 'show']);
@@ -62,13 +62,17 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Teachers
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/teachers', [TeacherController::class, 'index']);
         Route::get('/teachers/{teacher}', [TeacherController::class, 'show']);
     });
 
     Route::middleware('role:TU')->group(function (): void {
+        Route::get(
+            '/teacher-accounts/available',
+            [TeacherController::class, 'availableAccounts']
+        );
+
         Route::post('/teachers', [TeacherController::class, 'store']);
         Route::put('/teachers/{teacher}', [TeacherController::class, 'update']);
         Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy']);
@@ -79,13 +83,17 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Students
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/students', [StudentController::class, 'index']);
         Route::get('/students/{student}', [StudentController::class, 'show']);
     });
 
     Route::middleware('role:TU')->group(function (): void {
+        Route::get(
+            '/student-accounts/available',
+            [StudentController::class, 'availableAccounts']
+        );
+
         Route::post('/students', [StudentController::class, 'store']);
         Route::put('/students/{student}', [StudentController::class, 'update']);
         Route::delete('/students/{student}', [StudentController::class, 'destroy']);
@@ -96,7 +104,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Subjects
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/subjects', [SubjectController::class, 'index']);
         Route::get('/subjects/{subject}', [SubjectController::class, 'show']);
@@ -113,7 +120,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Classes
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/classes', [ClassController::class, 'index']);
         Route::get('/classes/{class}', [ClassController::class, 'show']);
@@ -130,7 +136,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Class Members
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/classes/{class}/students', [ClassMemberController::class, 'index']);
     });
@@ -145,34 +150,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Homeroom Assignments
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU')->group(function (): void {
-        Route::get(
-            '/homeroom-assignments',
-            [WaliKelasController::class, 'index']
-        );
-
-        Route::get(
-            '/homeroom-assignments/{assignment}',
-            [WaliKelasController::class, 'show']
-        );
+        Route::get('/homeroom-assignments', [WaliKelasController::class, 'index']);
+        Route::get('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'show']);
     });
 
     Route::middleware('role:TU')->group(function (): void {
-        Route::post(
-            '/homeroom-assignments',
-            [WaliKelasController::class, 'store']
-        );
-
-        Route::put(
-            '/homeroom-assignments/{assignment}',
-            [WaliKelasController::class, 'update']
-        );
-
-        Route::delete(
-            '/homeroom-assignments/{assignment}',
-            [WaliKelasController::class, 'destroy']
-        );
+        Route::post('/homeroom-assignments', [WaliKelasController::class, 'store']);
+        Route::put('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'update']);
+        Route::delete('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'destroy']);
     });
 
     /*
@@ -180,36 +166,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Schedules
     |--------------------------------------------------------------------------
     */
-
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/schedules',
-            [ScheduleController::class, 'index']
-        );
-
-        Route::get(
-            '/schedules/{schedule}',
-            [ScheduleController::class, 'show']
-        );
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/schedules', [ScheduleController::class, 'index']);
+        Route::get('/schedules/{schedule}', [ScheduleController::class, 'show']);
     });
 
     Route::middleware('role:TU')->group(function (): void {
-        Route::post(
-            '/schedules',
-            [ScheduleController::class, 'store']
-        );
-
-        Route::put(
-            '/schedules/{schedule}',
-            [ScheduleController::class, 'update']
-        );
-
-        Route::delete(
-            '/schedules/{schedule}',
-            [ScheduleController::class, 'destroy']
-        );
+        Route::post('/schedules', [ScheduleController::class, 'store']);
+        Route::put('/schedules/{schedule}', [ScheduleController::class, 'update']);
+        Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy']);
     });
 
     /*
@@ -217,72 +182,50 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Attendance
     |--------------------------------------------------------------------------
     */
-
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/attendance',
-            [AttendanceController::class, 'index']
-        );
-
-        Route::get(
-            '/attendance/recap',
-            [AttendanceController::class, 'recap']
-        );
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/attendance', [AttendanceController::class, 'index']);
+        Route::get('/attendance/recap', [AttendanceController::class, 'recap']);
     });
 
     Route::middleware('role:GURU')->group(function (): void {
-        Route::post(
-            '/attendance',
-            [AttendanceController::class, 'store']
-        );
-
-        Route::put(
-            '/attendance/{attendance}',
-            [AttendanceController::class, 'update']
-        );
+        Route::post('/attendance', [AttendanceController::class, 'store']);
+        Route::post('/attendance/bulk', [AttendanceController::class, 'bulkStore']);
+        Route::put('/attendance/{attendance}', [AttendanceController::class, 'update']);
     });
+
+    Route::get(
+        '/attendance/class-recap',
+        [AttendanceController::class, 'classRecap']
+    )->middleware('role:TU,KEPALA_SEKOLAH');
 
     /*
     |--------------------------------------------------------------------------
     | Teaching Materials
     |--------------------------------------------------------------------------
     */
-
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/materials',
-            [MaterialController::class, 'index']
-        );
-
-        Route::get(
-            '/materials/{material}',
-            [MaterialController::class, 'show']
-        );
+    Route::middleware('role:GURU,SISWA')->group(function (): void {
+        Route::get('/materials', [MaterialController::class, 'index']);
+        Route::get('/materials/{material}', [MaterialController::class, 'show']);
 
         Route::get(
             '/materials/{material}/download',
             [MaterialController::class, 'download']
         );
+
+        Route::get(
+            '/materials/{material}/attachments/{attachment}/download',
+            [MaterialController::class, 'downloadAttachment']
+        );
     });
 
     Route::middleware('role:GURU')->group(function (): void {
-        Route::post(
-            '/materials',
-            [MaterialController::class, 'store']
-        );
-
-        Route::put(
-            '/materials/{material}',
-            [MaterialController::class, 'update']
-        );
+        Route::post('/materials', [MaterialController::class, 'store']);
+        Route::put('/materials/{material}', [MaterialController::class, 'update']);
+        Route::delete('/materials/{material}', [MaterialController::class, 'destroy']);
 
         Route::delete(
-            '/materials/{material}',
-            [MaterialController::class, 'destroy']
+            '/materials/{material}/attachments/{attachment}',
+            [MaterialController::class, 'destroyAttachment']
         );
     });
 
@@ -291,36 +234,15 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Grade Components
     |--------------------------------------------------------------------------
     */
-
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/grade-components',
-            [GradeComponentController::class, 'index']
-        );
-
-        Route::get(
-            '/grade-components/{component}',
-            [GradeComponentController::class, 'show']
-        );
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/grade-components', [GradeComponentController::class, 'index']);
+        Route::get('/grade-components/{component}', [GradeComponentController::class, 'show']);
     });
 
     Route::middleware('role:GURU')->group(function (): void {
-        Route::post(
-            '/grade-components',
-            [GradeComponentController::class, 'store']
-        );
-
-        Route::put(
-            '/grade-components/{component}',
-            [GradeComponentController::class, 'update']
-        );
-
-        Route::delete(
-            '/grade-components/{component}',
-            [GradeComponentController::class, 'destroy']
-        );
+        Route::post('/grade-components', [GradeComponentController::class, 'store']);
+        Route::put('/grade-components/{component}', [GradeComponentController::class, 'update']);
+        Route::delete('/grade-components/{component}', [GradeComponentController::class, 'destroy']);
     });
 
     /*
@@ -328,68 +250,41 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Grades
     |--------------------------------------------------------------------------
     */
-
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/grades',
-            [GradeController::class, 'index']
-        );
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/grades', [GradeController::class, 'index']);
     });
 
     Route::middleware('role:GURU')->group(function (): void {
-        Route::post(
-            '/grades',
-            [GradeController::class, 'store']
-        );
-
-        Route::put(
-            '/grades/{grade}',
-            [GradeController::class, 'update']
-        );
+        Route::post('/grades', [GradeController::class, 'store']);
+        Route::put('/grades/{grade}', [GradeController::class, 'update']);
     });
 
     /*
     |--------------------------------------------------------------------------
-    | Assignments
+    | Assignments and Assignment Attachments
     |--------------------------------------------------------------------------
     */
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/assignments', [AssignmentController::class, 'index']);
+        Route::get('/assignments/{assignment}', [AssignmentController::class, 'show']);
 
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/assignments',
-            [AssignmentController::class, 'index']
-        );
-
-        Route::get(
-            '/assignments/{assignment}',
-            [AssignmentController::class, 'show']
-        );
-
+        // Kompatibilitas endpoint unduhan tugas lama.
         Route::get(
             '/assignments/{assignment}/download',
             [AssignmentController::class, 'download']
         )->name('assignments.download');
+
+        // Unduh satu lampiran berdasarkan ID.
+        Route::get(
+            '/assignment-attachments/{attachment}/download',
+            [AssignmentController::class, 'downloadAttachment']
+        )->name('assignment-attachments.download');
     });
 
     Route::middleware('role:GURU')->group(function (): void {
-        Route::post(
-            '/assignments',
-            [AssignmentController::class, 'store']
-        );
-
-        Route::put(
-            '/assignments/{assignment}',
-            [AssignmentController::class, 'update']
-        );
-
-        Route::delete(
-            '/assignments/{assignment}',
-            [AssignmentController::class, 'destroy']
-        );
+        Route::post('/assignments', [AssignmentController::class, 'store']);
+        Route::put('/assignments/{assignment}', [AssignmentController::class, 'update']);
+        Route::delete('/assignments/{assignment}', [AssignmentController::class, 'destroy']);
     });
 
     /*
@@ -397,29 +292,26 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Submissions
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:GURU,SISWA')->group(function (): void {
-        Route::get(
-            '/assignments/{assignment}/submissions',
-            [SubmissionController::class, 'index']
-        );
-
-        Route::get(
-            '/submissions/{submission}',
-            [SubmissionController::class, 'show']
-        );
+        Route::get('/assignments/{assignment}/submissions', [SubmissionController::class, 'index']);
+        Route::get('/submissions/{submission}', [SubmissionController::class, 'show']);
     });
 
     Route::middleware('role:SISWA')->group(function (): void {
-        Route::post(
-            '/assignments/{assignment}/submissions',
-            [SubmissionController::class, 'store']
-        );
+        Route::post('/assignments/{assignment}/submissions', [SubmissionController::class, 'store']);
+        Route::put('/submissions/{submission}', [SubmissionController::class, 'update']);
+    });
 
-        Route::put(
-            '/submissions/{submission}',
-            [SubmissionController::class, 'update']
-        );
+    Route::middleware('role:GURU,SISWA')->group(function (): void {
+        Route::get(
+            '/submission-attachments/{attachment}/view',
+            [SubmissionAttachmentController::class, 'view']
+        )->name('submission-attachments.view');
+
+        Route::get(
+            '/submission-attachments/{attachment}/download',
+            [SubmissionAttachmentController::class, 'download']
+        )->name('submission-attachments.download');
     });
 
     /*
@@ -427,49 +319,49 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Report Cards
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:TU,SISWA')->group(function (): void {
-        Route::get(
-            '/report-cards',
-            [ReportCardController::class, 'index']
-        );
-
-        Route::get(
-            '/report-cards/{reportCard}',
-            [ReportCardController::class, 'show']
-        );
-
-        Route::get(
-            '/report-cards/{reportCard}/download',
-            [ReportCardController::class, 'download']
-        );
+        Route::get('/report-cards', [ReportCardController::class, 'index']);
+        Route::get('/report-cards/{reportCard}', [ReportCardController::class, 'show']);
+        Route::get('/report-cards/{reportCard}/download', [ReportCardController::class, 'download']);
     });
 
     Route::middleware('role:TU')->group(function (): void {
-        Route::post(
-            '/report-cards',
-            [ReportCardController::class, 'store']
-        );
-
-        Route::delete(
-            '/report-cards/{reportCard}',
-            [ReportCardController::class, 'destroy']
-        );
+        Route::post('/report-cards', [ReportCardController::class, 'store']);
+        Route::delete('/report-cards/{reportCard}', [ReportCardController::class, 'destroy']);
     });
 
     /*
     |--------------------------------------------------------------------------
-    | Reporting / Rekap
+    | Reporting / Recap
     |--------------------------------------------------------------------------
     */
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/reports/{reportType}', [ReportController::class, 'index']);
+    });
 
-    Route::middleware(
-        'role:TU,KEPALA_SEKOLAH,GURU,SISWA'
-    )->group(function (): void {
-        Route::get(
-            '/reports/{reportType}',
-            [ReportController::class, 'index']
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | User Management
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:TU')->group(function (): void {
+        Route::get('/users', [UserController::class, 'index'])
+            ->middleware('permission:users.view');
+
+        Route::get('/users/{user}', [UserController::class, 'show'])
+            ->middleware('permission:users.view');
+
+        Route::post('/users', [UserController::class, 'store'])
+            ->middleware('permission:users.create');
+
+        Route::put('/users/{user}', [UserController::class, 'update'])
+            ->middleware('permission:users.update');
+
+        Route::post('/users/{user}/activate', [UserController::class, 'activate'])
+            ->middleware('permission:users.activate');
+
+        Route::post('/users/{user}/deactivate', [UserController::class, 'deactivate'])
+            ->middleware('permission:users.deactivate');
     });
 });
 

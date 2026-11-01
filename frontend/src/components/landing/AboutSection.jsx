@@ -1,3 +1,6 @@
+import './AboutSection.css'
+import './Landing.css'
+
 function AboutSection() {
     return (
       <section className="about-section" id="tentang">

@@ -1,0 +1,328 @@
+.kepala-grades {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    width: 100%;
+    min-width: 0;
+    color: #17324d;
+  }
+  
+  .kepala-grades__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  
+  .kepala-grades__header h1 {
+    margin: 0;
+    color: #102d49;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  
+  .kepala-grades__header p {
+    margin: 7px 0 0;
+    color: #71839a;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  
+  .kepala-grades__period {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 190px;
+    padding: 12px 15px;
+    border: 1px solid #dce5ef;
+    border-radius: 9px;
+    background: #fff;
+  }
+  
+  .kepala-grades__period span,
+  .kepala-grades__summary span {
+    color: #71839a;
+    font-size: 12px;
+  }
+  
+  .kepala-grades__period strong {
+    color: #153d60;
+    font-size: 14px;
+  }
+  
+  .kepala-grades__panel {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid #d9e3ee;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgb(16 45 73 / 3%);
+  }
+  
+  .kepala-grades__panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  
+  .kepala-grades__panel-heading h2 {
+    margin: 0;
+    color: #153d60;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  
+  .kepala-grades__panel-heading p {
+    margin: 5px 0 0;
+    color: #7b8da2;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  
+  .kepala-grades__filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 15px;
+  }
+  
+  .kepala-grades__filters label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  
+  .kepala-grades__filters label span {
+    color: #425a73;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  
+  .kepala-grades__filters select {
+    width: 100%;
+    min-height: 41px;
+    padding: 0 11px;
+    border: 1px solid #cbd8e6;
+    border-radius: 7px;
+    outline: none;
+    background: #fff;
+    color: #17324d;
+    font: inherit;
+    font-size: 12px;
+  }
+  
+  .kepala-grades__filters select:focus {
+    border-color: #2b75b9;
+    box-shadow: 0 0 0 3px rgb(43 117 185 / 10%);
+  }
+  
+  .kepala-grades__filters select:disabled {
+    cursor: not-allowed;
+    background: #f4f7fa;
+    color: #91a0b1;
+  }
+  
+  .kepala-grades__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  
+  .kepala-grades__button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  
+  .kepala-grades__button--primary {
+    border-color: #17466d;
+    background: #17466d;
+    color: #fff;
+  }
+  
+  .kepala-grades__button--primary:hover:not(:disabled) {
+    background: #103653;
+  }
+  
+  .kepala-grades__button--secondary {
+    border-color: #cbd8e6;
+    background: #fff;
+    color: #31516f;
+  }
+  
+  .kepala-grades__button--secondary:hover:not(:disabled) {
+    background: #f3f7fb;
+  }
+  
+  .kepala-grades__summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 17px;
+  }
+  
+  .kepala-grades__summary article {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 75px;
+    padding: 14px;
+    border: 1px solid #dce5ef;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+  
+  .kepala-grades__summary strong {
+    color: #142f4b;
+    font-size: 22px;
+    line-height: 1;
+  }
+  
+  .kepala-grades__summary strong.is-success {
+    color: #16804a;
+  }
+  
+  .kepala-grades__summary strong.is-warning {
+    color: #b7791f;
+  }
+  
+  .kepala-grades__table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #d8e2ed;
+    border-radius: 8px;
+  }
+  
+  .kepala-grades__table {
+    width: 100%;
+    min-width: 1120px;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  
+  .kepala-grades__table th {
+    padding: 12px 11px;
+    border-bottom: 1px solid #d8e2ed;
+    background: #f5f8fb;
+    color: #52677e;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+  }
+  
+  .kepala-grades__table td {
+    padding: 13px 11px;
+    border-bottom: 1px solid #e8eef4;
+    color: #29445f;
+    vertical-align: middle;
+  }
+  
+  .kepala-grades__table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  
+  .kepala-grades__table tbody tr:nth-child(even) {
+    background: #fbfcfe;
+  }
+  
+  .kepala-grades__table td strong {
+    color: #17324d;
+  }
+  
+  .kepala-grades__status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  .kepala-grades__status--complete {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .kepala-grades__status--pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .kepala-grades__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 16px;
+    color: #71839a;
+    font-size: 12px;
+  }
+  
+  .kepala-grades__pagination > div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .kepala-grades__pagination > div span {
+    white-space: nowrap;
+  }
+  
+  @media (max-width: 1000px) {
+    .kepala-grades__filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  
+    .kepala-grades__summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .kepala-grades {
+      gap: 16px;
+    }
+  
+    .kepala-grades__header,
+    .kepala-grades__panel-heading {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    .kepala-grades__period {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  
+    .kepala-grades__panel {
+      padding: 14px;
+    }
+  
+    .kepala-grades__filters,
+    .kepala-grades__summary {
+      grid-template-columns: 1fr;
+    }
+  
+    .kepala-grades__pagination {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  
+    .kepala-grades__pagination > div {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+  

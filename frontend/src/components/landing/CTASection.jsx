@@ -1,3 +1,5 @@
+import './CTASection.css'
+
 function CTASection() {
     return (
       <section className="cta-section" id="cta">

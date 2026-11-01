@@ -1,0 +1,265 @@
+/* ========================================
+   PRESENSI GURU — LAYOUT & COMPONENTS
+   CSS ini hanya digunakan oleh halaman presensi Guru.
+======================================== */
+
+.attendance-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0;
+    color: var(--text-primary, #0f172a);
+  }
+  
+  .attendance-page h2 {
+    margin: 0;
+    color: var(--text-primary, #0f172a);
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  
+  .attendance-page p {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted, #64748b);
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+  
+  .attendance-toolbar,
+  .attendance-table-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+  }
+  
+  .attendance-toolbar > div,
+  .attendance-table-heading > div {
+    min-width: 0;
+  }
+  
+  /* Jadwal dan tanggal */
+  .attendance-guru-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(230px, 0.8fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  
+  .attendance-class-context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 1rem !important;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border, #dbe5f0);
+    border-radius: 0.65rem;
+    background: var(--surface-muted, #f8fafc);
+    color: var(--text-primary, #0f172a) !important;
+  }
+  
+  .attendance-class-context strong {
+    color: var(--primary, #174a78);
+    font-weight: 700;
+  }
+  
+  /* Pesan sukses setelah penyimpanan */
+  .attendance-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #86efac;
+    border-radius: 0.7rem;
+    background: #f0fdf4;
+    color: #166534;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  
+  .attendance-notice::before {
+    content: "✓";
+    display: inline-flex;
+    flex: 0 0 1.35rem;
+    width: 1.35rem;
+    height: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #166534;
+    font-weight: 800;
+  }
+  
+  .attendance-form-error {
+    padding: 0.85rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: 0.65rem;
+    background: #fef2f2;
+    color: #991b1b !important;
+  }
+  
+  /* Daftar siswa */
+  .attendance-table-heading {
+    align-items: center;
+  }
+  
+  .attendance-bulk-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 0.7rem;
+    background: var(--surface, #fff);
+    scrollbar-width: thin;
+  }
+  
+  .attendance-bulk-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .attendance-bulk-table th,
+  .attendance-bulk-table td {
+    padding: 0.9rem 0.85rem;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    text-align: left;
+    vertical-align: middle;
+  }
+  
+  .attendance-bulk-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface-muted, #f8fafc);
+    color: var(--text-muted, #64748b);
+    font-size: 0.77rem;
+    font-weight: 750;
+    letter-spacing: 0.025em;
+    white-space: nowrap;
+  }
+  
+  .attendance-bulk-table td {
+    color: var(--text-primary, #0f172a);
+    font-size: 0.875rem;
+  }
+  
+  .attendance-bulk-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  
+  .attendance-bulk-table tbody tr:hover {
+    background: #f8fbff;
+  }
+  
+  .attendance-bulk-table td:first-child {
+    width: 3.5rem;
+    color: var(--text-muted, #64748b);
+    text-align: center;
+  }
+  
+  .attendance-bulk-table td:nth-child(2) strong {
+    font-weight: 650;
+  }
+  
+  .attendance-bulk-table-status,
+  .attendance-bulk-status,
+  .attendance-bulk-note {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 135px;
+    min-height: 2.55rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border, #cbd5e1);
+    border-radius: 0.5rem;
+    background: var(--surface, #fff);
+    color: var(--text-primary, #0f172a);
+    font: inherit;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  
+  .attendance-bulk-note {
+    min-width: 175px;
+  }
+  
+  .attendance-bulk-table-status:hover,
+  .attendance-bulk-status:hover,
+  .attendance-bulk-note:hover {
+    border-color: #94a3b8;
+  }
+  
+  .attendance-bulk-table-status:focus,
+  .attendance-bulk-status:focus,
+  .attendance-bulk-note:focus {
+    border-color: var(--primary, #174a78);
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(23 74 120 / 12%);
+  }
+  
+  .attendance-bulk-table-status:disabled,
+  .attendance-bulk-status:disabled,
+  .attendance-bulk-note:disabled {
+    cursor: not-allowed;
+    background: var(--surface-muted, #f8fafc);
+    opacity: 0.7;
+  }
+  
+  .attendance-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  
+  @media (max-width: 900px) {
+    .attendance-guru-filters {
+      grid-template-columns: minmax(0, 1fr) minmax(200px, 0.8fr);
+    }
+  
+    .attendance-bulk-table th,
+    .attendance-bulk-table td {
+      padding: 0.8rem 0.7rem;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .attendance-page {
+      gap: 1rem;
+    }
+  
+    .attendance-guru-filters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  
+    .attendance-toolbar,
+    .attendance-table-heading {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  
+    .attendance-table-heading > button {
+      width: 100%;
+    }
+  
+    .attendance-bulk-table {
+      min-width: 700px;
+    }
+  
+    .attendance-bulk-table th,
+    .attendance-bulk-table td {
+      padding: 0.7rem 0.55rem;
+    }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .attendance-bulk-table-status,
+    .attendance-bulk-status,
+    .attendance-bulk-note {
+      transition: none;
+    }
+  }
+  

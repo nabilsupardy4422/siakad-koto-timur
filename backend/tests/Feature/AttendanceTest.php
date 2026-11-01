@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
+
 class AttendanceTest extends TestCase
 {
     use RefreshDatabase;
@@ -755,5 +756,574 @@ class AttendanceTest extends TestCase
             ->assertJsonFragment([
                 'id' => $student->id,
             ]);
+    }
+
+    public function test_class_recap_counts_each_student_once_per_day(): void
+    {
+        $context = $this->createTeachingContext();
+
+        $secondSchedule = $this->createSchedule(
+            $context['teacher'],
+            $context['class'],
+            $context['academicYear']
+        );
+
+        // Siswa pertama memiliki HADIR dan IZIN.
+        Presensi::create([
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $context['student']->id,
+            'tanggal' => '2026-09-27',
+            'status' => 'HADIR',
+        ]);
+
+        Presensi::create([
+            'jadwal_pelajaran_id' => $secondSchedule->id,
+            'siswa_id' => $context['student']->id,
+            'tanggal' => '2026-09-27',
+            'status' => 'IZIN',
+        ]);
+
+        // Siswa kedua belum memiliki catatan presensi.
+        $secondStudent = $this->createStudent();
+        $this->addStudentToClass(
+            $secondStudent,
+            $context['class']
+        );
+
+        // Siswa ketiga memiliki status ALPA.
+        $thirdStudent = $this->createStudent();
+        $this->addStudentToClass(
+            $thirdStudent,
+            $context['class']
+        );
+
+        Presensi::create([
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $thirdStudent->id,
+            'tanggal' => '2026-09-27',
+            'status' => 'ALPA',
+        ]);
+
+        Sanctum::actingAs($this->createUser('TU'));
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $context['academicYear']->id,
+            'date' => '2026-09-27',
+            'class_id' => $context['class']->id,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.0.total_siswa', 3)
+            ->assertJsonPath('data.0.hadir', 0)
+            ->assertJsonPath('data.0.izin', 1)
+            ->assertJsonPath('data.0.sakit', 0)
+            ->assertJsonPath('data.0.alpa', 1)
+            ->assertJsonPath('data.0.belum_ada_data', 1);
+    }
+
+
+    public function test_guest_cannot_access_class_recap(): void
+    {
+        $this->getJson('/api/attendance/class-recap')
+            ->assertUnauthorized();
+    }
+
+    public function test_guru_cannot_access_class_recap(): void
+    {
+        $guru = $this->createUser('GURU');
+
+        Sanctum::actingAs($guru);
+
+        $this->getJson('/api/attendance/class-recap')
+            ->assertForbidden();
+    }
+
+    public function test_siswa_cannot_access_class_recap(): void
+    {
+        $siswa = $this->createUser('SISWA');
+
+        Sanctum::actingAs($siswa);
+
+        $this->getJson('/api/attendance/class-recap')
+            ->assertForbidden();
+    }
+
+    public function test_tu_and_kepala_sekolah_can_access_class_recap(): void
+    {
+        $academicYear = $this->createAcademicYear();
+
+        $query = http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+        ]);
+
+        foreach (['TU', 'KEPALA_SEKOLAH'] as $role) {
+            $user = $this->createUser($role);
+
+            Sanctum::actingAs($user);
+
+            $this->getJson('/api/attendance/class-recap?' . $query)
+                ->assertOk()
+                ->assertJsonStructure([
+                    'data',
+                    'meta' => [
+                        'date',
+                        'academic_year_id',
+                        'semester',
+                        'total_classes',
+                    ],
+                ]);
+        }
+    }
+
+
+    public function test_class_recap_requires_academic_year_id(): void
+    {
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?date=2026-09-27')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('academic_year_id');
+    }
+
+    public function test_class_recap_rejects_invalid_academic_year_id(): void
+    {
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => 'bukan-angka',
+            'date' => '2026-09-27',
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('academic_year_id');
+    }
+
+    public function test_class_recap_returns_404_for_unknown_academic_year(): void
+    {
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => 999999,
+            'date' => '2026-09-27',
+        ]))
+            ->assertNotFound()
+            ->assertJsonPath(
+                'message',
+                'Tahun akademik tidak ditemukan.'
+            );
+    }
+
+    public function test_class_recap_requires_valid_date_format(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '27-09-2026',
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('date');
+    }
+
+    public function test_class_recap_rejects_invalid_semester(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'semester' => 'SEMESTER_3',
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('semester');
+    }
+
+    public function test_class_recap_returns_empty_data_when_semester_mismatches(): void
+    {
+        $academicYear = $this->createAcademicYear([
+            'semester' => 'GANJIL',
+        ]);
+
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'semester' => 'GENAP',
+        ]))
+            ->assertOk()
+            ->assertExactJson([
+                'data' => [],
+                'meta' => [
+                    'date' => '2026-09-27',
+                    'academic_year_id' => $academicYear->id,
+                    'semester' => 'GENAP',
+                    'total_classes' => 0,
+                ],
+            ]);
+    }
+
+    public function test_class_recap_returns_all_classes_when_class_id_is_omitted(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $firstClass = $this->createClass($academicYear);
+        $secondClass = $this->createClass($academicYear);
+
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $response = $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+        ]));
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('meta.total_classes', 2)
+            ->assertJsonFragment(['class_id' => $firstClass->id])
+            ->assertJsonFragment(['class_id' => $secondClass->id]);
+    }
+
+    public function test_class_recap_returns_404_for_unknown_class_id(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $user = $this->createUser('TU');
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'class_id' => 999999,
+        ]))
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Kelas tidak ditemukan.');
+    }
+
+    public function test_class_recap_rejects_class_from_another_academic_year(): void
+    {
+        $academicYear = $this->createAcademicYear();
+
+        $otherAcademicYear = $this->createAcademicYear([
+            'tahun_mulai' => 2025,
+            'tahun_selesai' => 2026,
+        ]);
+
+        $otherClass = $this->createClass($otherAcademicYear);
+
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'class_id' => $otherClass->id,
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'Kelas tidak termasuk dalam tahun akademik yang dipilih.'
+            );
+    }
+
+    public function test_class_recap_returns_only_the_selected_class(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $selectedClass = $this->createClass($academicYear);
+        $otherClass = $this->createClass($academicYear);
+
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'class_id' => $selectedClass->id,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('meta.total_classes', 1)
+            ->assertJsonPath('data.0.class_id', $selectedClass->id)
+            ->assertJsonMissing([
+                'class_id' => $otherClass->id,
+            ]);
+    }
+
+    public function test_class_recap_response_matches_api_contract(): void
+    {
+        $academicYear = $this->createAcademicYear();
+        $class = $this->createClass($academicYear);
+
+        $student = $this->createStudent();
+
+        $this->addStudentToClass(
+            $student,
+            $class
+        );
+
+        $user = $this->createUser('TU');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/attendance/class-recap?' . http_build_query([
+            'academic_year_id' => $academicYear->id,
+            'date' => '2026-09-27',
+            'class_id' => $class->id,
+        ]))
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    [
+                        'class_id',
+                        'nama_kelas',
+                        'tingkat',
+                        'total_siswa',
+                        'hadir',
+                        'izin',
+                        'sakit',
+                        'alpa',
+                        'belum_ada_data',
+                    ],
+                ],
+                'meta' => [
+                    'date',
+                    'academic_year_id',
+                    'semester',
+                    'total_classes',
+                ],
+            ])
+            ->assertJsonPath('data.0.class_id', $class->id)
+            ->assertJsonPath('data.0.total_siswa', 1)
+            ->assertJsonPath('data.0.belum_ada_data', 1)
+            ->assertJsonPath('meta.academic_year_id', $academicYear->id)
+            ->assertJsonPath('meta.total_classes', 1);
+    }
+    public function test_guru_can_store_bulk_attendance_for_class_students(): void
+    {
+        $context = $this->createTeachingContext();
+
+        $secondStudent = $this->createStudent();
+        $this->addStudentToClass($secondStudent, $context['class']);
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'HADIR',
+                    'catatan' => null,
+                ],
+                [
+                    'siswa_id' => $secondStudent->id,
+                    'status' => 'IZIN',
+                    'catatan' => 'Izin keluarga',
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_siswa', 2)
+            ->assertJsonPath('data.created', 2)
+            ->assertJsonPath('data.updated', 0);
+
+            $this->assertSame(
+                2,
+                Presensi::query()
+                    ->where('jadwal_pelajaran_id', $context['schedule']->id)
+                    ->whereDate('tanggal', '2026-10-20')
+                    ->count()
+            );
+    }
+
+    public function test_guru_cannot_store_bulk_attendance_for_another_gurus_schedule(): void
+    {
+        $context = $this->createTeachingContext();
+
+        $otherTeacher = $this->createTeacher();
+
+        $otherSchedule = $this->createSchedule(
+            $otherTeacher,
+            $context['class'],
+            $context['academicYear']
+        );
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $otherSchedule->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'HADIR',
+                ],
+            ],
+        ]);
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseMissing('presensi', [
+            'jadwal_pelajaran_id' => $otherSchedule->id,
+            'siswa_id' => $context['student']->id,
+            'tanggal' => '2026-10-20',
+        ]);
+    }
+
+    public function test_bulk_attendance_rejects_non_member_without_partial_save(): void
+    {
+        $context = $this->createTeachingContext();
+
+        $outsideStudent = $this->createStudent();
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'HADIR',
+                ],
+                [
+                    'siswa_id' => $outsideStudent->id,
+                    'status' => 'ALPA',
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+
+        $this->assertDatabaseMissing('presensi', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $context['student']->id,
+            'tanggal' => '2026-10-20',
+        ]);
+
+        $this->assertDatabaseMissing('presensi', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $outsideStudent->id,
+            'tanggal' => '2026-10-20',
+        ]);
+    }
+
+    public function test_bulk_attendance_updates_existing_record(): void
+    {
+        $context = $this->createTeachingContext();
+
+        Presensi::create([
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $context['student']->id,
+            'tanggal' => '2026-10-20',
+            'status' => 'HADIR',
+            'catatan' => null,
+        ]);
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'SAKIT',
+                    'catatan' => 'Sakit demam',
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.created', 0)
+            ->assertJsonPath('data.updated', 1);
+
+            $this->assertDatabaseHas('presensi', [
+                'jadwal_pelajaran_id' => $context['schedule']->id,
+                'siswa_id' => $context['student']->id,
+                'status' => 'SAKIT',
+                'catatan' => 'Sakit demam',
+            ]);
+
+            $this->assertSame(
+                1,
+                Presensi::query()
+                    ->where('jadwal_pelajaran_id', $context['schedule']->id)
+                    ->where('siswa_id', $context['student']->id)
+                    ->whereDate('tanggal', '2026-10-20')
+                    ->count()
+            );
+    }
+    public function test_bulk_attendance_rejects_student_before_membership_start(): void
+    {
+        $context = $this->createTeachingContext();
+
+        $student = $this->createStudent();
+
+        $this->addStudentToClass(
+            $student,
+            $context['class'],
+            '2026-11-01'
+        );
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'HADIR',
+                ],
+                [
+                    'siswa_id' => $student->id,
+                    'status' => 'ALPA',
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+
+        $this->assertDatabaseMissing('presensi', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $context['student']->id,
+        ]);
+    }
+    public function test_bulk_attendance_rejects_duplicate_student_ids(): void
+    {
+        $context = $this->createTeachingContext();
+
+        Sanctum::actingAs($context['user']);
+
+        $response = $this->postJson('/api/attendance/bulk', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'tanggal' => '2026-10-20',
+            'presensi' => [
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'HADIR',
+                ],
+                [
+                    'siswa_id' => $context['student']->id,
+                    'status' => 'IZIN',
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable();
+
+        $this->assertDatabaseMissing('presensi', [
+            'jadwal_pelajaran_id' => $context['schedule']->id,
+            'siswa_id' => $context['student']->id,
+            'status' => 'HADIR',
+        ]);
     }
 }

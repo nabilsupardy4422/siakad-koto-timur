@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/useAuth'
+import './UserMenu.css'
 
 function UserIcon() {
   return (

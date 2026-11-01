@@ -51,4 +51,9 @@ class Assignment extends Model
     {
         return $this->hasMany(SubmissionTugas::class);
     }
+
+    public function lampiran(): HasMany
+    {
+        return $this->hasMany(AssignmentLampiran::class);
+    }
 }

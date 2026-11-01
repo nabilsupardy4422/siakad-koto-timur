@@ -1,0 +1,345 @@
+.siswa-grades {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    width: 100%;
+    min-width: 0;
+    color: #17324d;
+  }
+  
+  .siswa-grades__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  
+  .siswa-grades__eyebrow {
+    margin: 0 0 7px;
+    color: #6d849d;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  
+  .siswa-grades__header h1 {
+    margin: 0;
+    color: #102d49;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  
+  .siswa-grades__header > div:first-child > p:last-child {
+    margin: 7px 0 0;
+    color: #71839a;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  
+  .siswa-grades__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 180px;
+    padding: 12px 15px;
+    border: 1px solid #dce5ef;
+    border-radius: 9px;
+    background: #fff;
+  }
+  
+  .siswa-grades__identity span,
+  .siswa-grades__period-info span {
+    color: #71839a;
+    font-size: 12px;
+  }
+  
+  .siswa-grades__identity strong,
+  .siswa-grades__period-info strong {
+    color: #153d60;
+    font-size: 14px;
+  }
+  
+  .siswa-grades__panel {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid #d9e3ee;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgb(16 45 73 / 3%);
+  }
+  
+  .siswa-grades__panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  
+  .siswa-grades__panel-heading h2 {
+    margin: 0;
+    color: #153d60;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  
+  .siswa-grades__panel-heading p {
+    margin: 5px 0 0;
+    color: #7b8da2;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  
+  .siswa-grades__filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+  }
+  
+  .siswa-grades__filters label,
+  .siswa-grades__period-info {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  
+  .siswa-grades__filters label span {
+    color: #425a73;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  
+  .siswa-grades__filters select {
+    width: 100%;
+    min-height: 41px;
+    padding: 0 11px;
+    border: 1px solid #cbd8e6;
+    border-radius: 7px;
+    outline: none;
+    background: #fff;
+    color: #17324d;
+    font: inherit;
+    font-size: 12px;
+  }
+  
+  .siswa-grades__filters select:focus {
+    border-color: #2b75b9;
+    box-shadow: 0 0 0 3px rgb(43 117 185 / 10%);
+  }
+  
+  .siswa-grades__period-info {
+    justify-content: center;
+    padding: 0 13px;
+    border: 1px solid #dce5ef;
+    border-radius: 7px;
+    background: #f8fafc;
+  }
+  
+  .siswa-grades__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  
+  .siswa-grades__button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  
+  .siswa-grades__button--primary {
+    border-color: #17466d;
+    background: #17466d;
+    color: #fff;
+  }
+  
+  .siswa-grades__button--primary:hover:not(:disabled) {
+    background: #103653;
+  }
+  
+  .siswa-grades__button--secondary {
+    border-color: #cbd8e6;
+    background: #fff;
+    color: #31516f;
+  }
+  
+  .siswa-grades__button--secondary:hover:not(:disabled) {
+    background: #f3f7fb;
+  }
+  
+  .siswa-grades__summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 17px;
+  }
+  
+  .siswa-grades__summary article {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 75px;
+    padding: 14px;
+    border: 1px solid #dce5ef;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+  
+  .siswa-grades__summary article span {
+    color: #71839a;
+    font-size: 12px;
+  }
+  
+  .siswa-grades__summary article strong {
+    color: #142f4b;
+    font-size: 22px;
+    line-height: 1;
+  }
+  
+  .siswa-grades__summary article strong.is-success {
+    color: #16804a;
+  }
+  
+  .siswa-grades__summary article strong.is-warning {
+    color: #b7791f;
+  }
+  
+  .siswa-grades__table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #d8e2ed;
+    border-radius: 8px;
+  }
+  
+  .siswa-grades__table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  
+  .siswa-grades__table th {
+    padding: 12px 11px;
+    border-bottom: 1px solid #d8e2ed;
+    background: #f5f8fb;
+    color: #52677e;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+  }
+  
+  .siswa-grades__table td {
+    padding: 13px 11px;
+    border-bottom: 1px solid #e8eef4;
+    color: #29445f;
+    vertical-align: middle;
+  }
+  
+  .siswa-grades__table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  
+  .siswa-grades__table tbody tr:nth-child(even) {
+    background: #fbfcfe;
+  }
+  
+  .siswa-grades__table td strong {
+    color: #17324d;
+  }
+  
+  .siswa-grades__status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  
+  .siswa-grades__status--complete {
+    background: #dcfce7;
+    color: #166534;
+  }
+  
+  .siswa-grades__status--pending {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .siswa-grades__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-top: 16px;
+    color: #71839a;
+    font-size: 12px;
+  }
+  
+  .siswa-grades__pagination > div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .siswa-grades__pagination > div span {
+    white-space: nowrap;
+  }
+  
+  @media (max-width: 1000px) {
+    .siswa-grades__summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  @media (max-width: 640px) {
+    .siswa-grades {
+      gap: 16px;
+    }
+  
+    .siswa-grades__header,
+    .siswa-grades__panel-heading {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  
+    .siswa-grades__identity {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  
+    .siswa-grades__panel {
+      padding: 14px;
+    }
+  
+    .siswa-grades__filters,
+    .siswa-grades__summary {
+      grid-template-columns: 1fr;
+    }
+  
+    .siswa-grades__period-info {
+      min-height: 60px;
+    }
+  
+    .siswa-grades__pagination {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  
+    .siswa-grades__pagination > div {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+  

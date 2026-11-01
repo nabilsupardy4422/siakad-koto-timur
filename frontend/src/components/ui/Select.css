@@ -1,0 +1,68 @@
+.ui-select {
+    position: relative;
+  }
+  
+  .ui-select__control {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+    appearance: none;
+    padding: 0 36px 0 11px;
+    border: 1px solid #cfd9e1;
+    border-radius: 7px;
+    outline: none;
+    background: #ffffff;
+    color: #20394f;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease,
+      background-color 140ms ease;
+  }
+  
+  .ui-select__control:hover:not(:disabled):not(:focus) {
+    border-color: #b9c7d2;
+  }
+  
+  .ui-select__control:focus {
+    border-color: #3978a5;
+    box-shadow: 0 0 0 3px rgba(57, 120, 165, 0.1);
+  }
+  
+  .ui-select__control:disabled {
+    background: #f3f6f8;
+    color: #8b99a5;
+    cursor: not-allowed;
+  }
+  
+  .ui-select__control--error {
+    border-color: #c87979;
+  }
+  
+  .ui-select__arrow {
+    position: absolute;
+    top: 50%;
+    right: 11px;
+    display: inline-flex;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #718392;
+  }
+  
+  .ui-select__control:disabled + .ui-select__arrow {
+    color: #aab4bc;
+  }
+  
+  @media (max-width: 640px) {
+    .ui-select__control {
+      min-height: 42px;
+    }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .ui-select__control {
+      transition: none;
+    }
+  }

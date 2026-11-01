@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Assignment;
+use App\Models\TahunAkademik;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreSubmissionRequest extends FormRequest
@@ -41,16 +42,21 @@ class StoreSubmissionRequest extends FormRequest
             return false;
         }
 
-        $today = now()->toDateString();
+        $activeAcademicYearId = TahunAkademik::query()
+            ->where('is_active', true)
+            ->value('id');
+
+        if (
+            $activeAcademicYearId === null ||
+            (int) $schedule->tahun_akademik_id !==
+                (int) $activeAcademicYearId
+        ) {
+            return false;
+        }
 
         return $student->anggotaKelas()
             ->where('kelas_id', $schedule->kelas_id)
-            ->whereDate('tanggal_mulai', '<=', $today)
-            ->where(function ($query) use ($today) {
-                $query
-                    ->whereNull('tanggal_selesai')
-                    ->orWhereDate('tanggal_selesai', '>=', $today);
-            })
+            ->whereNull('tanggal_selesai')
             ->exists();
     }
 
@@ -62,8 +68,23 @@ class StoreSubmissionRequest extends FormRequest
                 'string',
             ],
 
+            // Kompatibilitas dengan frontend lama.
             'file' => [
                 'nullable',
+                'file',
+                'max:10240',
+                'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+            ],
+
+            // Maksimal 10 file dalam satu submission.
+            'files' => [
+                'nullable',
+                'array',
+                'max:10',
+            ],
+
+            // Maksimal 10 MB untuk setiap file.
+            'files.*' => [
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
@@ -76,12 +97,16 @@ class StoreSubmissionRequest extends FormRequest
         $validator->after(function ($validator) {
             $jawaban = $this->input('jawaban');
             $file = $this->file('file');
+            $files = $this->file('files', []);
 
             $hasJawaban = is_string($jawaban)
                 ? trim($jawaban) !== ''
                 : filled($jawaban);
 
-            $hasFile = $file !== null;
+            $hasMultipleFiles = is_array($files)
+                && count($files) > 0;
+
+            $hasFile = $file !== null || $hasMultipleFiles;
 
             if (! $hasJawaban && ! $hasFile) {
                 $validator->errors()->add(
@@ -102,6 +127,8 @@ class StoreSubmissionRequest extends FormRequest
         return [
             'jawaban' => 'jawaban',
             'file' => 'file',
+            'files' => 'daftar file',
+            'files.*' => 'file lampiran',
         ];
     }
 }

@@ -34,6 +34,16 @@ const navigation = {
         path: '/app/classes',
         permission: 'classes.view',
       },
+      {
+        label: 'Anggota Kelas',
+        path: '/app/class-members',
+        role: 'TU',
+      },
+      {
+        label: 'Manajemen Wali Kelas',
+        path: '/app/homeroom-assignments',
+        role: 'TU',
+      },
 
       {
         label: 'Kegiatan Akademik',
@@ -172,6 +182,11 @@ const navigation = {
       {
         label: 'Kelas Saya',
         path: '/app/homeroom',
+        assignment: 'WALI_KELAS',
+      },
+      {
+        label: 'Anggota Kelas',
+        path: '/app/class-members',
         assignment: 'WALI_KELAS',
       },
     ],

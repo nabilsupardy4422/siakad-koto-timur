@@ -1,0 +1,262 @@
+/* ========================================
+   MANAJEMEN WALI KELAS
+======================================== */
+
+.homeroom-management-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.homeroom-management-page__success {
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--color-success, #bbf7d0);
+  border-radius: var(--radius-md, 0.5rem);
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.homeroom-management-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.homeroom-management-page__header h2 {
+  margin: 0.5rem 0 0.75rem;
+  color: var(--color-text, #172b4d);
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.homeroom-management-page__header p {
+  margin: 0;
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.6;
+}
+
+.homeroom-management-page__eyebrow {
+  margin-bottom: 0.5rem !important;
+  font-size: 0.875rem;
+}
+
+.homeroom-management-page__count {
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Filter */
+
+.homeroom-management-page__filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1.5rem;
+}
+
+.homeroom-management-page__filter-actions {
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Identitas */
+
+.homeroom-management-page__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.homeroom-management-page__identity strong,
+.homeroom-management-page__identity span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.homeroom-management-page__identity strong {
+  color: var(--color-text, #172b4d);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.homeroom-management-page__identity span {
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.8125rem;
+}
+
+/* Tombol aksi */
+
+.homeroom-management-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 7.5rem;
+}
+
+/* Pagination */
+
+.homeroom-management-page__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+  margin-top: 1.25rem;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+}
+
+.homeroom-management-page__pagination > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Form */
+
+.homeroom-management-page__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.25rem;
+}
+
+.homeroom-management-page__form-error {
+  margin-bottom: 1rem;
+}
+
+/* Modal konfirmasi pengakhiran penugasan */
+
+.homeroom-management-page__confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--color-text, #172b4d);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.homeroom-management-page__confirm p {
+  margin: 0;
+}
+
+.homeroom-management-page__confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border: 1px solid #fecaca;
+  border-radius: 9999px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.homeroom-management-page__confirm-message {
+  overflow-wrap: anywhere;
+}
+
+.homeroom-management-page__confirm-info {
+  display: grid;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--color-border, #dbe3ed);
+  border-radius: 0.75rem;
+  background: var(--color-surface-muted, #f8fafc);
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.homeroom-management-page__confirm-warning {
+  color: var(--color-text-secondary, #64748b);
+}
+
+.homeroom-management-page__confirm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid #dc2626;
+  border-radius: var(--radius-md, 0.5rem);
+  background: #dc2626;
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.homeroom-management-page__confirm-button:hover:not(:disabled) {
+  border-color: #b91c1c;
+  background: #b91c1c;
+}
+
+.homeroom-management-page__confirm-button:focus-visible {
+  outline: 3px solid #fca5a5;
+  outline-offset: 2px;
+}
+
+.homeroom-management-page__confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* Responsif */
+
+@media (max-width: 900px) {
+  .homeroom-management-page__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .homeroom-management-page__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .homeroom-management-page__form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .homeroom-management-page__pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .homeroom-management-page {
+    gap: 1rem;
+  }
+
+  .homeroom-management-page__filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .homeroom-management-page__actions {
+    min-width: 0;
+  }
+
+  .homeroom-management-page__pagination > div {
+    width: 100%;
+  }
+}

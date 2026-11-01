@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import './Breadcrumb.css'
 
 const routeLabels = {
   '/app': 'Dashboard',
