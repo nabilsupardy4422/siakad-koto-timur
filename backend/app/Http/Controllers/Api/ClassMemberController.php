@@ -33,15 +33,20 @@ class ClassMemberController extends Controller
             ], 403);
         }
 
+        $today = Carbon::today();
+
         $query = AnggotaKelas::query()
             ->with('siswa')
             ->where('kelas_id', $class->id)
-            ->whereNull('tanggal_selesai');
+            ->whereDate('tanggal_mulai', '<=', $today)
+            ->where(function (Builder $query) use ($today): void {
+                $query
+                    ->whereNull('tanggal_selesai')
+                    ->orWhereDate('tanggal_selesai', '>=', $today);
+            });
 
         /*
-         * Siswa hanya boleh melihat keanggotaan dirinya sendiri.
-         * Role lain yang lolos scope class dapat melihat anggota
-         * aktif pada kelas tersebut.
+         * Siswa hanya dapat melihat keanggotaan dirinya sendiri.
          */
         if ($user->role?->code === 'SISWA') {
             $studentId = $user->siswa?->id;
@@ -92,8 +97,7 @@ class ClassMemberController extends Controller
             $class
         ): AnggotaKelas|JsonResponse {
             /*
-             * Lock siswa selama proses pengecekan + insert agar dua
-             * request bersamaan tidak membuat dua kelas aktif.
+             * Lock siswa selama pengecekan dan insert.
              */
             $student = Siswa::query()
                 ->lockForUpdate()
@@ -105,15 +109,40 @@ class ClassMemberController extends Controller
                 ], 404);
             }
 
+            $startDate = Carbon::parse(
+                $validated['tanggal_mulai']
+            )->startOfDay();
+
+            $today = Carbon::today();
+
+            /*
+             * Periksa keanggotaan yang benar-benar berlaku
+             * pada tahun akademik kelas tujuan.
+             *
+             * Keanggotaan yang belum mulai tidak dianggap aktif.
+             * Keanggotaan yang sudah selesai sebelum hari ini
+             * juga tidak dianggap aktif.
+             */
             $existingActiveMembership = AnggotaKelas::query()
                 ->where('siswa_id', $student->id)
-                ->whereHas('kelas', function (Builder $query) use ($class): void {
+                ->whereDate('tanggal_mulai', '<=', $today)
+                ->where(function (Builder $query) use ($today): void {
+                    $query
+                        ->whereNull('tanggal_selesai')
+                        ->orWhereDate(
+                            'tanggal_selesai',
+                            '>=',
+                            $today
+                        );
+                })
+                ->whereHas('kelas', function (
+                    Builder $query
+                ) use ($class): void {
                     $query->where(
                         'tahun_akademik_id',
                         $class->tahun_akademik_id
                     );
                 })
-                ->whereNull('tanggal_selesai')
                 ->exists();
 
             if ($existingActiveMembership) {
@@ -125,7 +154,7 @@ class ClassMemberController extends Controller
             return AnggotaKelas::create([
                 'kelas_id' => $class->id,
                 'siswa_id' => $student->id,
-                'tanggal_mulai' => Carbon::parse($validated['tanggal_mulai']),
+                'tanggal_mulai' => $startDate,
                 'tanggal_selesai' => null,
             ]);
         });
@@ -136,7 +165,9 @@ class ClassMemberController extends Controller
 
         return ApiResponse::message(
             'Siswa berhasil ditambahkan ke kelas.',
-            new ClassMemberResource($membership->load('siswa')),
+            new ClassMemberResource(
+                $membership->load('siswa')
+            ),
             201
         );
     }
@@ -156,10 +187,24 @@ class ClassMemberController extends Controller
             ], 403);
         }
 
+        $today = Carbon::today();
+
+        /*
+         * Cari keanggotaan yang benar-benar aktif hari ini.
+         */
         $membership = AnggotaKelas::query()
             ->where('kelas_id', $class->id)
             ->where('siswa_id', $student->id)
-            ->whereNull('tanggal_selesai')
+            ->whereDate('tanggal_mulai', '<=', $today)
+            ->where(function (Builder $query) use ($today): void {
+                $query
+                    ->whereNull('tanggal_selesai')
+                    ->orWhereDate(
+                        'tanggal_selesai',
+                        '>=',
+                        $today
+                    );
+            })
             ->latest('tanggal_mulai')
             ->first();
 
@@ -169,8 +214,22 @@ class ClassMemberController extends Controller
             ], 404);
         }
 
+        /*
+         * Tanggal selesai tidak boleh lebih awal dari
+         * tanggal mulai keanggotaan.
+         */
+        $startDate = Carbon::parse(
+            $membership->tanggal_mulai
+        )->startOfDay();
+
+        if ($today->lessThan($startDate)) {
+            return response()->json([
+                'message' => 'Keanggotaan belum dimulai sehingga tidak dapat diakhiri.',
+            ], 422);
+        }
+
         $membership->update([
-            'tanggal_selesai' => Carbon::today(),
+            'tanggal_selesai' => $today,
         ]);
 
         return ApiResponse::message(
@@ -184,9 +243,15 @@ class ClassMemberController extends Controller
     ): bool {
         $role = $user->role?->code;
 
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
+        if (in_array(
+            $role,
+            ['TU', 'KEPALA_SEKOLAH'],
+            true
+        )) {
             return true;
         }
+
+        $today = Carbon::today();
 
         if ($role === 'SISWA') {
             $studentId = $user->siswa?->id;
@@ -197,7 +262,18 @@ class ClassMemberController extends Controller
 
             return $class->anggotaKelas()
                 ->where('siswa_id', $studentId)
-                ->whereNull('tanggal_selesai')
+                ->whereDate('tanggal_mulai', '<=', $today)
+                ->where(function (
+                    Builder $query
+                ) use ($today): void {
+                    $query
+                        ->whereNull('tanggal_selesai')
+                        ->orWhereDate(
+                            'tanggal_selesai',
+                            '>=',
+                            $today
+                        );
+                })
                 ->exists();
         }
 
@@ -211,6 +287,10 @@ class ClassMemberController extends Controller
             return false;
         }
 
+        /*
+         * Guru mata pelajaran dapat melihat anggota kelas
+         * apabila memiliki jadwal mengajar pada kelas tersebut.
+         */
         $teachingClass = $class->jadwalPelajaran()
             ->where('guru_id', $guruId)
             ->where(
@@ -223,13 +303,15 @@ class ClassMemberController extends Controller
             return true;
         }
 
-        return $class->waliKelas()
-            ->where('guru_id', $guruId)
-            ->where(
-                'tahun_akademik_id',
-                $class->tahun_akademik_id
-            )
-            ->exists();
+        /*
+         * Wali kelas hanya mendapat akses melalui assignment
+         * yang berlaku pada tanggal hari ini.
+         */
+        return $this->hasEffectiveHomeroomAssignment(
+            $class,
+            $guruId,
+            $today
+        );
     }
 
     private function canManageClassMembers(
@@ -243,9 +325,8 @@ class ClassMemberController extends Controller
         }
 
         /*
-         * API specification menyebut Wali Kelas dapat melakukan
-         * operasi pada kelas yang ditugaskan kepadanya.
-         * Wali Kelas tetap merupakan assignment Guru, bukan role.
+         * Kepala sekolah dan siswa tidak dapat mengelola
+         * anggota kelas melalui endpoint ini.
          */
         if ($role !== 'GURU') {
             return false;
@@ -257,6 +338,22 @@ class ClassMemberController extends Controller
             return false;
         }
 
+        /*
+         * Guru hanya dapat mengelola anggota jika assignment
+         * wali kelasnya berlaku hari ini.
+         */
+        return $this->hasEffectiveHomeroomAssignment(
+            $class,
+            $guruId,
+            Carbon::today()
+        );
+    }
+
+    private function hasEffectiveHomeroomAssignment(
+        Kelas $class,
+        int $guruId,
+        Carbon $date
+    ): bool {
         return WaliKelas::query()
             ->where('guru_id', $guruId)
             ->where('kelas_id', $class->id)
@@ -264,6 +361,18 @@ class ClassMemberController extends Controller
                 'tahun_akademik_id',
                 $class->tahun_akademik_id
             )
+            ->whereDate('tanggal_mulai', '<=', $date)
+            ->where(function (
+                Builder $query
+            ) use ($date): void {
+                $query
+                    ->whereNull('tanggal_selesai')
+                    ->orWhereDate(
+                        'tanggal_selesai',
+                        '>=',
+                        $date
+                    );
+            })
             ->exists();
     }
 }

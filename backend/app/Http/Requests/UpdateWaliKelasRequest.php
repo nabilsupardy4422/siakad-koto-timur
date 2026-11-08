@@ -41,6 +41,7 @@ class UpdateWaliKelasRequest extends FormRequest
             ],
 
             'tanggal_selesai' => [
+                'sometimes',
                 'nullable',
                 'date',
             ],
@@ -77,17 +78,25 @@ class UpdateWaliKelasRequest extends FormRequest
                     $assignment->tanggal_selesai?->toDateString()
                 );
 
-                if (! is_numeric($kelasId) || ! is_numeric($tahunAkademikId)) {
+                if (
+                    ! is_numeric($kelasId) ||
+                    ! is_numeric($tahunAkademikId)
+                ) {
                     return;
                 }
 
-                $class = Kelas::query()->find((int) $kelasId);
+                $class = Kelas::query()->find(
+                    (int) $kelasId
+                );
 
                 if (! $class) {
                     return;
                 }
 
-                if ((int) $class->tahun_akademik_id !== (int) $tahunAkademikId) {
+                if (
+                    (int) $class->tahun_akademik_id !==
+                    (int) $tahunAkademikId
+                ) {
                     $validator->errors()->add(
                         'tahun_akademik_id',
                         'Tahun akademik tidak sesuai dengan tahun akademik kelas.'
@@ -97,7 +106,8 @@ class UpdateWaliKelasRequest extends FormRequest
                 if (
                     $tanggalMulai !== null &&
                     $tanggalSelesai !== null &&
-                    strtotime($tanggalSelesai) < strtotime($tanggalMulai)
+                    strtotime($tanggalSelesai) <
+                    strtotime($tanggalMulai)
                 ) {
                     $validator->errors()->add(
                         'tanggal_selesai',

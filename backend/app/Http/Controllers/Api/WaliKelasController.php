@@ -12,14 +12,25 @@ use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class WaliKelasController extends Controller
 {
+    /**
+     * Menampilkan daftar assignment Wali Kelas.
+     *
+     * TU dan Kepala Sekolah dapat melihat seluruh assignment.
+     * Guru hanya dapat melihat assignment miliknya.
+     */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        $user->loadMissing(['role', 'guru']);
+        $user->loadMissing([
+            'role',
+            'guru',
+        ]);
 
         $query = WaliKelas::query()
             ->with([
@@ -29,7 +40,10 @@ class WaliKelasController extends Controller
             ])
             ->latest('id');
 
-        $this->applyViewScope($query, $user);
+        $this->applyViewScope(
+            $query,
+            $user
+        );
 
         if ($request->filled('academic_year_id')) {
             $query->where(
@@ -53,11 +67,15 @@ class WaliKelasController extends Controller
         }
 
         $assignments = $query
-            ->paginate($request->integer('per_page', 20))
+            ->paginate(
+                $request->integer('per_page', 20)
+            )
             ->withQueryString();
 
         return ApiResponse::collection(
-            WaliKelasResource::collection($assignments),
+            WaliKelasResource::collection(
+                $assignments
+            ),
             [
                 'current_page' => $assignments->currentPage(),
                 'per_page' => $assignments->perPage(),
@@ -67,33 +85,55 @@ class WaliKelasController extends Controller
         );
     }
 
+    /**
+     * Membuat assignment Wali Kelas.
+     *
+     * Route dibatasi untuk TU.
+     * Validasi dilakukan oleh StoreWaliKelasRequest.
+     */
     public function store(
         StoreWaliKelasRequest $request
     ): JsonResponse {
-        $assignment = WaliKelas::create(
-            $request->validated()
+        $validated = $request->validated();
+
+        $assignment = DB::transaction(
+            function () use ($validated): WaliKelas {
+                return WaliKelas::query()->create(
+                    $validated
+                );
+            }
         );
+
+        $assignment->load([
+            'guru',
+            'kelas',
+            'tahunAkademik',
+        ]);
 
         return ApiResponse::message(
             'Data Wali Kelas berhasil ditambahkan.',
             new WaliKelasResource(
-                $assignment->load([
-                    'guru',
-                    'kelas',
-                    'tahunAkademik',
-                ])
+                $assignment
             ),
             201
         );
     }
 
+    /**
+     * Menampilkan detail assignment Wali Kelas.
+     *
+     * Guru hanya dapat melihat assignment miliknya.
+     */
     public function show(
         Request $request,
         WaliKelas $assignment
     ): JsonResponse {
         $user = $request->user();
 
-        $user->loadMissing(['role', 'guru']);
+        $user->loadMissing([
+            'role',
+            'guru',
+        ]);
 
         if (! $this->canViewAssignment(
             $assignment,
@@ -104,51 +144,101 @@ class WaliKelasController extends Controller
             ], 403);
         }
 
+        $assignment->load([
+            'guru',
+            'kelas',
+            'tahunAkademik',
+        ]);
+
         return ApiResponse::success(
             new WaliKelasResource(
-                $assignment->load([
-                    'guru',
-                    'kelas',
-                    'tahunAkademik',
-                ])
+                $assignment
             )
         );
     }
 
+    /**
+     * Memperbarui assignment Wali Kelas.
+     *
+     * Route dibatasi untuk TU.
+     * Validasi dilakukan oleh UpdateWaliKelasRequest.
+     */
     public function update(
         UpdateWaliKelasRequest $request,
         WaliKelas $assignment
     ): JsonResponse {
-        $assignment->update(
-            $request->validated()
+        $validated = $request->validated();
+
+        DB::transaction(
+            function () use (
+                $assignment,
+                $validated
+            ): void {
+                $assignment->update(
+                    $validated
+                );
+            }
         );
+
+        $assignment->refresh()->load([
+            'guru',
+            'kelas',
+            'tahunAkademik',
+        ]);
 
         return ApiResponse::message(
             'Data Wali Kelas berhasil diperbarui.',
             new WaliKelasResource(
-                $assignment->refresh()->load([
-                    'guru',
-                    'kelas',
-                    'tahunAkademik',
-                ])
+                $assignment
             )
         );
     }
 
+    /**
+     * Mengakhiri assignment Wali Kelas.
+     *
+     * Route dibatasi untuk TU.
+     * Assignment tidak dihapus agar riwayat tetap tersedia.
+     */
     public function destroy(
         WaliKelas $assignment
     ): JsonResponse {
-        if ($assignment->tanggal_selesai === null) {
-            $assignment->update([
-                'tanggal_selesai' => now()->toDateString(),
-            ]);
+        if ($assignment->tanggal_selesai !== null) {
+            return ApiResponse::message(
+                'Assignment Wali Kelas sudah berakhir.'
+            );
         }
+
+        $today = Carbon::today();
+
+        if (
+            $assignment->tanggal_mulai !== null &&
+            $assignment->tanggal_mulai->greaterThan($today)
+        ) {
+            return response()->json([
+                'message' => 'Assignment belum dimulai sehingga tidak dapat diakhiri.',
+            ], 422);
+        }
+
+        DB::transaction(
+            function () use (
+                $assignment,
+                $today
+            ): void {
+                $assignment->update([
+                    'tanggal_selesai' => $today,
+                ]);
+            }
+        );
 
         return ApiResponse::message(
             'Assignment Wali Kelas berhasil diakhiri.'
         );
     }
 
+    /**
+     * Membatasi daftar assignment berdasarkan role.
+     */
     private function applyViewScope(
         Builder $query,
         User $user
@@ -157,7 +247,10 @@ class WaliKelasController extends Controller
 
         if (in_array(
             $role,
-            ['TU', 'KEPALA_SEKOLAH'],
+            [
+                'TU',
+                'KEPALA_SEKOLAH',
+            ],
             true
         )) {
             return;
@@ -172,7 +265,10 @@ class WaliKelasController extends Controller
                 return;
             }
 
-            $query->where('guru_id', $guruId);
+            $query->where(
+                'guru_id',
+                $guruId
+            );
 
             return;
         }
@@ -180,6 +276,9 @@ class WaliKelasController extends Controller
         $query->whereRaw('1 = 0');
     }
 
+    /**
+     * Memeriksa akses detail assignment.
+     */
     private function canViewAssignment(
         WaliKelas $assignment,
         User $user
@@ -188,7 +287,10 @@ class WaliKelasController extends Controller
 
         if (in_array(
             $role,
-            ['TU', 'KEPALA_SEKOLAH'],
+            [
+                'TU',
+                'KEPALA_SEKOLAH',
+            ],
             true
         )) {
             return true;
@@ -198,7 +300,7 @@ class WaliKelasController extends Controller
             $guruId = $user->guru?->id;
 
             return $guruId !== null
-                && $assignment->guru_id === $guruId;
+                && (int) $assignment->guru_id === (int) $guruId;
         }
 
         return false;
