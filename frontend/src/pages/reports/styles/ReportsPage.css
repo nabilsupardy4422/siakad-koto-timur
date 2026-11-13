@@ -1,0 +1,143 @@
+
+.reports-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.reports-header {
+  margin-bottom: 24px;
+}
+
+.reports-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.reports-header p {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.reports-section {
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.reports-section h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.reports-section p {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.reports-type-list {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(180px, 1fr)
+  );
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.reports-type-list li {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .reports-section {
+    padding: 16px;
+  }
+}
+
+.reports-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(200px, 1fr)
+  );
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.reports-filter-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reports-section label {
+  display: block;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.reports-section input,
+.reports-section select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.reports-section button {
+  min-height: 40px;
+  margin-top: 16px;
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reports-section button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.report-format-field {
+  max-width: 320px;
+  margin-bottom: 8px;
+}
+
+.report-format-field label {
+  display: block;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.report-message {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.report-message-error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}

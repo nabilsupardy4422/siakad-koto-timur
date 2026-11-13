@@ -125,11 +125,12 @@ async function request(path, options = {}) {
  * Digunakan untuk:
  * - Download template Excel.
  * - Export jadwal Excel.
+ * - Download laporan PDF atau Excel.
+ * - Download rapor.
  */
 async function requestBlob(path, options = {}) {
   const headers = buildHeaders(options)
 
-  // Request download tidak membutuhkan Accept JSON.
   headers.Accept = '*/*'
 
   const response = await fetch(
@@ -186,8 +187,6 @@ export const apiClient = {
 
   /**
    * POST multipart/form-data.
-   *
-   * Digunakan untuk upload file Excel.
    */
   postForm(path, body) {
     if (
@@ -207,10 +206,19 @@ export const apiClient = {
 
   /**
    * GET Blob.
-   *
-   * Digunakan untuk download file.
+   * Digunakan oleh modul jadwal.
    */
   getBlob(path) {
+    return requestBlob(path, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Download file sebagai Blob.
+   * Digunakan oleh modul Reports dan Report Cards.
+   */
+  download(path) {
     return requestBlob(path, {
       method: 'GET',
     })

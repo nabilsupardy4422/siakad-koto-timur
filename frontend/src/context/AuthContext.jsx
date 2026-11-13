@@ -58,7 +58,7 @@ export function AuthProvider({ children }) {
         setAuth(
           authenticatedState({
             user: data.user,
-            role: data.user?.role || null,
+            role: data.role || data.user?.role || null,
             permissions: data.permissions || [],
             assignments: data.assignments || [],
           }),
@@ -100,7 +100,7 @@ export function AuthProvider({ children }) {
     setAuth(
       authenticatedState({
         user: data.user,
-        role: data.user?.role || null,
+        role: data.role || data.user?.role || null,
         permissions: data.permissions || [],
         assignments: data.assignments || [],
       }),
