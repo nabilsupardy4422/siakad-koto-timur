@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\ScheduleExcelController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\SubjectController;
@@ -166,11 +167,33 @@ Route::middleware('auth:sanctum')->group(function (): void {
     | Schedules
     |--------------------------------------------------------------------------
     */
+
+    // Schedule Excel - TU Only
+    // Route Excel harus berada sebelum /schedules/{schedule}.
+    Route::middleware('role:TU')->group(function (): void {
+        Route::get(
+            '/schedules/template',
+            [ScheduleExcelController::class, 'template']
+        );
+
+        Route::post(
+            '/schedules/import',
+            [ScheduleExcelController::class, 'import']
+        );
+
+        Route::get(
+            '/schedules/export',
+            [ScheduleExcelController::class, 'export']
+        );
+    });
+
+    // Schedule Read
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/schedules', [ScheduleController::class, 'index']);
         Route::get('/schedules/{schedule}', [ScheduleController::class, 'show']);
     });
 
+    // Schedule CRUD - TU Only
     Route::middleware('role:TU')->group(function (): void {
         Route::post('/schedules', [ScheduleController::class, 'store']);
         Route::put('/schedules/{schedule}', [ScheduleController::class, 'update']);

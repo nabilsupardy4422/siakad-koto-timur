@@ -1,3 +1,4 @@
+
 const DEFAULT_MESSAGES = {
   400: 'Permintaan tidak dapat diproses.',
   401: 'Sesi Anda telah berakhir. Silakan masuk kembali.',
@@ -113,12 +114,36 @@ export function normalizeApiError(error) {
     error?.status ??
     null
 
+  // Mengambil response dari Fetch API atau Axios.
   const data =
     error?.response?.data ??
     error?.payload ??
+    error?.data ??
     {}
 
+  // Mendukung dua struktur response:
+  //
+  // 1. Laravel standar:
+  // { errors: {...}, message: '...' }
+  //
+  // 2. Response Import Excel:
+  // {
+  //   data: {
+  //     errors: {
+  //       baris_2: [...]
+  //     }
+  //   },
+  //   message: '...'
+  // }
+
+  const nestedData =
+    data?.data &&
+    typeof data.data === 'object'
+      ? data.data
+      : {}
+
   const validationErrors =
+    nestedData?.errors ??
     data?.errors ??
     error?.validationErrors ??
     error?.errors ??
@@ -170,6 +195,14 @@ export function normalizeApiError(error) {
   return {
     status,
     message,
+
+    // Detail validasi yang sudah dinormalisasi.
     validationErrors: normalizedValidationErrors,
+
+    // Pertahankan response asli backend.
+    // Dibutuhkan AdminSchedule untuk mengambil:
+    // error.payload.message
+    // error.payload.data.errors
+    payload: data,
   }
 }

@@ -1,0 +1,683 @@
+
+.principal-schedule,
+.principal-schedule {
+  min-width: 0;
+  width: 100%;
+}
+
+.principal-schedule .timetable,
+.principal-schedule .timetable {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  align-items: start;
+  gap: 16px;
+  color: #172b4d;
+}
+
+.principal-schedule .timetable__main,
+.principal-schedule .timetable__main {
+  min-width: 0;
+}
+
+.principal-schedule .timetable__panel,
+.principal-schedule .timetable__side-card,
+.principal-schedule .timetable__panel,
+.principal-schedule .timetable__side-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dce4ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 3%);
+}
+
+.principal-schedule .timetable__toolbar,
+.principal-schedule .timetable__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.principal-schedule .timetable__eyebrow,
+.principal-schedule .timetable__eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.principal-schedule .timetable__toolbar h2,
+.principal-schedule .timetable__toolbar h2 {
+  margin: 0;
+  color: #172b4d;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.principal-schedule .timetable__toolbar p,
+.principal-schedule .timetable__toolbar p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.principal-schedule .timetable__view-switch,
+.principal-schedule .timetable__view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.principal-schedule .timetable__view-switch button,
+.principal-schedule .timetable__view-switch button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__view-switch button.is-active,
+.principal-schedule .timetable__view-switch button.is-active {
+  background: #fff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 12%);
+  font-weight: 700;
+}
+
+.principal-schedule .timetable__navigation,
+.principal-schedule .timetable__navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.principal-schedule .timetable__navigation strong,
+.principal-schedule .timetable__navigation strong {
+  min-width: 0;
+  flex: 1;
+  color: #334155;
+  font-size: 13px;
+}
+
+.principal-schedule .timetable__navigation button,
+.principal-schedule .timetable__navigation button {
+  display: inline-flex;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce4ef;
+  border-radius: 7px;
+  background: #fff;
+  color: #315b9b;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__navigation .timetable__today-button,
+.principal-schedule .timetable__navigation .timetable__today-button {
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.principal-schedule .timetable__grid-scroll,
+.principal-schedule .timetable__grid-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.principal-schedule .timetable__time-grid,
+.principal-schedule .timetable__time-grid {
+  display: grid;
+  grid-template-columns: 58px repeat(7, minmax(105px, 1fr));
+  min-width: 850px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.principal-schedule .timetable__time-grid--day,
+.principal-schedule .timetable__time-grid--day {
+  grid-template-columns: 58px minmax(300px, 1fr);
+  min-width: 420px;
+}
+
+.principal-schedule .timetable__time-axis,
+.principal-schedule .timetable__time-axis {
+  min-width: 0;
+  background: #f8fafc;
+}
+
+.principal-schedule .timetable__axis-heading,
+.principal-schedule .timetable__axis-heading {
+  display: flex;
+  height: 58px;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.principal-schedule .timetable__axis-body,
+.principal-schedule .timetable__axis-body {
+  position: relative;
+}
+
+.principal-schedule .timetable__axis-body > span,
+.principal-schedule .timetable__axis-body > span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-7px);
+  color: #64748b;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.principal-schedule .timetable__day-column,
+.principal-schedule .timetable__day-column {
+  min-width: 0;
+  border-left: 1px solid #e2e8f0;
+}
+
+.principal-schedule .timetable__day-heading,
+.principal-schedule .timetable__day-heading {
+  display: flex;
+  height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f1f5f9;
+}
+
+.principal-schedule .timetable__day-heading span,
+.principal-schedule .timetable__day-heading span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.principal-schedule .timetable__day-heading strong,
+.principal-schedule .timetable__day-heading strong {
+  color: #334155;
+  font-size: 17px;
+}
+
+.principal-schedule .timetable__day-heading.is-today,
+.principal-schedule .timetable__day-heading.is-today {
+  background: #dbeafe;
+}
+
+.principal-schedule .timetable__day-heading.is-today strong,
+.principal-schedule .timetable__day-heading.is-today strong {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+}
+
+.principal-schedule .timetable__day-body,
+.principal-schedule .timetable__day-body {
+  position: relative;
+  background-color: #fff;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(68px - 1px),
+    #e8edf4 calc(68px - 1px),
+    #e8edf4 68px
+  );
+}
+
+.principal-schedule .timetable__hour-line,
+.principal-schedule .timetable__hour-line {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: #e8edf4;
+  pointer-events: none;
+}
+
+.principal-schedule .timetable__event-position,
+.principal-schedule .timetable__event-position {
+  position: absolute;
+  z-index: 1;
+  right: 3px;
+  left: 3px;
+  min-height: 40px;
+}
+
+.principal-schedule .timetable__event,
+.principal-schedule .timetable__event {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 40px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  overflow: hidden;
+  padding: 6px;
+  border: 0;
+  border-top: 3px solid #3b82f6;
+  border-radius: 3px;
+  background: #eaf1ff;
+  color: #1e3a5f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__event:hover,
+.principal-schedule .timetable__event:hover {
+  z-index: 2;
+  background: #dbeafe;
+  box-shadow: 0 3px 9px rgb(37 99 235 / 15%);
+}
+
+.principal-schedule .timetable__event strong,
+.principal-schedule .timetable__event strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.principal-schedule .timetable__event span,
+.principal-schedule .timetable__event small,
+.principal-schedule .timetable__event span,
+.principal-schedule .timetable__event small {
+  overflow: hidden;
+  max-width: 100%;
+  color: #475569;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.principal-schedule .timetable__legend,
+.principal-schedule .timetable__legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.principal-schedule .timetable__legend span,
+.principal-schedule .timetable__legend span {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: #3b82f6;
+}
+
+.principal-schedule .timetable__sidebar,
+.principal-schedule .timetable__sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.principal-schedule .timetable__side-card h3,
+.principal-schedule .timetable__side-card h3 {
+  margin: 0;
+  color: #172b4d;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.principal-schedule .timetable__side-heading,
+.principal-schedule .timetable__side-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.principal-schedule .timetable__icon-actions,
+.principal-schedule .timetable__icon-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.principal-schedule .timetable__icon-actions button,
+.principal-schedule .timetable__icon-actions button {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 50%;
+  background: #eaf1ff;
+  color: #2563eb;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__mini-grid,
+.principal-schedule .timetable__mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+
+.principal-schedule .timetable__mini-grid > span,
+.principal-schedule .timetable__mini-grid > span {
+  padding: 5px 0;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.principal-schedule .timetable__mini-day,
+.principal-schedule .timetable__mini-day {
+  display: grid;
+  min-width: 0;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #334155;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__mini-day.is-outside,
+.principal-schedule .timetable__mini-day.is-outside {
+  color: #c0c8d3;
+}
+
+.principal-schedule .timetable__mini-day.is-today,
+.principal-schedule .timetable__mini-day.is-today {
+  outline: 1px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.principal-schedule .timetable__mini-day.is-selected,
+.principal-schedule .timetable__mini-day.is-selected {
+  background: #2563eb;
+  color: #fff;
+}
+
+.principal-schedule .timetable__next,
+.principal-schedule .timetable__next {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid #e8edf4;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__next-day,
+.principal-schedule .timetable__next-day {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eaf1ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.principal-schedule .timetable__next-content,
+.principal-schedule .timetable__next-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.principal-schedule .timetable__next-content strong,
+.principal-schedule .timetable__next-content strong {
+  font-size: 13px;
+}
+
+.principal-schedule .timetable__next-content small,
+.principal-schedule .timetable__next-content small,
+.principal-schedule .timetable__muted,
+.principal-schedule .timetable__muted {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.principal-schedule .timetable__month-view,
+.principal-schedule .timetable__month-view {
+  overflow-x: auto;
+}
+
+.principal-schedule .timetable__month-grid,
+.principal-schedule .timetable__month-grid {
+  display: grid;
+  min-width: 560px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid #e2e8f0;
+  border-left: 1px solid #e2e8f0;
+}
+
+.principal-schedule .timetable__month-grid > strong,
+.principal-schedule .timetable__month-grid > strong {
+  padding: 10px 4px;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  text-align: center;
+}
+
+.principal-schedule .timetable__month-cell,
+.principal-schedule .timetable__month-cell {
+  display: flex;
+  min-width: 0;
+  min-height: 90px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  border: 0;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__month-cell > span:first-child,
+.principal-schedule .timetable__month-cell > span:first-child {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.principal-schedule .timetable__month-cell.is-outside,
+.principal-schedule .timetable__month-cell.is-outside {
+  background: #f8fafc;
+  color: #b5bfcc;
+}
+
+.principal-schedule .timetable__month-cell.is-today > span:first-child,
+.principal-schedule .timetable__month-cell.is-today > span:first-child {
+  color: #2563eb;
+}
+
+.principal-schedule .timetable__month-event,
+.principal-schedule .timetable__month-event {
+  display: block;
+  overflow: hidden;
+  padding: 3px 4px;
+  border-radius: 3px;
+  background: #eaf1ff;
+  color: #1d4ed8;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.principal-schedule .timetable__month-cell small,
+.principal-schedule .timetable__month-cell small {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.principal-schedule .timetable__modal-backdrop,
+.principal-schedule .timetable__modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 45%);
+}
+
+.principal-schedule .timetable__detail,
+.principal-schedule .timetable__detail {
+  width: min(100%, 440px);
+  padding: 22px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgb(15 23 42 / 20%);
+}
+
+.principal-schedule .timetable__detail-heading,
+.principal-schedule .timetable__detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.principal-schedule .timetable__detail-heading h3,
+.principal-schedule .timetable__detail-heading h3 {
+  margin: 0;
+  color: #172b4d;
+  font-size: 19px;
+}
+
+.principal-schedule .timetable__detail-heading > button,
+.principal-schedule .timetable__detail-heading > button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.principal-schedule .timetable__detail-list,
+.principal-schedule .timetable__detail-list {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.principal-schedule .timetable__detail-list > div,
+.principal-schedule .timetable__detail-list > div {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.principal-schedule .timetable__detail-list dt,
+.principal-schedule .timetable__detail-list dt {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.principal-schedule .timetable__detail-list dd,
+.principal-schedule .timetable__detail-list dd {
+  margin: 0;
+  color: #172b4d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.principal-schedule .timetable__detail-close,
+.principal-schedule .timetable__detail-close {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 1050px) {
+  .principal-schedule .timetable,
+  .principal-schedule .timetable {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .principal-schedule .timetable__sidebar,
+  .principal-schedule .timetable__sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .principal-schedule .timetable__panel,
+  .principal-schedule .timetable__side-card,
+  .principal-schedule .timetable__panel,
+  .principal-schedule .timetable__side-card {
+    padding: 13px;
+  }
+
+  .principal-schedule .timetable__toolbar,
+  .principal-schedule .timetable__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .principal-schedule .timetable__sidebar,
+  .principal-schedule .timetable__sidebar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .principal-schedule .timetable__detail-list > div,
+  .principal-schedule .timetable__detail-list > div {
+    grid-template-columns: 100px minmax(0, 1fr);
+  }
+}

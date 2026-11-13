@@ -23,24 +23,30 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (
-            ValidationException $exception
+            ValidationException $exception,
+            $request
         ) {
-            if (request()->is('api/*')) {
+            if ($request->is('api/*')) {
                 return response()->json([
                     'message' => 'Data tidak valid.',
                     'errors' => $exception->errors(),
                 ], 422);
             }
+
+            return null;
         });
 
         $exceptions->render(function (
-            AuthenticationException $exception
+            AuthenticationException $exception,
+            $request
         ) {
-            if (request()->is('api/*')) {
+            if ($request->is('api/*')) {
                 return response()->json([
                     'message' => 'Unauthenticated.',
                 ], 401);
             }
+
+            return null;
         });
     })
     ->create();
