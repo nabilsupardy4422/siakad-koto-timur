@@ -1,237 +1,243 @@
 const navigation = {
-    TU: [
-      {
-        label: 'Dashboard',
-        path: '/app/dashboard',
-      },
+  TU: [
+    {
+      label: "Dashboard",
+      path: "/app/dashboard",
+    },
 
-      {
-        label: 'Data Akademik',
-        section: true,
-      },
-      {
-        label: 'Tahun Akademik',
-        path: '/app/academic-years',
-        role: 'TU',
-      },
-      {
-        label: 'Guru',
-        path: '/app/teachers',
-        permission: 'teachers.view',
-      },
-      {
-        label: 'Siswa',
-        path: '/app/students',
-        permission: 'students.view',
-      },
-      {
-        label: 'Mata Pelajaran',
-        path: '/app/subjects',
-        permission: 'subjects.view',
-      },
-      {
-        label: 'Kelas',
-        path: '/app/classes',
-        permission: 'classes.view',
-      },
-      {
-        label: 'Anggota Kelas',
-        path: '/app/class-members',
-        role: 'TU',
-      },
-      {
-        label: 'Manajemen Wali Kelas',
-        path: '/app/homeroom-assignments',
-        role: 'TU',
-      },
+    {
+      label: "Data Akademik",
+      section: true,
+    },
+    {
+      label: "Tahun Akademik",
+      path: "/app/academic-years",
+      role: "TU",
+    },
+    {
+      label: "Guru",
+      path: "/app/teachers",
+      permission: "teachers.view",
+    },
+    {
+      label: "Siswa",
+      path: "/app/students",
+      permission: "students.view",
+    },
+    {
+      label: "Mata Pelajaran",
+      path: "/app/subjects",
+      permission: "subjects.view",
+    },
+    {
+      label: "Kelas",
+      path: "/app/classes",
+      permission: "classes.view",
+    },
+    {
+      label: "Anggota Kelas",
+      path: "/app/class-members",
+      role: "TU",
+    },
+    {
+      label: "Manajemen Wali Kelas",
+      path: "/app/homeroom-assignments",
+      role: "TU",
+    },
 
-      {
-        label: 'Kegiatan Akademik',
-        section: true,
-      },
-      {
-        label: 'Jadwal',
-        path: '/app/schedules',
-        permission: 'schedules.view',
-      },
-      {
-        label: 'Presensi',
-        path: '/app/attendance',
-        permission: 'attendance.recap',
-      },
-      {
-        label: 'Penilaian',
-        path: '/app/grades',
-        permission: 'grades.recap',
-      },
-      {
-        label: 'Bahan Ajar',
-        path: '/app/materials',
-        permission: 'materials.view',
-      },
-      {
-        label: 'Tugas',
-        path: '/app/assignments',
-        permission: 'assignments.view',
-      },
-      {
-        label: 'Rapor',
-        path: '/app/report-cards',
-        permission: 'report_cards.view',
-      },
-      {
-        label: 'Laporan',
-        path: '/app/reports',
-        permission: 'reports.view',
-      },
+    {
+      label: "Kegiatan Akademik",
+      section: true,
+    },
+    {
+      label: "Jadwal",
+      path: "/app/schedules",
+      permission: "schedules.view",
+    },
+    {
+      label: "Presensi",
+      path: "/app/attendance",
+      permission: "attendance.recap",
+    },
+    {
+      label: "Penilaian",
+      path: "/app/grades",
+      permission: "grades.recap",
+    },
+    {
+      label: "Bahan Ajar",
+      path: "/app/materials",
+      permission: "materials.view",
+    },
+    {
+      label: "Tugas",
+      path: "/app/assignments",
+      permission: "assignments.view",
+    },
+    {
+      label: "Rapor",
+      path: "/app/report-cards",
+      permission: "report_cards.view",
+    },
+    {
+      label: "Laporan",
+      path: "/app/reports",
+      permission: "reports.view",
+    },
 
-      {
-        label: 'Manajemen Akun',
-        section: true,
-      },
-      {
-        label: 'Pengguna',
-        path: '/app/users',
-        permission: 'users.view',
-      },
-    ],
+    {
+      label: "Manajemen Akun",
+      section: true,
+    },
+    {
+      label: "Pengguna",
+      path: "/app/users",
+      permission: "users.view",
+    },
+  ],
 
-    KEPALA_SEKOLAH: [
-      {
-        label: 'Dashboard',
-        path: '/app/dashboard',
-      },
+  KEPALA_SEKOLAH: [
+    {
+      label: "Dashboard",
+      path: "/app/dashboard",
+    },
 
-      {
-        label: 'Monitoring',
-        section: true,
-      },
-      {
-        label: 'Presensi',
-        path: '/app/attendance',
-        permission: 'attendance.recap',
-      },
-      {
-        label: 'Penilaian',
-        path: '/app/grades',
-        permission: 'grades.recap',
-      },
-      {
-        label: 'Jadwal',
-        path: '/app/schedules',
-        permission: 'schedules.view',
-      },
-      {
-        label: 'Rapor',
-        path: '/app/report-cards',
-        permission: 'report_cards.view',
-      },
-      {
-        label: 'Laporan',
-        path: '/app/reports',
-        permission: 'reports.view',
-      },
-    ],
+    {
+      label: "Monitoring",
+      section: true,
+    },
+    {
+      label: "Presensi",
+      path: "/app/attendance",
+      permission: "attendance.recap",
+    },
+    {
+      label: "Penilaian",
+      path: "/app/grades",
+      permission: "grades.recap",
+    },
+    {
+      label: "Jadwal",
+      path: "/app/schedules",
+      permission: "schedules.view",
+    },
 
-    GURU: [
-      {
-        label: 'Dashboard',
-        path: '/app/dashboard',
-      },
+    {
+      label: "Laporan",
+      path: "/app/reports",
+      permission: "reports.view",
+    },
+  ],
 
-      {
-        label: 'Kegiatan Mengajar',
-        section: true,
-      },
-      {
-        label: 'Jadwal Mengajar',
-        path: '/app/schedules',
-        permission: 'schedules.view',
-      },
-      {
-        label: 'Presensi',
-        path: '/app/attendance',
-        permission: 'attendance.view',
-      },
-      {
-        label: 'Bahan Ajar',
-        path: '/app/materials',
-        permission: 'materials.view',
-      },
-      {
-        label: 'Tugas',
-        path: '/app/assignments',
-        permission: 'assignments.view',
-      },
-      {
-        label: 'Penilaian',
-        path: '/app/grades',
-        permission: 'grades.view',
-      },
-      {
-        label: 'Rapor',
-        path: '/app/report-cards',
-        permission: 'report_cards.view',
-      },
+  GURU: [
+    {
+      label: "Dashboard",
+      path: "/app/dashboard",
+    },
 
-      {
-        label: 'Wali Kelas',
-        section: true,
-        assignment: 'WALI_KELAS',
-      },
-      {
-        label: 'Kelas Saya',
-        path: '/app/homeroom',
-        assignment: 'WALI_KELAS',
-      },
-      {
-        label: 'Anggota Kelas',
-        path: '/app/class-members',
-        assignment: 'WALI_KELAS',
-      },
-    ],
+    {
+      label: "Kegiatan Mengajar",
+      section: true,
+    },
+    {
+      label: "Jadwal Mengajar",
+      path: "/app/schedules",
+      permission: "schedules.view",
+    },
+    {
+      label: "Presensi",
+      path: "/app/attendance",
+      permission: "attendance.view",
+    },
+    {
+      label: "Bahan Ajar",
+      path: "/app/materials",
+      permission: "materials.view",
+    },
+    {
+      label: "Tugas",
+      path: "/app/assignments",
+      permission: "assignments.view",
+    },
+    {
+      label: "Penilaian",
+      path: "/app/grades",
+      permission: "grades.view",
+    },
+    {
+      label: "Rapor",
+      path: "/app/report-cards",
+      permission: "report_cards.view",
+    },
 
-    SISWA: [
-      {
-        label: 'Dashboard',
-        path: '/app/dashboard',
-      },
+    {
+      label: "Wali Kelas",
+      section: true,
+      assignment: "WALI_KELAS",
+    },
+    {
+      label: "Kelas Saya",
+      path: "/app/homeroom",
+      assignment: "WALI_KELAS",
+    },
+    {
+      label: "Anggota Kelas",
+      path: "/app/class-members",
+      assignment: "WALI_KELAS",
+    },
+    {
+      label: "Laporan",
+      path: "/app/reports",
+      permission: "reports.view",
+    },
+  ],
 
-      {
-        label: 'Akademik',
-        section: true,
-      },
-      {
-        label: 'Jadwal',
-        path: '/app/schedules',
-        permission: 'schedules.view',
-      },
-      {
-        label: 'Presensi',
-        path: '/app/attendance',
-        permission: 'attendance.view',
-      },
-      {
-        label: 'Nilai',
-        path: '/app/grades',
-        permission: 'grades.view',
-      },
-      {
-        label: 'Bahan Ajar',
-        path: '/app/materials',
-        permission: 'materials.view',
-      },
-      {
-        label: 'Tugas',
-        path: '/app/assignments',
-        permission: 'assignments.view',
-      },
-      {
-        label: 'Rapor',
-        path: '/app/report-cards',
-        permission: 'report_cards.view',
-      },
-    ],
-  }
+  SISWA: [
+    {
+      label: "Dashboard",
+      path: "/app/dashboard",
+    },
 
-  export default navigation
+    {
+      label: "Akademik",
+      section: true,
+    },
+    {
+      label: "Jadwal",
+      path: "/app/schedules",
+      permission: "schedules.view",
+    },
+    {
+      label: "Presensi",
+      path: "/app/attendance",
+      permission: "attendance.view",
+    },
+    {
+      label: "Nilai",
+      path: "/app/grades",
+      permission: "grades.view",
+    },
+    {
+      label: "Bahan Ajar",
+      path: "/app/materials",
+      permission: "materials.view",
+    },
+    {
+      label: "Tugas",
+      path: "/app/assignments",
+      permission: "assignments.view",
+    },
+    {
+      label: "Rapor",
+      path: "/app/report-cards",
+      permission: "report_cards.view",
+    },
+    {
+      label: "Laporan",
+      path: "/app/reports",
+      permission: "reports.view",
+    },
+  ],
+};
+
+export default navigation;
