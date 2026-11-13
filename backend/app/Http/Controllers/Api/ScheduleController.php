@@ -7,6 +7,7 @@ use App\Http\Requests\StoreScheduleRequest;
 use App\Http\Requests\UpdateScheduleRequest;
 use App\Http\Resources\ScheduleResource;
 use App\Models\JadwalPelajaran;
+use App\Models\TahunAkademik;
 use App\Models\User;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,6 +16,22 @@ use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
 {
+    /**
+     * Menampilkan daftar jadwal berdasarkan role pengguna.
+     *
+     * TU dan Kepala Sekolah:
+     * - Dapat melihat semua periode.
+     * - Dapat menggunakan filter tahun akademik dan semester.
+     *
+     * Guru:
+     * - Hanya jadwal mengajarnya sendiri.
+     * - Jadwal kelas yang menjadi tanggung jawabnya sebagai Wali Kelas.
+     * - Hanya periode akademik aktif.
+     *
+     * Siswa:
+     * - Hanya jadwal kelas yang sedang diikutinya.
+     * - Hanya periode akademik aktif.
+     */
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -25,6 +42,28 @@ class ScheduleController extends Controller
             'siswa',
         ]);
 
+        $role = $user->role?->code;
+
+        $academicYearId = $request->filled('academic_year_id')
+            ? $request->integer('academic_year_id')
+            : null;
+
+        // Guru dan Siswa wajib menggunakan tahun akademik aktif.
+        if (in_array($role, ['GURU', 'SISWA'], true)) {
+            $activeAcademicYear = TahunAkademik::query()
+                ->where('is_active', true)
+                ->first();
+
+            if (! $activeAcademicYear) {
+                return response()->json([
+                    'message' => 'Tahun akademik aktif belum ditentukan. Silakan hubungi administrator sekolah.',
+                ], 409);
+            }
+
+            // Abaikan academic_year_id dari request.
+            $academicYearId = (int) $activeAcademicYear->id;
+        }
+
         $query = JadwalPelajaran::query()
             ->with([
                 'tahunAkademik',
@@ -34,16 +73,13 @@ class ScheduleController extends Controller
             ])
             ->latest('id');
 
-        $academicYearId = $request->filled('academic_year_id')
-            ? $request->integer('academic_year_id')
-            : null;
-
         $this->applyViewScope(
             $query,
             $user,
             $academicYearId
         );
 
+        // Pembatasan periode berlaku untuk seluruh hasil query.
         if ($academicYearId !== null) {
             $query->where(
                 'tahun_akademik_id',
@@ -51,7 +87,12 @@ class ScheduleController extends Controller
             );
         }
 
-        if ($request->filled('semester')) {
+        // Filter semester hanya digunakan oleh TU dan Kepala Sekolah.
+        // Guru dan Siswa otomatis mengikuti semester aktif.
+        if (
+            ! in_array($role, ['GURU', 'SISWA'], true) &&
+            $request->filled('semester')
+        ) {
             $semester = $request
                 ->string('semester')
                 ->toString();
@@ -108,6 +149,10 @@ class ScheduleController extends Controller
         );
     }
 
+    /**
+     * Menambahkan jadwal pelajaran.
+     * Akses endpoint tetap dibatasi melalui middleware TU.
+     */
     public function store(
         StoreScheduleRequest $request
     ): JsonResponse {
@@ -129,6 +174,12 @@ class ScheduleController extends Controller
         );
     }
 
+    /**
+     * Menampilkan detail jadwal.
+     *
+     * Guru dan Siswa hanya boleh membuka jadwal
+     * pada tahun akademik aktif.
+     */
     public function show(
         Request $request,
         JadwalPelajaran $schedule
@@ -141,9 +192,26 @@ class ScheduleController extends Controller
             'siswa',
         ]);
 
+        $role = $user->role?->code;
+
         $academicYearId = $request->filled('academic_year_id')
             ? $request->integer('academic_year_id')
             : null;
+
+        if (in_array($role, ['GURU', 'SISWA'], true)) {
+            $activeAcademicYear = TahunAkademik::query()
+                ->where('is_active', true)
+                ->first();
+
+            if (! $activeAcademicYear) {
+                return response()->json([
+                    'message' => 'Tahun akademik aktif belum ditentukan. Silakan hubungi administrator sekolah.',
+                ], 409);
+            }
+
+            // Jangan izinkan request mengganti periode aktif.
+            $academicYearId = (int) $activeAcademicYear->id;
+        }
 
         if (! $this->canViewSchedule(
             $schedule,
@@ -167,6 +235,9 @@ class ScheduleController extends Controller
         );
     }
 
+    /**
+     * Memperbarui jadwal pelajaran.
+     */
     public function update(
         UpdateScheduleRequest $request,
         JadwalPelajaran $schedule
@@ -188,6 +259,9 @@ class ScheduleController extends Controller
         );
     }
 
+    /**
+     * Menghapus jadwal pelajaran.
+     */
     public function destroy(
         JadwalPelajaran $schedule
     ): JsonResponse {
@@ -198,6 +272,9 @@ class ScheduleController extends Controller
         );
     }
 
+    /**
+     * Membatasi query jadwal berdasarkan role.
+     */
     private function applyViewScope(
         Builder $query,
         User $user,
@@ -320,6 +397,9 @@ class ScheduleController extends Controller
         $query->whereRaw('1 = 0');
     }
 
+    /**
+     * Memeriksa apakah pengguna boleh melihat detail jadwal.
+     */
     private function canViewSchedule(
         JadwalPelajaran $schedule,
         User $user,
@@ -327,7 +407,7 @@ class ScheduleController extends Controller
     ): bool {
         if (
             $academicYearId !== null &&
-            $schedule->tahun_akademik_id !== $academicYearId
+            (int) $schedule->tahun_akademik_id !== $academicYearId
         ) {
             return false;
         }
@@ -351,7 +431,7 @@ class ScheduleController extends Controller
                 return false;
             }
 
-            if ($schedule->guru_id === $guruId) {
+            if ((int) $schedule->guru_id === (int) $guruId) {
                 return true;
             }
 
@@ -359,11 +439,19 @@ class ScheduleController extends Controller
                 ->whereHas(
                     'waliKelas',
                     function (Builder $builder) use (
-                        $guruId
+                        $guruId,
+                        $academicYearId
                     ): void {
                         $builder
                             ->where('guru_id', $guruId)
                             ->whereNull('tanggal_selesai');
+
+                        if ($academicYearId !== null) {
+                            $builder->where(
+                                'tahun_akademik_id',
+                                $academicYearId
+                            );
+                        }
                     }
                 )
                 ->exists();
@@ -380,11 +468,23 @@ class ScheduleController extends Controller
                 ->whereHas(
                     'anggotaKelas',
                     function (Builder $builder) use (
-                        $studentId
+                        $studentId,
+                        $academicYearId
                     ): void {
                         $builder
                             ->where('siswa_id', $studentId)
                             ->whereNull('tanggal_selesai');
+
+                        if ($academicYearId !== null) {
+                            $builder->whereHas(
+                                'kelas',
+                                fn (Builder $classQuery) => $classQuery
+                                    ->where(
+                                        'tahun_akademik_id',
+                                        $academicYearId
+                                    )
+                            );
+                        }
                     }
                 )
                 ->exists();
