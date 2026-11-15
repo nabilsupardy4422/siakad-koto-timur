@@ -2,8 +2,7 @@
 import { normalizeApiError } from './apiError'
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  'http://127.0.0.1:8000/api'
+  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
 
 const AUTH_TOKEN_KEY = 'siakad_auth_token'
 
@@ -19,7 +18,12 @@ export function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY)
 }
 
-async function request(path, options = {}) {
+/**
+ * Membuat header request.
+ * FormData tidak menggunakan Content-Type manual
+ * agar browser membuat multipart boundary.
+ */
+function buildHeaders(options = {}) {
   const token = getAuthToken()
 
   const isFormData =
@@ -28,11 +32,13 @@ async function request(path, options = {}) {
 
   const headers = {
     Accept: 'application/json',
+
     ...(
       options.body && !isFormData
         ? { 'Content-Type': 'application/json' }
         : {}
     ),
+
     ...(options.headers || {}),
   }
 
@@ -40,107 +46,128 @@ async function request(path, options = {}) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    ...options,
-    headers,
-  })
+  return headers
+}
 
-  let payload = null
-
+/**
+ * Membaca response JSON atau text.
+ */
+async function readResponsePayload(response) {
   const contentType =
     response.headers.get('content-type') || ''
 
   if (contentType.includes('application/json')) {
     try {
-      payload = await response.json()
+      return await response.json()
     } catch {
-      payload = null
-    }
-  } else if (!response.ok) {
-    try {
-      const text = await response.text()
-      payload = text ? { message: text } : null
-    } catch {
-      payload = null
+      return null
     }
   }
 
   if (!response.ok) {
-    const error = new Error(
-      payload?.message || 'Terjadi kesalahan pada server.'
-    )
+    try {
+      const text = await response.text()
 
-    error.status = response.status
-    error.payload = payload
-    error.errors = payload?.errors || {}
+      return text
+        ? { message: text }
+        : null
+    } catch {
+      return null
+    }
+  }
 
-    throw normalizeApiError(error)
+  return null
+}
+
+/**
+ * Membuat error dari response server.
+ */
+function createApiError(response, payload) {
+  const error = new Error(
+    payload?.message ||
+      'Terjadi kesalahan pada server.'
+  )
+
+  error.status = response.status
+  error.payload = payload
+  error.errors = payload?.errors || {}
+
+  return normalizeApiError(error)
+}
+
+/**
+ * Request JSON.
+ */
+async function request(path, options = {}) {
+  const headers = buildHeaders(options)
+
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      credentials: 'include',
+      ...options,
+      headers,
+    }
+  )
+
+  const payload = await readResponsePayload(response)
+
+  if (!response.ok) {
+    throw createApiError(response, payload)
   }
 
   return payload
 }
 
-// Mengunduh file PDF atau Excel dari backend.
-async function download(path) {
-  const token = getAuthToken()
+/**
+ * Request file/blob.
+ *
+ * Digunakan untuk:
+ * - Download template Excel.
+ * - Export jadwal Excel.
+ * - Download laporan PDF atau Excel.
+ * - Download rapor.
+ */
+async function requestBlob(path, options = {}) {
+  const headers = buildHeaders(options)
 
-  const headers = {
-    Accept: '*/*',
-  }
+  headers.Accept = '*/*'
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: 'GET',
-    credentials: 'include',
-    headers,
-  })
+  const response = await fetch(
+    `${API_BASE_URL}${path}`,
+    {
+      credentials: 'include',
+      ...options,
+      headers,
+    }
+  )
 
   if (!response.ok) {
-    let payload = null
+    const payload =
+      await readResponsePayload(response)
 
-    const contentType =
-      response.headers.get('content-type') || ''
-
-    if (contentType.includes('application/json')) {
-      try {
-        payload = await response.json()
-      } catch {
-        payload = null
-      }
-    } else {
-      try {
-        const text = await response.text()
-        payload = text ? { message: text } : null
-      } catch {
-        payload = null
-      }
-    }
-
-    const error = new Error(
-      payload?.message || 'Gagal mengunduh file.'
-    )
-
-    error.status = response.status
-    error.payload = payload
-    error.errors = payload?.errors || {}
-
-    throw normalizeApiError(error)
+    throw createApiError(response, payload)
   }
 
   return response.blob()
 }
 
+/**
+ * API Client.
+ */
 export const apiClient = {
+  /**
+   * GET JSON.
+   */
   get(path) {
     return request(path, {
       method: 'GET',
     })
   },
 
+  /**
+   * POST JSON.
+   */
   post(path, body = {}) {
     return request(path, {
       method: 'POST',
@@ -148,6 +175,9 @@ export const apiClient = {
     })
   },
 
+  /**
+   * PUT JSON.
+   */
   put(path, body = {}) {
     return request(path, {
       method: 'PUT',
@@ -155,10 +185,14 @@ export const apiClient = {
     })
   },
 
-  // Mengirim multipart/form-data untuk upload file.
-  // Browser membuat Content-Type beserta boundary secara otomatis.
+  /**
+   * POST multipart/form-data.
+   */
   postForm(path, body) {
-    if (!(body instanceof FormData)) {
+    if (
+      typeof FormData === 'undefined' ||
+      !(body instanceof FormData)
+    ) {
       throw new TypeError(
         'postForm membutuhkan objek FormData.'
       )
@@ -170,9 +204,29 @@ export const apiClient = {
     })
   },
 
-  // Download file sebagai Blob.
-  download,
+  /**
+   * GET Blob.
+   * Digunakan oleh modul jadwal.
+   */
+  getBlob(path) {
+    return requestBlob(path, {
+      method: 'GET',
+    })
+  },
 
+  /**
+   * Download file sebagai Blob.
+   * Digunakan oleh modul Reports dan Report Cards.
+   */
+  download(path) {
+    return requestBlob(path, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * DELETE.
+   */
   delete(path) {
     return request(path, {
       method: 'DELETE',

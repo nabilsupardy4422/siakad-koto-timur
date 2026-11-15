@@ -1,0 +1,385 @@
+/* ADMIN SCHEDULE — TU
+   Selector dibatasi ke .admin-schedule agar tidak bentrok dengan role lain. */
+
+   .admin-schedule {
+    --schedule-ink: #16324f;
+    --schedule-muted: #64748b;
+    --schedule-border: #dbe4ee;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    min-width: 0;
+    padding-bottom: 2rem;
+    color: var(--schedule-ink);
+  }
+  
+  .admin-schedule > * { min-width: 0; }
+  
+  .admin-schedule__eyebrow {
+    display: inline-block;
+    margin-bottom: .35rem;
+    color: #647f99;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+  }
+  
+  .admin-schedule__section-heading,
+  .admin-schedule__list-heading,
+  .admin-schedule__excel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+  }
+  
+  .admin-schedule__section-heading h2,
+  .admin-schedule__list-heading h2,
+  .admin-schedule__excel-heading h2 {
+    margin: .15rem 0 .35rem;
+    color: var(--schedule-ink);
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: -.025em;
+  }
+  
+  .admin-schedule__section-heading p,
+  .admin-schedule__list-heading p,
+  .admin-schedule__excel-heading p {
+    margin: 0;
+    color: var(--schedule-muted);
+    font-size: .875rem;
+    line-height: 1.6;
+  }
+  
+  /* Excel: satu area ringkas, tanpa panel Import/Export terpisah */
+  .admin-schedule__excel-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  
+  .admin-schedule__excel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .65rem;
+  }
+  
+  .admin-schedule__import-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--schedule-border);
+  }
+  
+  .admin-schedule__file-control {
+    display: flex;
+    flex: 1 1 20rem;
+    flex-direction: column;
+    gap: .5rem;
+    min-width: 0;
+  }
+  
+  .admin-schedule__file-label {
+    color: var(--schedule-ink);
+    font-size: .82rem;
+    font-weight: 650;
+  }
+  
+  .admin-schedule__file-input {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    color: var(--schedule-muted);
+    font: inherit;
+    font-size: .82rem;
+  }
+  
+  .admin-schedule__file-input::file-selector-button {
+    margin-right: .65rem;
+    padding: .55rem .8rem;
+    border: 1px solid var(--schedule-border);
+    border-radius: .45rem;
+    background: #f8fafc;
+    color: var(--schedule-ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  
+  .admin-schedule__selected-file {
+    margin: 0;
+    color: var(--schedule-muted);
+    font-size: .8rem;
+    overflow-wrap: anywhere;
+  }
+  
+  .admin-schedule__import-actions { display: flex; align-items: center; gap: .6rem; }
+  
+  /* Notifikasi */
+  .admin-schedule__success {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: .85rem 1rem;
+    border: 1px solid #bbf7d0;
+    border-radius: .65rem;
+    background: #f0fdf4;
+    color: #166534;
+    font-size: .875rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  
+  .admin-schedule__success > span {
+    display: inline-grid;
+    flex: 0 0 1.25rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    place-items: center;
+    border-radius: 50%;
+    background: #dcfce7;
+    font-weight: 800;
+  }
+  
+  .admin-schedule__success button {
+    display: grid;
+    flex: 0 0 1.8rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    margin-left: auto;
+    place-items: center;
+    border: 0;
+    border-radius: .4rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+  
+  /* Filter */
+  .admin-schedule .admin-schedule__filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 1rem 1.15rem;
+    width: 100%;
+  }
+  .admin-schedule__filters > * { min-width: 0; }
+  
+  .admin-schedule__filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .65rem;
+    margin-top: 1.15rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--schedule-border);
+  }
+  .admin-schedule__filter-actions button { min-width: 7rem; }
+  
+  /* Tabel */
+  .admin-schedule__table-wrapper {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    border: 1px solid var(--schedule-border);
+    border-radius: .65rem;
+    background: #fff;
+  }
+  
+  .admin-schedule__table-wrapper table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  .admin-schedule__table-wrapper thead th {
+    padding: .8rem .9rem;
+    border-bottom: 1px solid var(--schedule-border);
+    background: #f5f8fc;
+    color: #52677d;
+    font-size: .75rem;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+  }
+  
+  .admin-schedule__table-wrapper tbody td {
+    padding: .8rem .9rem;
+    border-bottom: 1px solid #e8eef5;
+    color: var(--schedule-ink);
+    font-size: .82rem;
+    vertical-align: middle;
+  }
+  
+  .admin-schedule__table-wrapper tbody tr:last-child td { border-bottom: 0; }
+  .admin-schedule__table-wrapper tbody tr:hover { background: #f8fbff; }
+  
+  .admin-schedule__day {
+    color: var(--schedule-ink);
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  
+  .admin-schedule__time {
+    display: inline-flex;
+    align-items: center;
+    padding: .38rem .6rem;
+    border: 1px solid #dbeafe;
+    border-radius: .45rem;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: .78rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  
+  .admin-schedule__class {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .3rem;
+    min-width: 5rem;
+  }
+  
+  .admin-schedule__class-name {
+    display: block;
+    color: var(--schedule-ink);
+    font-weight: 650;
+    line-height: 1.35;
+  }
+  
+  .admin-schedule__class-level {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .5rem;
+    border: 1px solid var(--schedule-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--schedule-muted);
+    font-size: .68rem;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  
+  .admin-schedule__semester {
+    display: inline-flex;
+    align-items: center;
+    padding: .25rem .6rem;
+    border: 1px solid var(--schedule-border);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--schedule-ink);
+    font-size: .72rem;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  
+  .admin-schedule__row-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .5rem;
+    min-width: 7.5rem;
+  }
+  .admin-schedule__row-actions button { flex: 0 0 auto; }
+  
+  /* Pagination */
+  .admin-schedule__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--schedule-border);
+    color: var(--schedule-muted);
+    font-size: .84rem;
+  }
+  .admin-schedule__pagination > div { display: flex; flex-wrap: wrap; gap: .6rem; }
+  
+  /* Form modal */
+  .admin-schedule__form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 1.1rem;
+  }
+  .admin-schedule__form > * { min-width: 0; }
+  
+  .admin-schedule__form-error {
+    margin-bottom: 1rem;
+    padding: .85rem;
+    border: 1px solid #fecaca;
+    border-radius: .65rem;
+    background: #fff7f7;
+  }
+  .admin-schedule__form-error > div { margin: 0; }
+  
+  .admin-schedule__error-details {
+    margin-top: .85rem;
+    color: #7f1d1d;
+    font-size: .82rem;
+  }
+  .admin-schedule__error-details h3 { margin: 0 0 .4rem; font-size: .88rem; }
+  .admin-schedule__error-details ul { margin: 0; padding-left: 1.2rem; }
+  .admin-schedule__error-details li + li { margin-top: .3rem; }
+  
+  /* Tablet */
+  @media (max-width: 1024px) {
+    .admin-schedule .admin-schedule__filters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  
+  /* Mobile */
+  @media (max-width: 640px) {
+    .admin-schedule { gap: 1rem; }
+  
+    .admin-schedule .admin-schedule__filters,
+    .admin-schedule__form {
+      grid-template-columns: minmax(0, 1fr);
+      gap: .9rem;
+    }
+  
+    .admin-schedule__import-form {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  
+    .admin-schedule__import-actions,
+    .admin-schedule__import-actions button { width: 100%; }
+  
+    .admin-schedule__filter-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  
+    .admin-schedule__filter-actions button { width: 100%; min-width: 0; }
+  
+    .admin-schedule__pagination {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  
+    .admin-schedule__pagination > div { width: 100%; }
+    .admin-schedule__pagination button { flex: 1; }
+  }
+  
+  @media (max-width: 420px) {
+    .admin-schedule__filter-actions { grid-template-columns: minmax(0, 1fr); }
+  }
+  
