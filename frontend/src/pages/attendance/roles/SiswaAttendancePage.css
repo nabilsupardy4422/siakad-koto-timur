@@ -1,0 +1,217 @@
+/* =========================================
+   STUDENT ATTENDANCE PAGE
+========================================= */
+
+.attendance-student-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+/* =========================================
+   FILTER SECTION
+========================================= */
+
+.student-attendance-filter-header,
+.student-attendance-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.student-attendance-filter-header h2,
+.student-attendance-table-heading h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text, #172b4d);
+}
+
+.student-attendance-filter-header p,
+.student-attendance-table-heading p {
+  margin: 0.4rem 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.student-attendance-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.student-attendance-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+/* =========================================
+   SUMMARY CARDS
+========================================= */
+
+.student-attendance-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.student-attendance-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem;
+}
+
+.student-attendance-summary-card span {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted, #64748b);
+}
+
+.student-attendance-summary-card strong {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-text, #172b4d);
+}
+
+/* =========================================
+   TABLE SECTION
+========================================= */
+
+.student-attendance-table-heading {
+  margin-bottom: 1.25rem;
+}
+
+.student-attendance-page .attendance-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.student-attendance-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.student-attendance-status.status-hadir {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.student-attendance-status.status-izin {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.student-attendance-status.status-sakit {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.student-attendance-status.status-alpa {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+/* =========================================
+   PAGINATION
+========================================= */
+
+.student-attendance-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.student-attendance-pagination > span {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.student-attendance-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 1024px) {
+  .student-attendance-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .student-attendance-filter-header,
+  .student-attendance-table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-attendance-filter-actions {
+    width: 100%;
+  }
+
+  .student-attendance-filter-actions button {
+    flex: 1;
+  }
+
+  .student-attendance-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .student-attendance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-attendance-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-attendance-pagination > div {
+    width: 100%;
+  }
+
+  .student-attendance-pagination button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-attendance-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .student-attendance-summary-card strong {
+    font-size: 1.4rem;
+  }
+
+  .student-attendance-filter-actions {
+    flex-direction: column;
+  }
+
+  .student-attendance-filter-actions button {
+    width: 100%;
+  }
+}

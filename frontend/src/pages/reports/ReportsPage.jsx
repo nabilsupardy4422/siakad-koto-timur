@@ -98,10 +98,14 @@ export default function ReportsPage() {
     <main className="reports-page">
       <header className="reports-header">
         <div>
+          <span className="reports-eyebrow">
+      ADMINISTRASI AKADEMIK
+    </span>
           <h1>Laporan Akademik</h1>
 
           <p>
-            Buat dan unduh laporan akademik.
+            Buat, kelola, dan unduh laporan akademik
+      berdasarkan data sekolah.
           </p>
         </div>
       </header>

@@ -301,9 +301,13 @@ useEffect(() => {
     <section className="report-cards-page">
       <header className="report-cards-header">
         <div>
+          <span className="report-cards-eyebrow">
+      ADMINISTRASI AKADEMIK
+    </span>
           <h1>Data Rapor</h1>
           <p>
-            Kelola dokumen rapor siswa.
+            Kelola, unggah, dan pantau dokumen rapor siswa
+      berdasarkan tahun akademik dan semester.
           </p>
         </div>
       </header>
