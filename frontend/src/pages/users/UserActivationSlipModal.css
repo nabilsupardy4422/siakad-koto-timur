@@ -1,0 +1,277 @@
+
+/* ==========================================
+   SIAKAD — USER ACTIVATION SLIP
+   ========================================== */
+
+.users-page__activation-pending {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.users-activation-slip {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* INFORMASI */
+
+.users-activation-slip__notice,
+.users-activation-slip__success,
+.users-activation-slip__error {
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.users-activation-slip__notice {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.users-activation-slip__notice p {
+  margin: 0.3rem 0 0;
+}
+
+.users-activation-slip__success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.users-activation-slip__error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+/* PENGELOLAAN KODE OLEH TU */
+
+.users-activation-slip__manage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.users-activation-slip__manage > div {
+  flex: 1 1 220px;
+}
+
+.users-activation-slip__manage strong {
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.users-activation-slip__manage p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.users-activation-slip__cancel-button {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fff7f7;
+  color: #b42318;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.users-activation-slip__cancel-button:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.users-activation-slip__cancel-button:focus-visible {
+  outline: 3px solid #fecaca;
+  outline-offset: 2px;
+}
+
+.users-activation-slip__cancel-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* INFORMASI TARGET AKUN */
+
+.users-activation-slip__target {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1.1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-activation-slip__target span,
+.users-activation-slip__target small {
+  color: #64748b;
+}
+
+.users-activation-slip__target strong {
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.users-activation-slip__target code {
+  overflow-wrap: anywhere;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+}
+
+.users-activation-slip__target p {
+  margin: 0.4rem 0 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* SLIP */
+
+.users-activation-slip__paper {
+  padding: 1.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.users-activation-slip__paper-header {
+  border-bottom: 2px solid #123f64;
+  padding-bottom: 0.85rem;
+  text-align: center;
+}
+
+.users-activation-slip__paper-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.04em;
+  color: #123f64;
+}
+
+.users-activation-slip__paper-header p {
+  margin: 0.1rem 0 0.6rem;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.users-activation-slip__paper-header strong {
+  font-size: 0.95rem;
+}
+
+.users-activation-slip__paper-info {
+  display: grid;
+  grid-template-columns:
+    minmax(85px, 105px)
+    minmax(0, 1fr);
+  gap: 0.5rem 1rem;
+  padding: 1.2rem 0;
+  font-size: 0.86rem;
+}
+
+.users-activation-slip__paper-info span {
+  color: #64748b;
+}
+
+.users-activation-slip__paper-info strong {
+  overflow-wrap: anywhere;
+}
+
+.users-activation-slip__code-label {
+  margin: 0 0 0.5rem;
+  color: #475569;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.users-activation-slip__code {
+  padding: 0.95rem 0.65rem;
+  border-radius: 10px;
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+  text-align: center;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  font-weight: 750;
+  font-size: clamp(0.8rem, 2.1vw, 1.15rem);
+  line-height: 1.7;
+  letter-spacing: 0.025em;
+  overflow-wrap: anywhere;
+}
+
+.users-activation-slip__expiry {
+  margin: 0.9rem 0 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+}
+
+.users-activation-slip__instructions {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.users-activation-slip__instructions ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.users-activation-slip__instructions li {
+  margin: 0.2rem 0;
+}
+
+.users-activation-slip__instructions p {
+  margin: 0.75rem 0 0;
+  color: #475569;
+}
+
+/* MOBILE */
+
+@media (max-width: 640px) {
+  .users-activation-slip__paper {
+    padding: 0.85rem;
+  }
+
+  .users-activation-slip__code {
+    font-size: 0.8rem;
+  }
+
+  .users-activation-slip__paper-info {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+
+  .users-activation-slip__cancel-button {
+    width: 100%;
+  }
+}
+
+/*
+ * Cetak dilakukan dari jendela terpisah.
+ * Jangan menggunakan aturan print yang
+ * menyembunyikan seluruh dashboard SIAKAD.
+ */

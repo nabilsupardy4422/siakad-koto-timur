@@ -1,0 +1,145 @@
+/* Bahasa visual SIAKAD: administratif, jelas, tenang, responsif. */
+.users-confirm-panel {
+  --confirmation-accent: #d97706;
+  --confirmation-soft: #fffbeb;
+  --confirmation-line: #fde68a;
+  padding: 22px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 16px;
+  color: #0f172a;
+  animation: users-confirm-appear 180ms ease-out;
+}
+
+.users-confirm-panel--danger {
+  --confirmation-accent: #dc2626;
+  --confirmation-soft: #fef2f2;
+  --confirmation-line: #fecaca;
+}
+
+.users-confirm-panel__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.users-confirm-panel__icon {
+  flex: 0 0 52px;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--confirmation-line);
+  border-radius: 14px;
+  color: var(--confirmation-accent);
+  background: var(--confirmation-soft);
+}
+
+.users-confirm-panel__heading { min-width: 0; }
+
+.users-confirm-panel__eyebrow {
+  display: block;
+  margin: 0 0 5px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--confirmation-accent);
+}
+
+.users-confirm-panel__heading h3 {
+  margin: 0 0 7px;
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.users-confirm-panel__heading p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #475569;
+}
+
+.users-confirm-panel__details {
+  margin: 22px 0 0;
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-confirm-panel__detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.users-confirm-panel__detail + .users-confirm-panel__detail {
+  border-top: 1px solid #e2e8f0;
+}
+
+.users-confirm-panel__detail dt { color: #64748b; }
+.users-confirm-panel__detail dd {
+  margin: 0;
+  max-width: 65%;
+  text-align: right;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-weight: 650;
+}
+
+.users-confirm-panel__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 13px 15px;
+  border-radius: 10px;
+  border: 1px solid var(--confirmation-line);
+  background: var(--confirmation-soft);
+}
+
+.users-confirm-panel__notice-dot {
+  flex: 0 0 auto;
+  height: 7px;
+  width: 7px;
+  margin-top: 7px;
+  border-radius: 100%;
+  background: var(--confirmation-accent);
+}
+
+.users-confirm-panel__notice p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+@keyframes users-confirm-appear {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .users-confirm-panel { padding: 16px; }
+  .users-confirm-panel__header { gap: 12px; }
+  .users-confirm-panel__icon { flex-basis: 44px; width: 44px; height: 44px; }
+  .users-confirm-panel__heading h3 { font-size: 18px; }
+  .users-confirm-panel__detail { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .users-confirm-panel__detail dd { max-width: 100%; text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-confirm-panel { animation: none; }
+}
+
+.users-confirm-panel:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
