@@ -1,0 +1,352 @@
+/* =========================================================
+   SIAKAD — FOTO PROFIL, EDITOR, DAN VIEWER
+   File pengganti penuh untuk ProfilePhotoCard.css
+   ========================================================= */
+
+.siakad-photo-card {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+  padding: 28px 30px;
+  border: 1px solid #e1e8f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(26, 56, 86, .035);
+  color: #1c344a;
+  box-sizing: border-box;
+}
+
+.siakad-photo-card__avatar {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  overflow: hidden;
+  padding: 0;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #e4f1fc, #d1e6f7);
+  box-shadow: 0 0 0 1px #dce8f3, 0 5px 18px rgba(20, 68, 105, .09);
+  color: #20547c;
+  font: inherit;
+  font-size: 38px;
+  font-weight: 750;
+  line-height: 1;
+  cursor: zoom-in;
+  box-sizing: border-box;
+}
+
+.siakad-photo-card__avatar:hover:not(:disabled) {
+  box-shadow: 0 0 0 3px #bbd8f2, 0 6px 20px rgba(20, 68, 105, .12);
+}
+
+.siakad-photo-card__avatar:disabled { cursor: default; }
+.siakad-photo-card__avatar > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.siakad-photo-card__avatar > span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.siakad-photo-card__content { min-width: 0; flex: 1; }
+.siakad-photo-card__content > h2 {
+  margin: 0 0 7px;
+  color: #19364f;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.siakad-photo-card__content > p {
+  max-width: 650px;
+  margin: 0 0 18px;
+  color: #74879a;
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+.siakad-photo-card__content > p strong { color: #395b79; }
+.siakad-photo-card__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.siakad-photo-card__buttons,
+.siakad-photo-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.siakad-photo-card__buttons > button,
+.siakad-photo-dialog-footer > button,
+.siakad-photo-editor__presets > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 39px;
+  padding: 9px 15px;
+  border: 1px solid #dbe4ec;
+  border-radius: 9px;
+  background: #fff;
+  color: #465e73;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.siakad-photo-card__buttons > button:hover:not(:disabled),
+.siakad-photo-dialog-footer > button:hover:not(:disabled),
+.siakad-photo-editor__presets > button:hover:not(:disabled) {
+  background: #f7f9fc;
+  border-color: #bfd0df;
+}
+
+.siakad-photo-card__buttons .is-primary,
+.siakad-photo-dialog-footer .is-primary {
+  border-color: #153f62;
+  background: #153f62;
+  color: #fff;
+}
+.siakad-photo-card__buttons .is-primary:hover:not(:disabled),
+.siakad-photo-dialog-footer .is-primary:hover:not(:disabled) {
+  border-color: #20577e;
+  background: #20577e;
+  color: #fff;
+}
+.siakad-photo-card__buttons .is-danger-outline {
+  border-color: #f1d5d9;
+  color: #b34a55;
+}
+.siakad-photo-card__buttons .is-danger-outline:hover:not(:disabled) {
+  background: #fff6f7;
+  border-color: #e9b7c0;
+}
+.siakad-photo-card__buttons .is-danger {
+  border-color: #b63849;
+  background: #b63849;
+  color: #fff;
+}
+.siakad-photo-card__buttons .is-danger:hover:not(:disabled) {
+  background: #9e293c;
+  color: #fff;
+}
+
+.siakad-photo-card button:focus-visible,
+.siakad-photo-dialog-backdrop button:focus-visible,
+.siakad-photo-editor__slider-row input:focus-visible {
+  outline: 3px solid rgba(46, 119, 180, .32);
+  outline-offset: 2px;
+}
+.siakad-photo-card button:disabled,
+.siakad-photo-dialog-backdrop button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.siakad-photo-card__error,
+.siakad-photo-card__success {
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 13px;
+  margin: 0 0 14px !important;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 11.5px !important;
+  line-height: 1.6;
+}
+.siakad-photo-card__error {
+  border-color: #f4d4d9;
+  background: #fff5f6;
+  color: #ab3345;
+}
+.siakad-photo-card__success {
+  border-color: #ccebd9;
+  background: #f0faf5;
+  color: #23734c;
+}
+.siakad-photo-card__confirm {
+  max-width: 450px;
+  padding: 17px 18px;
+  border: 1px solid #f0d1d7;
+  border-radius: 11px;
+  background: #fff9f9;
+}
+.siakad-photo-card__confirm strong { color: #993747; font-size: 12.5px; }
+.siakad-photo-card__confirm p { margin: 6px 0 14px; color: #886b72; font-size: 11.5px; line-height: 1.7; }
+
+/* Viewer & editor modal */
+.siakad-photo-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(10, 26, 43, .72);
+  box-sizing: border-box;
+}
+.siakad-photo-viewer,
+.siakad-photo-editor {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 500px);
+  max-height: calc(100vh - 36px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .32);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 25px 75px rgba(0, 0, 0, .27);
+}
+.siakad-photo-viewer { width: min(100%, 760px); }
+.siakad-photo-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 19px 22px;
+  border-bottom: 1px solid #e5ebf2;
+}
+.siakad-photo-dialog-header h3 {
+  margin: 0;
+  color: #173a57;
+  font-size: 17px;
+  font-weight: 750;
+}
+.siakad-photo-dialog-header p {
+  margin: 6px 0 0;
+  color: #71859a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.siakad-photo-icon-button {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #dce6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #5d7387;
+  font-size: 23px;
+  cursor: pointer;
+}
+.siakad-photo-icon-button:hover:not(:disabled) { background: #f4f7fa; }
+.siakad-photo-dialog-footer {
+  justify-content: flex-end;
+  padding: 15px 22px;
+  border-top: 1px solid #e5ebf2;
+}
+.siakad-photo-viewer__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 150px;
+  padding: 20px;
+  overflow: auto;
+  background: #f4f7fa;
+  box-sizing: border-box;
+}
+.siakad-photo-viewer__body img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(65vh, 650px);
+  height: auto;
+  object-fit: contain;
+  border-radius: 5px;
+}
+.siakad-photo-viewer__body p { color: #5d7184; font-size: 13px; }
+
+/* Editor penyesuaian foto */
+.siakad-photo-editor__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 19px;
+  padding: 22px;
+  overflow-y: auto;
+}
+.siakad-photo-editor__crop {
+  position: relative;
+  width: min(290px, 72vw);
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 11px;
+  background: #eaf0f5;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.siakad-photo-editor__crop:active { cursor: grabbing; }
+.siakad-photo-editor__crop canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.siakad-photo-editor__crop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 150px rgba(10, 29, 48, .58), inset 0 0 0 2px rgba(255, 255, 255, .95);
+  pointer-events: none;
+}
+.siakad-photo-editor__loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #eaf0f5;
+  color: #536c82;
+  font-size: 12px;
+  text-align: center;
+}
+.siakad-photo-editor__tools { width: min(100%, 360px); }
+.siakad-photo-editor__tools label { display: block; color: #243e56; font-size: 12px; font-weight: 700; }
+.siakad-photo-editor__slider-row { display: flex; align-items: center; gap: 12px; margin-top: 11px; }
+.siakad-photo-editor__slider-row span { font-size: 19px; color: #6b859a; }
+.siakad-photo-editor__slider-row input {
+  flex: 1;
+  min-width: 0;
+  accent-color: #16476c;
+  cursor: pointer;
+}
+.siakad-photo-editor__presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 13px; }
+.siakad-photo-editor__presets > button { min-height: 32px; padding: 7px 10px; font-size: 11px; }
+.siakad-photo-editor__hint { margin: 13px 0 0; color: #788b9e; font-size: 11px; line-height: 1.65; }
+.siakad-photo-editor__tools .siakad-photo-card__error { margin-top: 12px !important; }
+
+@media (max-width: 640px) {
+  .siakad-photo-card { flex-direction: column; align-items: flex-start; gap: 20px; padding: 21px 18px; }
+  .siakad-photo-card__avatar { width: 94px; height: 94px; flex-basis: 94px; font-size: 32px; }
+  .siakad-photo-card__content { width: 100%; }
+  .siakad-photo-dialog-backdrop { padding: 10px; }
+  .siakad-photo-dialog-header, .siakad-photo-dialog-footer { padding: 13px 15px; }
+  .siakad-photo-editor__body { padding: 14px; gap: 14px; }
+  .siakad-photo-editor__crop { width: min(264px, 72vw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .siakad-photo-card__buttons > button,
+  .siakad-photo-dialog-footer > button { transition: none; }
+}

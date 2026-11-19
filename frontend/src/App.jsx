@@ -1,7 +1,9 @@
-
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-// Landing page
+// ==========================================
+// Landing Page
+// ==========================================
+
 import FeatureHighlights from "./components/landing/FeatureHighlights";
 import Hero from "./components/landing/Hero";
 import Navbar from "./components/landing/Navbar";
@@ -11,41 +13,74 @@ import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
 import Footer from "./components/landing/Footer";
 
+// ==========================================
 // Authentication
+// ==========================================
+
 import LoginPage from "./pages/auth/LoginPage";
+import ActivateAccountPage from "./pages/public/ActivateAccountPage";
+
 import { AuthProvider } from "./context/AuthContext.jsx";
+
 import RequireAuth from "./routes/RequireAuth";
 import AccessRoute from "./routes/AccessRoute";
 
-// Application shell
+// ==========================================
+// Application Shell
+// ==========================================
+
 import AppShell from "./app/AppShell";
 
+// ==========================================
 // Dashboard
-import DashboardPage from "./pages/dashboard/DashboardPage";
+// ==========================================
 
-// Master data
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import ProfilePage from "./pages/profile/ProfilePage";
+
+// ==========================================
+// Master Data
+// ==========================================
+
 import AcademicYearsPage from "./pages/academic-years/AcademicYearsPage";
 import StudentsPage from "./pages/students/StudentsPage";
 import TeachersPage from "./pages/teachers/TeachersPage";
 import UsersPage from "./pages/users/UsersPage";
+
 import HomeroomManagementPage from "./pages/homeroom/HomeroomManagementPage";
 import HomeroomPage from "./pages/homeroom/HomeroomPage";
+
 import ClassesPage from "./pages/classes/ClassesPage";
 import ClassMembersPage from "./pages/class-members/ClassMembersPage";
+
 import SubjectsPage from "./pages/subjects/SubjectsPage";
 import SchedulesPage from "./pages/schedules/SchedulesPage";
+
 import MaterialsPage from "./pages/materials/MaterialsPage";
 import AssignmentsPage from "./pages/assignments/AssignmentsPage";
 import GradesPage from "./pages/grades/GradesPage";
 
-// Rapor
+// ==========================================
+// Report Cards
+// ==========================================
+
 import ReportCardsPage from "./pages/report-cards/ReportCardsPage";
 
-// Laporan
+// ==========================================
+// Reports
+// ==========================================
+
 import ReportsPage from "./pages/reports/ReportsPage";
 
+// ==========================================
 // Attendance
+// ==========================================
+
 import AttendancePage from "./pages/attendance/AttendancePage";
+
+// ==========================================
+// Public Landing Page
+// ==========================================
 
 function LandingPage() {
   return (
@@ -66,42 +101,123 @@ function LandingPage() {
   );
 }
 
+// ==========================================
+// Main Application Router
+// ==========================================
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Halaman publik */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          {/* ==================================
+              PUBLIC ROUTES
+              ================================== */}
 
-          {/* Semua halaman aplikasi memerlukan autentikasi */}
+          <Route
+            path="/"
+            element={<LandingPage />}
+          />
+
+          <Route
+            path="/login"
+            element={<LoginPage />}
+          />
+
+          {/*
+            Aktivasi akun Guru dan Siswa.
+
+            Halaman ini sengaja berada di
+            luar RequireAuth karena pengguna
+            baru belum memiliki token login.
+
+            Backend tetap memvalidasi kode
+            aktivasi satu kali pakai.
+          */}
+
+          <Route
+            path="/aktivasi-akun"
+            element={<ActivateAccountPage />}
+          />
+
+          {/* ==================================
+              PRIVATE ROUTES
+              ================================== */}
+
           <Route element={<RequireAuth />}>
-            <Route path="/app" element={<AppShell />}>
+            <Route
+              path="/app"
+              element={<AppShell />}
+            >
+              {/* Default redirect */}
+
               <Route
                 index
-                element={<Navigate to="/app/dashboard" replace />}
+                element={
+                  <Navigate
+                    to="/app/dashboard"
+                    replace
+                  />
+                }
               />
 
-              {/* Dashboard */}
-              <Route path="dashboard" element={<DashboardPage />} />
+              {/* ==========================
+                  Dashboard
+                  ========================== */}
 
-              {/* Master data */}
+              <Route
+                path="dashboard"
+                element={<DashboardPage />}
+              />
+
+              {/* ==========================
+                  Profil semua role
+                  ========================== */}
+
+              <Route
+                path="profil"
+                element={<ProfilePage />}
+              />
+
+              {/* ==========================
+                  Master Data
+                  ========================== */}
+
               <Route
                 path="academic-years"
                 element={<AcademicYearsPage />}
               />
-              <Route path="students" element={<StudentsPage />} />
-              <Route path="teachers" element={<TeachersPage />} />
-              <Route path="users" element={<UsersPage />} />
 
-              {/* Manajemen Wali Kelas */}
+              <Route
+                path="students"
+                element={<StudentsPage />}
+              />
+
+              <Route
+                path="teachers"
+                element={<TeachersPage />}
+              />
+
+              <Route
+                path="users"
+                element={<UsersPage />}
+              />
+
+              {/* ==========================
+                  Homeroom Management
+                  ========================== */}
+
               <Route
                 path="homeroom-assignments"
                 element={<HomeroomManagementPage />}
               />
 
-              {/* Kelas Saya: khusus Guru dengan assignment WALI_KELAS */}
+              {/*
+                Kelas Saya:
+                khusus Guru dengan assignment
+                WALI_KELAS.
+              */}
+
               <Route
                 element={
                   <AccessRoute
@@ -116,31 +232,87 @@ function App() {
                 />
               </Route>
 
-              <Route path="classes" element={<ClassesPage />} />
+              {/* ==========================
+                  Classes
+                  ========================== */}
+
+              <Route
+                path="classes"
+                element={<ClassesPage />}
+              />
+
               <Route
                 path="class-members"
                 element={<ClassMembersPage />}
               />
-              <Route path="subjects" element={<SubjectsPage />} />
 
-              {/* Jadwal */}
-              <Route path="schedules" element={<SchedulesPage />} />
+              {/* ==========================
+                  Subjects
+                  ========================== */}
 
-              {/* Presensi */}
-              <Route path="attendance" element={<AttendancePage />} />
+              <Route
+                path="subjects"
+                element={<SubjectsPage />}
+              />
 
-              {/* Materi dan tugas */}
-              <Route path="materials" element={<MaterialsPage />} />
-              <Route path="assignments" element={<AssignmentsPage />} />
+              {/* ==========================
+                  Schedules
+                  ========================== */}
 
-              {/* Penilaian */}
-              <Route path="grades" element={<GradesPage />} />
+              <Route
+                path="schedules"
+                element={<SchedulesPage />}
+              />
 
-              {/* Rapor */}
-              <Route path="report-cards" element={<ReportCardsPage />} />
+              {/* ==========================
+                  Attendance
+                  ========================== */}
 
-              {/* Laporan */}
-              <Route path="reports" element={<ReportsPage />} />
+              <Route
+                path="attendance"
+                element={<AttendancePage />}
+              />
+
+              {/* ==========================
+                  Materials and Assignments
+                  ========================== */}
+
+              <Route
+                path="materials"
+                element={<MaterialsPage />}
+              />
+
+              <Route
+                path="assignments"
+                element={<AssignmentsPage />}
+              />
+
+              {/* ==========================
+                  Grades
+                  ========================== */}
+
+              <Route
+                path="grades"
+                element={<GradesPage />}
+              />
+
+              {/* ==========================
+                  Report Cards
+                  ========================== */}
+
+              <Route
+                path="report-cards"
+                element={<ReportCardsPage />}
+              />
+
+              {/* ==========================
+                  Reports
+                  ========================== */}
+
+              <Route
+                path="reports"
+                element={<ReportsPage />}
+              />
             </Route>
           </Route>
         </Routes>
