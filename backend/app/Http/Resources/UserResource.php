@@ -25,6 +25,10 @@ class UserResource extends JsonResource
             }),
 
             'account_status' => $this->account_status,
+            // Akun impor akan bernilai true sampai aktivasi berhasil.
+            // Tidak ada kode aktivasi ataupun password di resource ini.
+            'requires_activation' => (bool) $this->requires_activation,
+            'activated_at' => $this->activated_at?->toIso8601String(),
             'last_login_at' => $this->last_login_at,
             'google_linked' => $this->google_id !== null,
             'created_at' => $this->created_at,

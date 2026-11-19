@@ -1,0 +1,412 @@
+
+/* ==========================================
+   SIAKAD - USER IMPORT
+   ========================================== */
+
+.users-page__header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.users-import {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+/* Info Preview */
+
+.users-import__notice {
+  padding: 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.users-import__notice strong {
+  color: #1e40af;
+  font-size: 0.875rem;
+}
+
+.users-import__notice p {
+  margin: 0.375rem 0 0;
+  color: #345b92;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* Template */
+
+.users-import__template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-import__template h3,
+.users-import__preview-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.users-import__template p,
+.users-import__preview-header p {
+  margin: 0.4rem 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Upload */
+
+.users-import__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.users-import__upload label {
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.users-import__upload input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  padding: 0.875rem;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.users-import__upload input[type="file"]:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.users-import__upload small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.users-import__selected-file {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.users-import__selected-file > span {
+  font-size: 1.5rem;
+}
+
+.users-import__selected-file div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.users-import__selected-file strong {
+  color: #1e293b;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+/* Error & Loading */
+
+.users-import__error {
+  padding: 0.875rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.users-import__loading {
+  margin: 0;
+  color: #475569;
+  font-size: 0.875rem;
+}
+
+/* Preview */
+
+.users-import__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.users-import__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.users-import__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-import__stat span {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.users-import__stat strong {
+  color: #0f172a;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.users-import__stat--valid {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.users-import__stat--valid strong {
+  color: #15803d;
+}
+
+.users-import__stat--invalid {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.users-import__stat--invalid strong {
+  color: #dc2626;
+}
+
+/* Table */
+
+.users-import__table-wrapper {
+  width: 100%;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.users-import__table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.users-import__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.875rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.users-import__table td {
+  padding: 0.875rem;
+  border-bottom: 1px solid #edf2f7;
+  color: #334155;
+  vertical-align: top;
+}
+
+.users-import__table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.users-import__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 150px;
+}
+
+.users-import__identity strong {
+  color: #0f172a;
+}
+
+.users-import__identity span,
+.users-import__identity small {
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.users-import__status {
+  display: inline-flex;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.users-import__status--valid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.users-import__status--invalid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.users-import__valid-text {
+  color: #15803d;
+}
+
+.users-import__row-errors {
+  margin: 0;
+  padding-left: 1rem;
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
+/* Result */
+
+.users-import__result-warning,
+.users-import__result-success {
+  padding: 0.875rem 1rem;
+  border: 1px solid;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.users-import__result-warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.users-import__result-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+/* Responsive */
+
+@media (max-width: 640px) {
+  .users-page__header-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .users-page__header-actions > .ui-button {
+    flex: 1;
+  }
+
+  .users-import__template {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .users-import__stats {
+    gap: 0.5rem;
+  }
+
+  .users-import__stat {
+    padding: 0.75rem;
+  }
+
+  .users-import__stat strong {
+    font-size: 1.25rem;
+  }
+}
+
+
+/* ==========================================
+   SIAKAD - IMPORT MODAL REFINEMENT
+   ========================================== */
+
+/* Modal lebih lebar khusus Import Excel */
+.ui-modal__dialog--user-import {
+  width: 100%;
+  max-width: 1050px;
+  max-height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header dan footer tetap terlihat */
+.ui-modal__dialog--user-import .ui-modal__header,
+.ui-modal__dialog--user-import .ui-modal__footer {
+  flex: 0 0 auto;
+}
+
+/* Hanya konten utama yang scroll vertikal */
+.ui-modal__dialog--user-import .ui-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Berikan ruang tabel lebih luas */
+.ui-modal__dialog--user-import
+.users-import__table-wrapper {
+  max-height: 400px;
+}
+
+/* Tabel dapat menggunakan ruang modal */
+.ui-modal__dialog--user-import
+.users-import__table {
+  min-width: 800px;
+}
+
+/* Tampilan tablet */
+@media (max-width: 1024px) {
+  .ui-modal__dialog--user-import {
+    max-width: calc(100vw - 2rem);
+  }
+}
+
+/* Tampilan mobile */
+@media (max-width: 640px) {
+  .ui-modal__dialog--user-import {
+    max-width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .ui-modal__dialog--user-import
+  .ui-modal__footer {
+    flex-wrap: wrap;
+  }
+
+  .ui-modal__dialog--user-import
+  .users-import__table-wrapper {
+    max-height: 320px;
+  }
+}

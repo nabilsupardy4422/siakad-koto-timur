@@ -3,6 +3,12 @@
 use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\Auth\ActivateAccountController;
+use App\Http\Controllers\Api\Auth\GoogleLoginController;
+use App\Http\Controllers\Api\Auth\GoogleUsernameRecoveryController;
+use App\Http\Controllers\Api\Auth\GooglePasswordRecoveryController;
+use App\Http\Controllers\Api\Auth\GooglePasswordRecoveryChallengeController;
+use App\Http\Controllers\Api\Auth\GooglePasswordRecoveryVerifyController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\MeController;
@@ -12,6 +18,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GradeComponentController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\IssueUserActivationCodeController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportController;
@@ -23,14 +30,107 @@ use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\WaliKelasController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserExcelController;
+use App\Http\Controllers\Api\UserImportPreviewController;
+use App\Http\Controllers\Api\UserImportController;
+use App\Http\Controllers\Api\Profile\GoogleAccountController;
+use App\Http\Controllers\Api\Profile\ProfilePhotoController;
+use App\Http\Controllers\Api\UserActivationCodeStatusController;
+use App\Http\Controllers\Api\CancelUserActivationCodeController;
 use App\Http\Controllers\Api\SubmissionAttachmentController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\EnsureAccountIsUsable;
 
 Route::post('/login', LoginController::class);
 
-Route::middleware('auth:sanctum')->group(function (): void {
+// Google Login hanya untuk akun SIAKAD yang sudah ditautkan.
+// Batasi percobaan sebelum memverifikasi ID token Google.
+Route::post('/login/google', GoogleLoginController::class)
+    ->middleware('throttle:5,1');
+
+// Pemulihan username hanya melalui Google yang sudah tertaut.
+// Route publik agar dapat digunakan sebelum login.
+Route::post('/recovery/google/username', GoogleUsernameRecoveryController::class)
+    ->middleware('throttle:5,1');
+
+// Challenge sementara sebelum reset password menggunakan akun Google tertaut.
+// Endpoint publik, tetapi dibatasi untuk mengurangi penyalahgunaan.
+Route::post(
+    '/recovery/google/password/challenge',
+    GooglePasswordRecoveryChallengeController::class
+)->middleware('throttle:5,1');
+
+// Verifikasi kepemilikan akun Google sebelum menerbitkan izin reset sementara.
+// Harus menggunakan challenge dan Google ID token dengan nonce valid.
+Route::post(
+    '/recovery/google/password/verify',
+    GooglePasswordRecoveryVerifyController::class
+)->middleware('throttle:5,1');
+
+// Reset password melalui izin sementara sekali pakai.
+// Izin diterbitkan setelah verifikasi Google dan nonce berhasil.
+Route::post('/recovery/google/password', GooglePasswordRecoveryController::class)
+    ->middleware('throttle:5,1');
+
+// Aktivasi akun Guru/Siswa menggunakan kode sekali pakai.
+Route::post('/account/activate', ActivateAccountController::class)
+    ->middleware('throttle:5,1');
+
+Route::middleware([
+    'auth:sanctum',
+    EnsureAccountIsUsable::class,
+])->group(function (): void {
     Route::get('/me', MeController::class);
     Route::post('/logout', LogoutController::class);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Google Account Linking ΓÇö Semua Role SIAKAD
+    |--------------------------------------------------------------------------
+    | Akun TU, Kepala Sekolah, Guru, dan Siswa dapat menautkan Google
+    | setelah login. Middleware EnsureAccountIsUsable tetap berlaku.
+    */
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get(
+            '/profile/google/status',
+            [GoogleAccountController::class, 'status']
+        );
+
+        Route::post(
+            '/profile/google/link',
+            [GoogleAccountController::class, 'link']
+        )->middleware('throttle:5,1');
+
+        Route::post(
+            '/profile/google/unlink',
+            [GoogleAccountController::class, 'unlink']
+        )->middleware('throttle:5,1');
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Foto Profil ΓÇö Semua Role SIAKAD
+    |--------------------------------------------------------------------------
+    | Hanya pengguna yang sedang login dan memiliki akun aktif
+    | yang dapat melihat, mengunggah, dan menghapus foto sendiri.
+    */
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get(
+            '/profile/photo',
+            [ProfilePhotoController::class, 'show']
+        );
+
+        Route::post(
+            '/profile/photo',
+            [ProfilePhotoController::class, 'store']
+        )->middleware('throttle:10,1');
+
+        Route::delete(
+            '/profile/photo',
+            [ProfilePhotoController::class, 'destroy']
+        )->middleware('throttle:10,1');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -362,30 +462,145 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/reports/{reportType}', [ReportController::class, 'index']);
     });
 
+
     /*
     |--------------------------------------------------------------------------
     | User Management
     |--------------------------------------------------------------------------
     */
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | User Management
+    |--------------------------------------------------------------------------
+    */
+
     Route::middleware('role:TU')->group(function (): void {
-        Route::get('/users', [UserController::class, 'index'])
-            ->middleware('permission:users.view');
 
-        Route::get('/users/{user}', [UserController::class, 'show'])
-            ->middleware('permission:users.view');
+        /*
+        |--------------------------------------------------------------------------
+        | Import Pengguna dari Excel
+        |--------------------------------------------------------------------------
+        */
 
-        Route::post('/users', [UserController::class, 'store'])
-            ->middleware('permission:users.create');
+        // Download template resmi import pengguna.
+        Route::get(
+            '/users/template',
+            [UserExcelController::class, 'template']
+        )->middleware('permission:users.create');
 
-        Route::put('/users/{user}', [UserController::class, 'update'])
-            ->middleware('permission:users.update');
+        // Preview dan validasi file Excel.
+        // Tidak menyimpan data ke database.
+        Route::post(
+            '/users/import/preview',
+            UserImportPreviewController::class
+        )->middleware('permission:users.create');
 
-        Route::post('/users/{user}/activate', [UserController::class, 'activate'])
-            ->middleware('permission:users.activate');
+        // Konfirmasi import massal.
+        // Memvalidasi ulang dan menyimpan akun.
+        Route::post(
+            '/users/import',
+            UserImportController::class
+        )->middleware('permission:users.create');
 
-        Route::post('/users/{user}/deactivate', [UserController::class, 'deactivate'])
-            ->middleware('permission:users.deactivate');
+        /*
+        |--------------------------------------------------------------------------
+        | Manajemen Data Pengguna
+        |--------------------------------------------------------------------------
+        */
+
+        // Daftar pengguna.
+        Route::get(
+            '/users',
+            [UserController::class, 'index']
+        )->middleware('permission:users.view');
+
+        // Detail pengguna.
+        Route::get(
+            '/users/{user}',
+            [UserController::class, 'show']
+        )->middleware('permission:users.view');
+
+        // Tambah pengguna manual.
+        Route::post(
+            '/users',
+            [UserController::class, 'store']
+        )->middleware('permission:users.create');
+
+        // Edit pengguna.
+        Route::put(
+            '/users/{user}',
+            [UserController::class, 'update']
+        )->middleware('permission:users.update');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pengelolaan Status Akun
+        |--------------------------------------------------------------------------
+        */
+
+        // Aktifkan kembali akun nonaktif.
+        Route::post(
+            '/users/{user}/activate',
+            [UserController::class, 'activate']
+        )->middleware('permission:users.activate');
+
+        // Nonaktifkan akun pengguna.
+        Route::post(
+            '/users/{user}/deactivate',
+            [UserController::class, 'deactivate']
+        )->middleware('permission:users.deactivate');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pengelolaan Aktivasi Akun Guru dan Siswa
+        |--------------------------------------------------------------------------
+        */
+
+        // TU menerbitkan atau menerbitkan ulang
+        // kode aktivasi individual.
+        Route::post(
+            '/users/{user}/activation-code',
+            IssueUserActivationCodeController::class
+        )->middleware('permission:users.reset_password');
+
+        // TU memeriksa apakah akun memiliki
+        // kode aktivasi yang masih berlaku.
+        //
+        // Tidak mengembalikan kode asli atau hash.
+        //
+        // Digunakan frontend untuk menentukan
+        // apakah tombol "Batalkan Kode Aktivasi"
+        // perlu ditampilkan.
+        Route::get(
+            '/users/{user}/activation-code/status',
+            UserActivationCodeStatusController::class
+        )->middleware('permission:users.reset_password');
+
+        // TU membatalkan kode aktivasi.
+        //
+        // Akun tidak dihapus dan status akun
+        // tidak berubah.
+        Route::delete(
+            '/users/{user}/activation-code',
+            CancelUserActivationCodeController::class
+        )->middleware('permission:users.reset_password');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Reset Password oleh TU
+        |--------------------------------------------------------------------------
+        */
+
+        // Reset password pengguna.
+        Route::post(
+            '/users/{user}/reset-password',
+            [UserController::class, 'resetPassword']
+        )->middleware('permission:users.reset_password');
+
     });
+
 });
 
 Route::get('/health', HealthController::class);

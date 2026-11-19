@@ -184,7 +184,9 @@
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
 }
 
 .users-page__status-confirm--danger {
@@ -253,5 +255,430 @@
 
   .users-page__pagination > div button {
     flex: 1;
+  }
+}
+
+/* ==========================================
+   SIAKAD - USER MANAGEMENT UI REFINEMENT
+   Phase 1: Scoped Visual Improvements
+   ========================================== */
+
+.users-page {
+  gap: 1.5rem;
+}
+
+/* Section Heading */
+
+.users-page__list-header {
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.users-page__list-header h2 {
+  margin: 0.35rem 0;
+  color: #0f172a;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.users-page__list-header p {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.users-page__eyebrow {
+  color: #2563eb !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.08em;
+}
+
+.users-page__count {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.8125rem;
+}
+
+/* Search and Filters */
+
+.users-page__filters {
+  gap: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+/* Buttons scoped to UsersPage */
+
+.users-page .ui-button {
+  min-height: 40px;
+  padding: 0 1rem;
+  border-radius: 9px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.users-page .ui-button--small {
+  min-height: 35px;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* User Identity */
+
+.users-page__identity {
+  gap: 0.3rem;
+  min-width: 180px;
+}
+
+.users-page__identity strong {
+  color: #0f172a;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.users-page__identity span {
+  color: #475569;
+  font-size: 0.875rem;
+}
+
+.users-page__identity small {
+  color: #64748b;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+/* Table */
+
+.users-page .ui-table-wrapper {
+  border-color: #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.users-page .ui-table {
+  min-width: 820px;
+  font-size: 0.875rem;
+}
+
+.users-page .ui-table__head {
+  background: #f8fafc;
+}
+
+.users-page .ui-table th {
+  padding: 1rem;
+  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.users-page .ui-table td {
+  padding: 1rem;
+  border-bottom-color: #eaf0f5;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.users-page .ui-table tbody tr {
+  transition: background-color 150ms ease;
+}
+
+.users-page .ui-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* Action Buttons */
+
+.users-page__actions {
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.users-page__actions .ui-button {
+  min-height: 36px;
+  padding: 0 0.8rem;
+  font-size: 0.8125rem;
+}
+
+/* Pagination */
+
+.users-page__pagination {
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+/* Modal - Only inside UsersPage */
+
+.users-page .ui-modal__dialog {
+  border-radius: 18px;
+}
+
+.users-page .ui-modal__header {
+  padding: 1.5rem 1.75rem;
+}
+
+.users-page .ui-modal__heading h2 {
+  font-size: 1.375rem;
+  letter-spacing: -0.025em;
+}
+
+.users-page .ui-modal__body {
+  padding: 1.75rem;
+}
+
+.users-page .ui-modal__footer {
+  padding: 1.125rem 1.75rem;
+}
+
+/* Responsive */
+
+@media (max-width: 1024px) {
+  .users-page__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .users-page__list-header {
+    align-items: flex-start;
+  }
+
+  .users-page__filters {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem;
+  }
+
+  .users-page__filter-actions .ui-button {
+    flex: 1;
+  }
+
+  .users-page .ui-table {
+    min-width: 760px;
+  }
+
+  .users-page .ui-modal__header,
+  .users-page .ui-modal__body,
+  .users-page .ui-modal__footer {
+    padding: 1.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-page .ui-table tbody tr {
+    transition: none;
+  }
+}
+
+
+/* ==========================================
+   USER MANAGEMENT - PHASE 2
+   Identity & Action Menu
+   ========================================== */
+
+/* Identitas Pengguna */
+
+.users-page__identity-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 220px;
+}
+
+.users-page__avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.users-page__identity {
+  min-width: 0;
+}
+
+.users-page__identity strong {
+  font-size: 0.9rem;
+}
+
+.users-page__identity span {
+  font-size: 0.8125rem;
+}
+
+.users-page__identity small {
+  font-size: 0.75rem;
+}
+
+/* Tombol Tiga Titik */
+
+.users-page__menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.users-page__menu-trigger:hover,
+.users-page__menu-trigger[aria-expanded="true"] {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.users-page__menu-trigger:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.users-page__menu-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dropdown dirender melalui React Portal */
+
+.users-page__action-popover {
+  position: fixed;
+  z-index: 1300;
+  width: 200px;
+  padding: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+}
+
+.users-page__action-popover button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.users-page__action-popover button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  font-size: 1rem;
+}
+
+.users-page__action-popover button:hover {
+  background: #f1f5f9;
+}
+
+.users-page__action-popover button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: -2px;
+}
+
+.users-page__action-popover .users-page__action-danger {
+  color: #b91c1c;
+}
+
+.users-page__action-popover .users-page__action-danger:hover {
+  background: #fef2f2;
+}
+
+.users-page__action-popover .users-page__action-success {
+  color: #15803d;
+}
+
+.users-page__action-popover .users-page__action-success:hover {
+  background: #f0fdf4;
+}
+
+.users-page__actions {
+  justify-content: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .users-page__menu-trigger {
+    transition: none;
+  }
+}
+
+
+
+/* ==========================================
+   USER MANAGEMENT - RESET PASSWORD
+   ========================================== */
+
+.users-page__reset-target {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.users-page__reset-target .users-page__avatar {
+  border-radius: 50%;
+}
+
+.users-page__reset-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.125rem;
+}
+
+.users-page__reset-note {
+  margin: 1.25rem 0 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 640px) {
+  .users-page__reset-target {
+    padding: 0.875rem;
+  }
+
+  .users-page__reset-note {
+    font-size: 0.8125rem;
   }
 }

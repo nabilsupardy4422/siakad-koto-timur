@@ -4,11 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -36,6 +36,10 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+
+            // Kolom baru untuk alur aktivasi.
+            'requires_activation' => 'boolean',
+            'activated_at' => 'datetime',
         ];
     }
 
@@ -56,11 +60,17 @@ class User extends Authenticatable
 
     public function bahanAjarDibuat(): HasMany
     {
-        return $this->hasMany(BahanAjar::class, 'created_by');
+        return $this->hasMany(
+            BahanAjar::class,
+            'created_by'
+        );
     }
 
     public function raporDiunggah(): HasMany
     {
-        return $this->hasMany(Rapor::class, 'uploaded_by');
+        return $this->hasMany(
+            Rapor::class,
+            'uploaded_by'
+        );
     }
 }
