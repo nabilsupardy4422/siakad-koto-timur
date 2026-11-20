@@ -375,6 +375,7 @@ Route::middleware([
     */
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/grades', [GradeController::class, 'index']);
+        Route::get('/grades/recap', [GradeController::class, 'recap']);
     });
 
     Route::middleware('role:GURU')->group(function (): void {

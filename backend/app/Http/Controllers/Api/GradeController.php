@@ -141,6 +141,81 @@ class GradeController extends Controller
         );
     }
 
+    public function recap(Request $request): JsonResponse
+{
+    $user = $request->user();
+
+    $user->loadMissing([
+        'role',
+        'guru',
+        'siswa',
+    ]);
+
+    $academicYearId = $request->filled('academic_year_id')
+        ? $request->integer('academic_year_id')
+        : null;
+
+    $query = Nilai::query();
+
+    $this->applyViewScope(
+        $query,
+        $user,
+        $academicYearId
+    );
+
+    if ($request->filled('class_id')) {
+        $query->whereHas(
+            'komponenNilai.jadwalPelajaran',
+            fn (Builder $builder) => $builder->where(
+                'kelas_id',
+                $request->integer('class_id')
+            )
+        );
+    }
+
+    if ($academicYearId !== null) {
+        $query->whereHas(
+            'komponenNilai.jadwalPelajaran',
+            fn (Builder $builder) => $builder->where(
+                'tahun_akademik_id',
+                $academicYearId
+            )
+        );
+    }
+
+    if ($request->filled('semester')) {
+        $semester = $request->string('semester')->toString();
+
+        $query->whereHas(
+            'komponenNilai.jadwalPelajaran.tahunAkademik',
+            fn (Builder $builder) => $builder->where(
+                'semester',
+                $semester
+            )
+        );
+    }
+
+    $recap = $query
+        ->selectRaw('COUNT(*) as total')
+        ->selectRaw('AVG(nilai) as rata_rata')
+        ->selectRaw('MAX(nilai) as tertinggi')
+        ->selectRaw('MIN(nilai) as terendah')
+        ->first();
+
+    return response()->json([
+        'data' => [
+            'total' => (int) ($recap->total ?? 0),
+            'rata_rata' => round((float) ($recap->rata_rata ?? 0), 2),
+            'tertinggi' => $recap->tertinggi !== null
+                ? (float) $recap->tertinggi
+                : null,
+            'terendah' => $recap->terendah !== null
+                ? (float) $recap->terendah
+                : null,
+        ],
+    ]);
+}
+
     public function store(
         StoreGradeRequest $request
     ): JsonResponse {

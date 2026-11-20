@@ -22,11 +22,21 @@ class AttendanceResource extends JsonResource
             'jadwal_pelajaran' => $this->whenLoaded(
                 'jadwalPelajaran',
                 function (): array {
+                    $jadwal = $this->jadwalPelajaran;
+
                     return [
-                        'id' => $this->jadwalPelajaran->id,
-                        'hari' => $this->jadwalPelajaran->hari,
-                        'jam_mulai' => $this->jadwalPelajaran->jam_mulai,
-                        'jam_selesai' => $this->jadwalPelajaran->jam_selesai,
+                        'id' => $jadwal->id,
+                        'hari' => $jadwal->hari,
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+
+                        'mapel' => $jadwal->mapel ? [
+                            'nama' => $jadwal->mapel->nama,
+                        ] : null,
+
+                        'guru' => $jadwal->guru ? [
+                            'nama_lengkap' => $jadwal->guru->nama_lengkap,
+                        ] : null,
                     ];
                 }
             ),
