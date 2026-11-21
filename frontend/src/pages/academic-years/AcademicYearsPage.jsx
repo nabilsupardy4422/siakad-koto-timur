@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 
 import Button from "../../components/ui/Button";
@@ -40,9 +39,7 @@ function normalizeAcademicYear(item) {
     tahun_selesai: String(item.tahun_selesai ?? ""),
     semester: item.semester ?? "",
     is_active:
-      item.is_active === true ||
-      item.is_active === 1 ||
-      item.is_active === "1",
+      item.is_active === true || item.is_active === 1 || item.is_active === "1",
   };
 }
 
@@ -83,6 +80,16 @@ export default function AcademicYearsPage() {
 
   const [successMessage, setSuccessMessage] = useState("");
 
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
+  const [templateError, setTemplateError] = useState("");
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -92,9 +99,7 @@ export default function AcademicYearsPage() {
 
     try {
       const response = await academicYearApi.getAll();
-      const data = Array.isArray(response?.data)
-        ? response.data
-        : [];
+      const data = Array.isArray(response?.data) ? response.data : [];
 
       setAcademicYears(data.map(normalizeAcademicYear));
     } catch (error) {
@@ -170,15 +175,13 @@ export default function AcademicYearsPage() {
     if (!tahunMulai) {
       errors.tahun_mulai = "Tahun mulai wajib diisi.";
     } else if (!/^\d{4}$/.test(tahunMulai)) {
-      errors.tahun_mulai =
-        "Tahun mulai harus terdiri dari 4 digit.";
+      errors.tahun_mulai = "Tahun mulai harus terdiri dari 4 digit.";
     }
 
     if (!tahunSelesai) {
       errors.tahun_selesai = "Tahun selesai wajib diisi.";
     } else if (!/^\d{4}$/.test(tahunSelesai)) {
-      errors.tahun_selesai =
-        "Tahun selesai harus terdiri dari 4 digit.";
+      errors.tahun_selesai = "Tahun selesai harus terdiri dari 4 digit.";
     }
 
     if (
@@ -280,7 +283,7 @@ export default function AcademicYearsPage() {
 
       setDeleteTarget(null);
       setSuccessMessage(
-        `Tahun akademik ${getAcademicYearLabel(item)} berhasil dihapus.`
+        `Tahun akademik ${getAcademicYearLabel(item)} berhasil dihapus.`,
       );
 
       await loadAcademicYears();
@@ -292,6 +295,162 @@ export default function AcademicYearsPage() {
     }
   }
 
+  function openImportModal() {
+  setImportFile(null);
+  setImportPreview(null);
+  setImportError("");
+  setImportSuccess("");
+  setImportModalOpen(true);
+}
+
+function closeImportModal() {
+  if (importLoading) return;
+
+  setImportModalOpen(false);
+  setImportFile(null);
+  setImportPreview(null);
+  setImportError("");
+}
+
+async function handleDownloadTemplate() {
+  if (downloadingTemplate) return;
+
+  setTemplateError("");
+  setDownloadingTemplate(true);
+
+  try {
+    const blob = await academicYearApi.downloadTemplate();
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "template_tahun_akademik.xlsx";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    setTemplateError(error.message || "Template Excel gagal diunduh.");
+  } finally {
+    setDownloadingTemplate(false);
+  }
+}
+
+function handleImportFileChange(event) {
+  const file = event.target.files?.[0] || null;
+
+  setImportFile(file);
+  setImportPreview(null);
+  setImportError("");
+
+  if (!file) return;
+
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    setImportFile(null);
+    setImportError("File harus menggunakan format .xlsx.");
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    setImportFile(null);
+    setImportError("Ukuran file maksimal 2 MB.");
+    event.target.value = "";
+  }
+}
+
+function getImportResponseData(response) {
+  return response?.data?.data ?? response?.data ?? {};
+}
+
+function getImportErrorMessage(error) {
+  const errors = error?.validationErrors || error?.errors || {};
+  const firstError = Object.values(errors)
+    .flat()
+    .find(Boolean);
+
+  return (
+    firstError ||
+    error?.payload?.message ||
+    error?.message ||
+    "Terjadi kesalahan saat memproses import."
+  );
+}
+
+async function handlePreviewImport() {
+  if (!importFile || importLoading) return;
+
+  setImportLoading(true);
+  setImportError("");
+  setImportPreview(null);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    const response = await academicYearApi.previewImport(formData);
+
+    const data = getImportResponseData(response);
+
+    if (!data.summary || !Array.isArray(data.rows)) {
+      throw new Error("Format respons preview dari server tidak sesuai.");
+    }
+
+    setImportPreview(data);
+  } catch (error) {
+    setImportError(getImportErrorMessage(error));
+  } finally {
+    setImportLoading(false);
+  }
+}
+
+async function handleConfirmImport() {
+  if (
+    !importFile ||
+    !importPreview ||
+    importPreview.summary?.invalid_rows > 0 ||
+    importLoading
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Import ${importPreview.summary.total_rows} tahun akademik ke sistem?`,
+  );
+
+  if (!confirmed) return;
+
+  setImportLoading(true);
+  setImportError("");
+
+  try {
+    const formData = new FormData();
+    formData.append("file", importFile);
+
+    const response = await academicYearApi.importExcel(formData);
+
+    const data = getImportResponseData(response);
+
+    setImportModalOpen(false);
+    setImportFile(null);
+    setImportPreview(null);
+
+    setSuccessMessage(
+      response?.message ||
+        `Berhasil mengimpor ${data.imported_rows ?? importPreview.summary.total_rows} tahun akademik.`,
+    );
+
+    await loadAcademicYears();
+  } catch (error) {
+    setImportError(getImportErrorMessage(error));
+  } finally {
+    setImportLoading(false);
+  }
+}
+
   if (loading) {
     return <LoadingState message="Memuat data tahun akademik..." />;
   }
@@ -299,10 +458,7 @@ export default function AcademicYearsPage() {
   if (listError && academicYears.length === 0) {
     return (
       <ErrorState
-        message={
-          listError.message ||
-          "Data tahun akademik tidak dapat dimuat."
-        }
+        message={listError.message || "Data tahun akademik tidak dapat dimuat."}
       />
     );
   }
@@ -314,11 +470,37 @@ export default function AcademicYearsPage() {
         title="Tahun Akademik"
         description="Kelola periode tahun akademik sekolah."
         actions={
-          <Button type="button" onClick={openCreateModal}>
-            + Tambah Tahun Akademik
-          </Button>
+          <div className="academic-years-page__header-actions">
+            <Button
+              type="button"
+              onClick={handleDownloadTemplate}
+              disabled={downloadingTemplate}
+            >
+              {downloadingTemplate ? "Mengunduh..." : "Download Template"}
+            </Button>
+
+            <Button
+              type="button"
+              onClick={openImportModal}
+            >
+              Import Excel
+            </Button>
+
+            <Button type="button" onClick={openCreateModal}>
+              + Tambah Tahun Akademik
+            </Button>
+          </div>
         }
       />
+
+      {templateError && (
+        <div
+          className="academic-years-page__alert academic-years-page__alert--error"
+          role="alert"
+        >
+          {templateError}
+        </div>
+      )}
 
       {successMessage && (
         <div
@@ -351,9 +533,7 @@ export default function AcademicYearsPage() {
       <Card className="academic-years-page__list-card">
         <div className="academic-years-page__list-header">
           <div>
-            <span className="academic-years-page__eyebrow">
-              Data Akademik
-            </span>
+            <span className="academic-years-page__eyebrow">Data Akademik</span>
 
             <h2 className="academic-years-page__title">
               Daftar Tahun Akademik
@@ -430,9 +610,7 @@ export default function AcademicYearsPage() {
                           onClick={() => openDeleteModal(item)}
                           disabled={deletingId !== null}
                         >
-                          {deletingId === item.id
-                            ? "Menghapus..."
-                            : "Hapus"}
+                          {deletingId === item.id ? "Menghapus..." : "Hapus"}
                         </Button>
                       </div>
                     </td>
@@ -444,16 +622,213 @@ export default function AcademicYearsPage() {
         )}
       </Card>
 
+            {/* Modal Import Excel */}
+      {/* Modal Import Excel */}
+<Modal
+  open={importModalOpen}
+  title="Import Tahun Akademik"
+  description="Import beberapa periode tahun akademik menggunakan file Excel."
+  onClose={closeImportModal}
+  size="large"
+  footer={
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        disabled={importLoading}
+        onClick={closeImportModal}
+      >
+        Tutup
+      </Button>
+
+      {!importPreview && (
+        <Button
+          type="button"
+          loading={importLoading}
+          disabled={!importFile || importLoading}
+          onClick={handlePreviewImport}
+        >
+          Preview Data
+        </Button>
+      )}
+
+      {importPreview && (
+        <Button
+          type="button"
+          loading={importLoading}
+          disabled={
+            importLoading ||
+            importPreview.summary?.invalid_rows > 0 ||
+            importPreview.summary?.valid_rows === 0
+          }
+          onClick={handleConfirmImport}
+        >
+          Konfirmasi Import
+        </Button>
+      )}
+    </>
+  }
+>
+  <div className="academic-years-page__import-card">
+  <div className="academic-years-page__import-heading">
+    <h3>Petunjuk Import</h3>
+    <p>
+      Gunakan template resmi Tahun Akademik. Pastikan data
+      tahun mulai, tahun selesai, semester, dan status
+      telah diisi sesuai ketentuan.
+    </p>
+  </div>
+
+  <div className="academic-years-page__import-info">
+    <strong>Ketentuan file:</strong>
+    <br />
+    Format: .xlsx
+    <br />
+    Pastikan nama kolom sesuai template resmi.
+    <br />
+    Periksa kembali data sebelum melakukan import.
+  </div>
+
+  <div className="academic-years-page__file-control">
+    <label
+      htmlFor="academic-year-import-file"
+      className="academic-years-page__file-label"
+    >
+      Pilih File Excel
+    </label>
+
+    <input
+      id="academic-year-import-file"
+      className="academic-years-page__file-input"
+      type="file"
+      accept=".xlsx"
+      onChange={handleImportFileChange}
+      disabled={importLoading}
+    />
+
+    {importFile && (
+      <p className="academic-years-page__selected-file">
+        File dipilih: <strong>{importFile.name}</strong>
+      </p>
+    )}
+  </div>
+
+  {importError && (
+    <div
+      className="academic-years-page__import-error"
+      role="alert"
+    >
+      {importError}
+    </div>
+  )}
+
+  {importPreview && (
+    <div className="academic-years-page__preview">
+      <div className="academic-years-page__preview-heading">
+        <h3>Hasil Preview Import</h3>
+        <p>
+          Periksa hasil validasi sebelum mengimpor data.
+        </p>
+      </div>
+
+      <div className="academic-years-page__preview-summary">
+        <div className="academic-years-page__preview-stat">
+          <span>Total Data</span>
+          <strong>
+            {importPreview.summary?.total_rows ?? 0}
+          </strong>
+        </div>
+
+        <div className="academic-years-page__preview-stat academic-years-page__preview-stat--valid">
+          <span>Data Valid</span>
+          <strong>
+            {importPreview.summary?.valid_rows ?? 0}
+          </strong>
+        </div>
+
+        <div className="academic-years-page__preview-stat academic-years-page__preview-stat--invalid">
+          <span>Data Tidak Valid</span>
+          <strong>
+            {importPreview.summary?.invalid_rows ?? 0}
+          </strong>
+        </div>
+      </div>
+
+      <div className="academic-years-page__preview-table-wrapper">
+        <table className="academic-years-page__preview-table">
+          <thead>
+            <tr>
+              <th>Baris</th>
+              <th>Tahun Akademik</th>
+              <th>Semester</th>
+              <th>Status</th>
+              <th>Validasi</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {(importPreview.rows || []).map((row) => (
+              <tr key={row.row}>
+                <td>{row.row}</td>
+
+                <td>
+                  {row.tahun_mulai}/{row.tahun_selesai}
+                </td>
+
+                <td>{row.semester}</td>
+
+                <td>
+                  {String(row.is_active) === "1"
+                    ? "Aktif"
+                    : "Tidak aktif"}
+                </td>
+
+                <td>
+                  <span
+                    className={`academic-years-page__preview-status ${
+                      row.valid
+                        ? "academic-years-page__preview-status--valid"
+                        : "academic-years-page__preview-status--invalid"
+                    }`}
+                  >
+                    {row.valid ? "Valid" : "Tidak Valid"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {importPreview.summary?.invalid_rows > 0 && (
+        <div className="academic-years-page__preview-note">
+          Import belum dapat dilakukan karena masih ada{" "}
+          {importPreview.summary.invalid_rows} baris yang
+          tidak valid. Perbaiki file Excel, kemudian unggah
+          ulang untuk melakukan preview.
+        </div>
+      )}
+
+      {importPreview.summary?.invalid_rows === 0 &&
+        importPreview.summary?.valid_rows > 0 && (
+          <div className="academic-years-page__import-info">
+            Semua data telah lolos validasi. Kamu dapat
+            melanjutkan dengan menekan tombol
+            <strong> Konfirmasi Import</strong>.
+          </div>
+        )}
+    </div>
+  )}
+</div>
+</Modal>
+
       {/* Modal tambah dan edit tahun akademik */}
       {modalOpen && (
         <div
           className="academic-years-page__modal-backdrop"
           role="presentation"
           onMouseDown={(event) => {
-            if (
-              event.target === event.currentTarget &&
-              !saving
-            ) {
+            if (event.target === event.currentTarget && !saving) {
               closeModal();
             }
           }}
@@ -493,17 +868,13 @@ export default function AcademicYearsPage() {
               </button>
             </div>
 
-            <form
-              className="academic-years-page__form"
-              onSubmit={handleSubmit}
-            >
+            <form className="academic-years-page__form" onSubmit={handleSubmit}>
               {submitError && submitError.status !== 422 && (
                 <div
                   className="academic-years-page__alert academic-years-page__alert--error"
                   role="alert"
                 >
-                  {submitError.message ||
-                    "Data tidak dapat disimpan."}
+                  {submitError.message || "Data tidak dapat disimpan."}
                 </div>
               )}
 
@@ -615,18 +986,12 @@ export default function AcademicYearsPage() {
       >
         {deleteTarget && (
           <div className="academic-years-page__delete-content">
-            <p>
-              Apakah kamu yakin ingin menghapus tahun akademik berikut?
-            </p>
+            <p>Apakah kamu yakin ingin menghapus tahun akademik berikut?</p>
 
             <div className="academic-years-page__delete-summary">
-              <strong>
-                {getAcademicYearLabel(deleteTarget)}
-              </strong>
+              <strong>{getAcademicYearLabel(deleteTarget)}</strong>
 
-              <span>
-                Semester {getSemesterLabel(deleteTarget.semester)}
-              </span>
+              <span>Semester {getSemesterLabel(deleteTarget.semester)}</span>
 
               <span>
                 Status: {deleteTarget.is_active ? "Aktif" : "Tidak aktif"}
@@ -634,9 +999,9 @@ export default function AcademicYearsPage() {
             </div>
 
             <p className="academic-years-page__delete-warning">
-              Jika periode ini masih digunakan oleh data akademik lain,
-              sistem dapat menolak penghapusan. Data hanya akan dihapus
-              jika diizinkan oleh backend.
+              Jika periode ini masih digunakan oleh data akademik lain, sistem
+              dapat menolak penghapusan. Data hanya akan dihapus jika diizinkan
+              oleh backend.
             </p>
           </div>
         )}

@@ -1,21 +1,20 @@
-
-import { normalizeApiError } from './apiError'
+import { normalizeApiError } from "./apiError";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api";
 
-const AUTH_TOKEN_KEY = 'siakad_auth_token'
+const AUTH_TOKEN_KEY = "siakad_auth_token";
 
 export function getAuthToken() {
-  return localStorage.getItem(AUTH_TOKEN_KEY)
+  return localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function setAuthToken(token) {
-  localStorage.setItem(AUTH_TOKEN_KEY, token)
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
 }
 
 export function clearAuthToken() {
-  localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 /**
@@ -24,99 +23,87 @@ export function clearAuthToken() {
  * agar browser membuat multipart boundary.
  */
 function buildHeaders(options = {}) {
-  const token = getAuthToken()
+  const token = getAuthToken();
 
   const isFormData =
-    typeof FormData !== 'undefined' &&
-    options.body instanceof FormData
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers = {
-    Accept: 'application/json',
+    Accept: "application/json",
 
-    ...(
-      options.body && !isFormData
-        ? { 'Content-Type': 'application/json' }
-        : {}
-    ),
+    ...(options.body && !isFormData
+      ? { "Content-Type": "application/json" }
+      : {}),
 
     ...(options.headers || {}),
-  }
+  };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  return headers
+  return headers;
 }
 
 /**
  * Membaca response JSON atau text.
  */
 async function readResponsePayload(response) {
-  const contentType =
-    response.headers.get('content-type') || ''
+  const contentType = response.headers.get("content-type") || "";
 
-  if (contentType.includes('application/json')) {
+  if (contentType.includes("application/json")) {
     try {
-      return await response.json()
+      return await response.json();
     } catch {
-      return null
+      return null;
     }
   }
 
   if (!response.ok) {
     try {
-      const text = await response.text()
+      const text = await response.text();
 
-      return text
-        ? { message: text }
-        : null
+      return text ? { message: text } : null;
     } catch {
-      return null
+      return null;
     }
   }
 
-  return null
+  return null;
 }
 
 /**
  * Membuat error dari response server.
  */
 function createApiError(response, payload) {
-  const error = new Error(
-    payload?.message ||
-      'Terjadi kesalahan pada server.'
-  )
+  const error = new Error(payload?.message || "Terjadi kesalahan pada server.");
 
-  error.status = response.status
-  error.payload = payload
-  error.errors = payload?.errors || {}
+  error.status = response.status;
+  error.payload = payload;
+  error.errors = payload?.errors || {};
 
-  return normalizeApiError(error)
+  return normalizeApiError(error);
 }
 
 /**
  * Request JSON.
  */
 async function request(path, options = {}) {
-  const headers = buildHeaders(options)
+  const headers = buildHeaders(options);
 
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    {
-      credentials: 'include',
-      ...options,
-      headers,
-    }
-  )
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+    ...options,
+    headers,
+  });
 
-  const payload = await readResponsePayload(response)
+  const payload = await readResponsePayload(response);
 
   if (!response.ok) {
-    throw createApiError(response, payload)
+    throw createApiError(response, payload);
   }
 
-  return payload
+  return payload;
 }
 
 /**
@@ -129,27 +116,23 @@ async function request(path, options = {}) {
  * - Download rapor.
  */
 async function requestBlob(path, options = {}) {
-  const headers = buildHeaders(options)
+  const headers = buildHeaders(options);
 
-  headers.Accept = '*/*'
+  headers.Accept = "application/json";
 
-  const response = await fetch(
-    `${API_BASE_URL}${path}`,
-    {
-      credentials: 'include',
-      ...options,
-      headers,
-    }
-  )
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+    ...options,
+    headers,
+  });
 
   if (!response.ok) {
-    const payload =
-      await readResponsePayload(response)
+    const payload = await readResponsePayload(response);
 
-    throw createApiError(response, payload)
+    throw createApiError(response, payload);
   }
 
-  return response.blob()
+  return response.blob();
 }
 
 /**
@@ -161,8 +144,8 @@ export const apiClient = {
    */
   get(path) {
     return request(path, {
-      method: 'GET',
-    })
+      method: "GET",
+    });
   },
 
   /**
@@ -170,9 +153,9 @@ export const apiClient = {
    */
   post(path, body = {}) {
     return request(path, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(body),
-    })
+    });
   },
 
   /**
@@ -180,28 +163,23 @@ export const apiClient = {
    */
   put(path, body = {}) {
     return request(path, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(body),
-    })
+    });
   },
 
   /**
    * POST multipart/form-data.
    */
   postForm(path, body) {
-    if (
-      typeof FormData === 'undefined' ||
-      !(body instanceof FormData)
-    ) {
-      throw new TypeError(
-        'postForm membutuhkan objek FormData.'
-      )
+    if (typeof FormData === "undefined" || !(body instanceof FormData)) {
+      throw new TypeError("postForm membutuhkan objek FormData.");
     }
 
     return request(path, {
-      method: 'POST',
+      method: "POST",
       body,
-    })
+    });
   },
 
   /**
@@ -210,8 +188,8 @@ export const apiClient = {
    */
   getBlob(path) {
     return requestBlob(path, {
-      method: 'GET',
-    })
+      method: "GET",
+    });
   },
 
   /**
@@ -220,8 +198,8 @@ export const apiClient = {
    */
   download(path) {
     return requestBlob(path, {
-      method: 'GET',
-    })
+      method: "GET",
+    });
   },
 
   /**
@@ -229,7 +207,7 @@ export const apiClient = {
    */
   delete(path) {
     return request(path, {
-      method: 'DELETE',
-    })
+      method: "DELETE",
+    });
   },
-}
+};

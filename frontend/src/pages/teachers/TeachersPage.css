@@ -283,3 +283,257 @@
   width: 100%;
   text-align: left;
 }
+
+/* ========================================
+   IMPORT DATA GURU - EXCEL
+======================================== */
+
+.teachers-page__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.teachers-page__import-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.teachers-page__import-heading h3 {
+  margin: 0 0 0.5rem;
+  color: var(--color-text, #172b4d);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.teachers-page__import-heading p {
+  margin: 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.teachers-page__import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.teachers-page__import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.teachers-page__file-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.teachers-page__file-label {
+  color: var(--color-text, #172b4d);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.teachers-page__file-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px dashed var(--color-border, #cbd5e1);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #172b4d);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.teachers-page__file-input:focus-visible {
+  outline: 3px solid var(--color-primary-light, #bfdbfe);
+  outline-offset: 2px;
+}
+
+.teachers-page__selected-file {
+  margin: 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.teachers-page__import-info {
+  padding: 0.875rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md, 0.5rem);
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.teachers-page__import-error {
+  padding: 0.875rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md, 0.5rem);
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.teachers-page__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.teachers-page__preview-heading h3 {
+  margin: 0 0 0.375rem;
+  color: var(--color-text, #172b4d);
+  font-size: 1.125rem;
+}
+
+.teachers-page__preview-heading p {
+  margin: 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+}
+
+.teachers-page__preview-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.teachers-page__preview-stat {
+  padding: 1rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--color-surface, #fff);
+}
+
+.teachers-page__preview-stat span {
+  display: block;
+  margin-bottom: 0.375rem;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.8125rem;
+}
+
+.teachers-page__preview-stat strong {
+  color: var(--color-text, #172b4d);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.teachers-page__preview-stat--valid {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.teachers-page__preview-stat--valid strong {
+  color: #15803d;
+}
+
+.teachers-page__preview-stat--invalid {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.teachers-page__preview-stat--invalid strong {
+  color: #dc2626;
+}
+
+.teachers-page__preview-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.teachers-page__preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.teachers-page__preview-table th,
+.teachers-page__preview-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  text-align: left;
+  vertical-align: top;
+}
+
+.teachers-page__preview-table th {
+  background: var(--color-surface-secondary, #f8fafc);
+  color: var(--color-text-secondary, #64748b);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.teachers-page__preview-table td {
+  color: var(--color-text, #172b4d);
+}
+
+.teachers-page__preview-error {
+  color: #dc2626 !important;
+  min-width: 180px;
+}
+
+.teachers-page__preview-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.teachers-page__preview-status--valid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.teachers-page__preview-status--invalid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.teachers-page__preview-note {
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md, 0.5rem);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .teachers-page__preview-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .teachers-page__header-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .teachers-page__header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .teachers-page__header-actions button {
+    width: 100%;
+  }
+
+  .teachers-page__import-actions {
+    flex-direction: column;
+  }
+
+  .teachers-page__import-actions button {
+    width: 100%;
+  }
+}

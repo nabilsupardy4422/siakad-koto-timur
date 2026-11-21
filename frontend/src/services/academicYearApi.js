@@ -48,4 +48,27 @@ export const academicYearApi = {
       `/academic-years/${id}`,
     )
   },
+
+    // Download template Excel
+  downloadTemplate() {
+    return apiClient.getBlob(
+      '/academic-years/template',
+    )
+  },
+
+  // Preview file Excel
+  previewImport(formData) {
+    return apiClient.postForm(
+      '/academic-years/import/preview',
+      formData,
+    )
+  },
+
+  // Konfirmasi import Excel
+  importExcel(formData) {
+    return apiClient.postForm(
+      '/academic-years/import',
+      formData,
+    )
+  },
 }

@@ -1,19 +1,14 @@
-
 import { apiClient } from './apiClient'
 
 function buildQuery(params = {}) {
   const searchParams = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') {
-      return
-    }
-
+    if (value === undefined || value === null || value === '') return
     searchParams.set(key, String(value))
   })
 
   const queryString = searchParams.toString()
-
   return queryString ? `?${queryString}` : ''
 }
 
@@ -40,5 +35,20 @@ export const teacherApi = {
 
   getAvailableAccounts() {
     return apiClient.get('/teacher-accounts/available')
+  },
+
+  // Download template Excel Guru
+  downloadTemplate() {
+    return apiClient.getBlob('/teachers/template')
+  },
+
+  // Preview dan validasi Excel
+  previewImport(formData) {
+    return apiClient.postForm('/teachers/import/preview', formData)
+  },
+
+  // Import Excel setelah konfirmasi
+  importExcel(formData) {
+    return apiClient.postForm('/teachers/import', formData)
   },
 }

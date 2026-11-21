@@ -1,4 +1,3 @@
-
 import { apiClient } from './apiClient'
 
 function buildQuery(params = {}) {
@@ -40,5 +39,20 @@ export const studentApi = {
 
   getAvailableAccounts() {
     return apiClient.get('/student-accounts/available')
+  },
+
+  // Download template Excel Siswa
+  downloadTemplate() {
+    return apiClient.getBlob('/students/template')
+  },
+
+  // Preview dan validasi Excel
+  previewImport(formData) {
+    return apiClient.postForm('/students/import/preview', formData)
+  },
+
+  // Import Excel setelah konfirmasi
+  importExcel(formData) {
+    return apiClient.postForm('/students/import', formData)
   },
 }
