@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AcademicYearExcelController;
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\Auth\ActivateAccountController;
@@ -25,9 +26,11 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\ScheduleExcelController;
 use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\StudentExcelController;
 use App\Http\Controllers\Api\SubmissionController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TeacherExcelController;
 use App\Http\Controllers\Api\WaliKelasController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserExcelController;
@@ -147,22 +150,73 @@ Route::middleware([
     | Academic Years
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
-        Route::get('/academic-years', [AcademicYearController::class, 'index']);
-        Route::get('/academic-years/{academicYear}', [AcademicYearController::class, 'show']);
-    });
-
     Route::middleware('role:TU')->group(function (): void {
-        Route::post('/academic-years', [AcademicYearController::class, 'store']);
-        Route::put('/academic-years/{academicYear}', [AcademicYearController::class, 'update']);
-        Route::delete('/academic-years/{academicYear}', [AcademicYearController::class, 'destroy']);
-    });
+    Route::get(
+        '/academic-years/template',
+        [AcademicYearExcelController::class, 'template']
+    );
+
+    Route::post(
+        '/academic-years/import/preview',
+        [AcademicYearExcelController::class, 'preview']
+    );
+
+    Route::post(
+        '/academic-years/import',
+        [AcademicYearExcelController::class, 'import']
+    );
+
+    // Academic Year CRUD - TU Only
+    Route::post(
+        '/academic-years',
+        [AcademicYearController::class, 'store']
+    );
+
+    Route::put(
+        '/academic-years/{academicYear}',
+        [AcademicYearController::class, 'update']
+    );
+
+    Route::delete(
+        '/academic-years/{academicYear}',
+        [AcademicYearController::class, 'destroy']
+    );
+});
+
+// Academic Year Read - Semua Role
+Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+    Route::get(
+        '/academic-years',
+        [AcademicYearController::class, 'index']
+    );
+
+    Route::get(
+        '/academic-years/{academicYear}',
+        [AcademicYearController::class, 'show']
+    );
+});
 
     /*
     |--------------------------------------------------------------------------
     | Teachers
     |--------------------------------------------------------------------------
     */
+    Route::middleware('role:TU')->group(function (): void {
+    Route::get(
+        '/teachers/template',
+        [TeacherExcelController::class, 'template']
+    );
+
+    Route::post(
+        '/teachers/import/preview',
+        [TeacherExcelController::class, 'preview']
+    );
+
+    Route::post(
+        '/teachers/import',
+        [TeacherExcelController::class, 'import']
+    );
+});
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/teachers', [TeacherController::class, 'index']);
         Route::get('/teachers/{teacher}', [TeacherController::class, 'show']);
@@ -184,6 +238,24 @@ Route::middleware([
     | Students
     |--------------------------------------------------------------------------
     */
+
+    Route::middleware('role:TU')->group(function (): void {
+    Route::get(
+        '/students/template',
+        [StudentExcelController::class, 'template']
+    );
+
+    Route::post(
+        '/students/import/preview',
+        [StudentExcelController::class, 'preview']
+    );
+
+    Route::post(
+        '/students/import',
+        [StudentExcelController::class, 'import']
+    );
+});
+
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/students', [StudentController::class, 'index']);
         Route::get('/students/{student}', [StudentController::class, 'show']);

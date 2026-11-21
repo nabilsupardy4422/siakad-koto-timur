@@ -78,6 +78,14 @@ export default function TeachersPage() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  // State Import Excel
+const [importModalOpen, setImportModalOpen] = useState(false)
+const [selectedExcel, setSelectedExcel] = useState(null)
+const [previewData, setPreviewData] = useState(null)
+const [importError, setImportError] = useState('')
+const [previewLoading, setPreviewLoading] = useState(false)
+const [importing, setImporting] = useState(false)
+const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   const loadTeachers = useCallback(async () => {
     setLoading(true)
@@ -311,6 +319,171 @@ export default function TeachersPage() {
     }
   }
 
+  function openImportModal() {
+  setSelectedExcel(null)
+  setPreviewData(null)
+  setImportError('')
+  setImportModalOpen(true)
+  setSuccessMessage('')
+}
+
+function closeImportModal() {
+  if (previewLoading || importing) return
+
+  setImportModalOpen(false)
+  setSelectedExcel(null)
+  setPreviewData(null)
+  setImportError('')
+}
+
+async function handleDownloadTemplate() {
+  setDownloadingTemplate(true)
+  setImportError('')
+
+  try {
+    const blob = await teacherApi.downloadTemplate()
+
+    downloadBlob(blob, 'template_data_guru.xlsx')
+  } catch (error) {
+    setImportError(
+      getApiMessage(error, 'Template Excel gagal diunduh.'),
+    )
+  } finally {
+    setDownloadingTemplate(false)
+  }
+}
+
+function handleExcelChange(event) {
+  const file = event.target.files?.[0] || null
+
+  setSelectedExcel(file)
+  setPreviewData(null)
+  setImportError('')
+
+  if (!file) return
+
+  const extension = file.name.split('.').pop()?.toLowerCase()
+
+  if (extension !== 'xlsx') {
+    setSelectedExcel(null)
+    setImportError('Format file harus .xlsx.')
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    setSelectedExcel(null)
+    setImportError('Ukuran file maksimal 2 MB.')
+    event.target.value = ''
+  }
+}
+
+async function handlePreviewImport() {
+  if (!selectedExcel) {
+    setImportError('Pilih file Excel terlebih dahulu.')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', selectedExcel)
+
+  setPreviewLoading(true)
+  setImportError('')
+  setPreviewData(null)
+
+  try {
+    const response = await teacherApi.previewImport(formData)
+
+    setPreviewData(response?.data || null)
+
+    if (!response?.data?.rows) {
+      setImportError('Respons preview tidak memiliki data baris.')
+    }
+  } catch (error) {
+    const responseData =
+      error?.payload?.data ||
+      error?.response?.data?.data ||
+      error?.data?.data
+
+    if (responseData?.rows) {
+      setPreviewData(responseData)
+    }
+
+    setImportError(
+      getApiMessage(error, 'Preview Excel gagal dilakukan.'),
+    )
+  } finally {
+    setPreviewLoading(false)
+  }
+}
+
+async function handleConfirmImport() {
+  if (!selectedExcel || !previewData) return
+
+  if (previewData.summary?.invalid_rows > 0) {
+    setImportError(
+      'Masih terdapat baris yang tidak valid. Perbaiki file Excel terlebih dahulu.',
+    )
+    return
+  }
+
+  if (previewData.summary?.valid_rows === 0) {
+    setImportError('Tidak ada data Guru valid untuk diimpor.')
+    return
+  }
+
+  const confirmed = window.confirm(
+    `Impor ${previewData.summary.valid_rows} data Guru ke dalam sistem?`,
+  )
+
+  if (!confirmed) return
+
+  const formData = new FormData()
+  formData.append('file', selectedExcel)
+
+  setImporting(true)
+  setImportError('')
+
+  try {
+    const response = await teacherApi.importExcel(formData)
+
+    const importedRows =
+      response?.data?.imported_rows ??
+      previewData.summary.valid_rows
+
+    setImportModalOpen(false)
+    setSelectedExcel(null)
+    setPreviewData(null)
+
+    setSuccessMessage(
+      `${importedRows} data Guru berhasil diimpor.`,
+    )
+
+    setPage(1)
+
+    if (page === 1) {
+      await loadTeachers()
+    }
+  } catch (error) {
+    setImportError(
+      getApiMessage(error, 'Import Data Guru gagal dilakukan.'),
+    )
+
+    // Jika backend mengembalikan hasil validasi terbaru,
+    // tampilkan kembali hasil tersebut.
+    const responseData =
+      error?.payload?.data ||
+      error?.response?.data?.data ||
+      error?.data?.data
+
+    if (responseData?.rows) {
+      setPreviewData(responseData)
+    }
+  } finally {
+    setImporting(false)
+  }
+}
+
   const accountOptions = accounts.map((account) => ({
     value: String(account.id),
     label: `${account.name || account.username} (${account.username})`,
@@ -319,14 +492,37 @@ export default function TeachersPage() {
   return (
     <section className="teachers-page">
       <PageHeader
-        title="Data Guru"
-        description="Kelola identitas dan informasi dasar Guru."
-        actions={
-          canManage ? (
-            <Button onClick={openCreateModal}>+ Tambah Guru</Button>
-          ) : null
-        }
-      />
+  title="Data Guru"
+  description="Kelola identitas dan informasi dasar Guru."
+  actions={
+    canManage ? (
+      <div className="teachers-page__header-actions">
+        <Button
+          type="button"
+          onClick={handleDownloadTemplate}
+          loading={downloadingTemplate}
+          disabled={downloadingTemplate}
+        >
+          Download Template
+        </Button>
+
+        <Button
+          type="button"
+          onClick={openImportModal}
+        >
+          Import Excel
+        </Button>
+
+        <Button
+          type="button"
+          onClick={openCreateModal}
+        >
+          + Tambah Guru
+        </Button>
+      </div>
+    ) : null
+  }
+/>
 
       {successMessage && (
         <div className="teachers-page__success" role="status" aria-live="polite">
@@ -487,6 +683,202 @@ export default function TeachersPage() {
           </>
         )}
       </Card>
+
+      <Modal
+        open={importModalOpen}
+        title="Import Data Guru"
+        description="Unggah file Excel untuk menambahkan data Guru secara massal."
+        onClose={closeImportModal}
+        size="large"
+        footer={
+          <>
+            <Button
+              type="button"
+              disabled={previewLoading || importing}
+              onClick={closeImportModal}
+            >
+              Tutup
+            </Button>
+
+            {!previewData && (
+              <Button
+                type="button"
+                loading={previewLoading}
+                disabled={!selectedExcel || previewLoading}
+                onClick={handlePreviewImport}
+              >
+                Preview Data
+              </Button>
+            )}
+
+            {previewData && (
+              <Button
+                type="button"
+                loading={importing}
+                disabled={
+                  importing ||
+                  previewLoading ||
+                  previewData.summary?.invalid_rows > 0 ||
+                  previewData.summary?.valid_rows === 0
+                }
+                onClick={handleConfirmImport}
+              >
+                Konfirmasi Import
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="teachers-page__import-card">
+          <div className="teachers-page__import-heading">
+            <h3>Petunjuk Import</h3>
+            <p>
+              Gunakan template resmi Data Guru. Pastikan username
+              merupakan akun aktif dengan role GURU dan belum
+              memiliki profil Guru.
+            </p>
+          </div>
+
+          <div className="teachers-page__import-info">
+            <strong>Ketentuan file:</strong>
+            <br />
+            Format: .xlsx
+            <br />
+            Ukuran maksimal: 2 MB
+            <br />
+            Maksimal data: 1.000 baris
+            <br />
+            Kolom wajib: username, nip, nama_lengkap.
+          </div>
+
+          <div className="teachers-page__file-control">
+            <label
+              htmlFor="teacher-excel-file"
+              className="teachers-page__file-label"
+            >
+              Pilih File Excel
+            </label>
+
+            <input
+              id="teacher-excel-file"
+              className="teachers-page__file-input"
+              type="file"
+              accept=".xlsx"
+              onChange={handleExcelChange}
+              disabled={previewLoading || importing}
+            />
+
+            {selectedExcel && (
+              <p className="teachers-page__selected-file">
+                File dipilih: <strong>{selectedExcel.name}</strong>
+              </p>
+            )}
+          </div>
+
+          {importError && (
+            <div
+              className="teachers-page__import-error"
+              role="alert"
+            >
+              {importError}
+            </div>
+          )}
+
+          {previewData && (
+            <div className="teachers-page__preview">
+              <div className="teachers-page__preview-heading">
+                <h3>Hasil Preview Import</h3>
+                <p>
+                  Periksa hasil validasi sebelum mengimpor data.
+                </p>
+              </div>
+
+              <div className="teachers-page__preview-summary">
+                <div className="teachers-page__preview-stat">
+                  <span>Total Data</span>
+                  <strong>
+                    {previewData.summary?.total_rows ?? 0}
+                  </strong>
+                </div>
+
+                <div className="teachers-page__preview-stat teachers-page__preview-stat--valid">
+                  <span>Data Valid</span>
+                  <strong>
+                    {previewData.summary?.valid_rows ?? 0}
+                  </strong>
+                </div>
+
+                <div className="teachers-page__preview-stat teachers-page__preview-stat--invalid">
+                  <span>Data Tidak Valid</span>
+                  <strong>
+                    {previewData.summary?.invalid_rows ?? 0}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="teachers-page__preview-table-wrapper">
+                <table className="teachers-page__preview-table">
+                  <thead>
+                    <tr>
+                      <th>Baris</th>
+                      <th>Username</th>
+                      <th>NIP</th>
+                      <th>Nama Lengkap</th>
+                      <th>Status</th>
+                      <th>Keterangan</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {(previewData.rows || []).map((row) => (
+                      <tr key={row.row}>
+                        <td>{row.row}</td>
+                        <td>{row.username || '-'}</td>
+                        <td>{row.nip || '-'}</td>
+                        <td>{row.nama_lengkap || '-'}</td>
+                        <td>
+                          <span
+                            className={`teachers-page__preview-status ${
+                              row.valid
+                                ? 'teachers-page__preview-status--valid'
+                                : 'teachers-page__preview-status--invalid'
+                            }`}
+                          >
+                            {row.valid ? 'Valid' : 'Tidak Valid'}
+                          </span>
+                        </td>
+                        <td className="teachers-page__preview-error">
+                          {row.errors?.length > 0
+                            ? row.errors.join(' ')
+                            : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {previewData.summary?.invalid_rows > 0 && (
+                <div className="teachers-page__preview-note">
+                  Import belum dapat dilakukan karena masih ada
+                  {` ${previewData.summary.invalid_rows} `}
+                  baris yang tidak valid. Perbaiki file Excel,
+                  kemudian unggah ulang untuk melakukan preview.
+                </div>
+              )}
+
+              {previewData.summary?.invalid_rows === 0 &&
+                previewData.summary?.valid_rows > 0 && (
+                  <div className="teachers-page__import-info">
+                    Semua data telah lolos validasi. Kamu dapat
+                    melanjutkan dengan menekan tombol
+                    <strong> Konfirmasi Import</strong>.
+                  </div>
+                )}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(deleteTarget)}
@@ -653,4 +1045,18 @@ export default function TeachersPage() {
       </Modal>
     </section>
   )
+}
+
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.URL.revokeObjectURL(url)
 }
