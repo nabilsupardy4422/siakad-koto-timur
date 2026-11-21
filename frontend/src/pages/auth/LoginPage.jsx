@@ -249,40 +249,12 @@ const recoveryStyles = {
   entry: {
     border: 0,
     background: 'transparent',
-    color: '#175780',
+    color: '#1d4ed8',
     font: 'inherit',
     fontWeight: 750,
     textDecoration: 'underline',
     textUnderlineOffset: '3px',
     cursor: 'pointer',
-  },
-  helper: {
-    padding: '16px 18px',
-    border: '1px solid #dbe7f1',
-    borderRadius: '12px',
-    background: '#f5f9fd',
-    fontSize: '12px',
-    lineHeight: 1.8,
-    color: '#4d657a',
-  },
-  success: {
-    padding: '22px',
-    border: '1px solid #b9e5cf',
-    borderRadius: '14px',
-    background: '#f1faf5',
-    display: 'grid',
-    gap: '12px',
-  },
-  username: {
-    padding: '14px 16px',
-    border: '1px solid #cbded7',
-    borderRadius: '10px',
-    background: '#fff',
-    fontSize: '22px',
-    fontWeight: 750,
-    letterSpacing: '-0.02em',
-    color: '#153a4b',
-    overflowWrap: 'anywhere',
   },
 }
 
@@ -706,19 +678,22 @@ export default function LoginPage() {
   }
 
   const isBusy = submitting || googleSubmitting || challengeSubmitting
+  // Data presentation only; preserving all Google, Sanctum, and recovery state.
+  // A different scene name restarts a small CSS entrance without remounting
+  // the React form or its Google widget.
+  const scene = mode === 'username'
+    ? (recoveredUsername ? 'username-found' : 'username')
+    : mode === 'password'
+      ? (passwordResetComplete ? 'password-done'
+        : passwordGrant ? 'password-new'
+          : passwordChallenge ? 'password-verify' : 'password')
+      : 'login'
 
   return (
     <main className="login-page">
       <div className="login-shell">
         <section className="login-brand-panel" aria-label="Tentang SIAKAD">
-          <div className="login-brand-visual" aria-hidden="true">
-            <img
-              src="/images/school/foto-sekolah-sman1-v-koto-timur.jpg"
-              alt=""
-              className="login-school-photo"
-            />
-            <div className="login-brand-overlay" />
-          </div>
+          <div className="login-brand-visual" aria-hidden="true" />
 
           <div className="login-brand-inner">
             <div className="login-brand-top">
@@ -739,14 +714,24 @@ export default function LoginPage() {
                 RUANG AKADEMIK DIGITAL
               </div>
               <h1>
-                Semua kebutuhan
+                Ruang akademik
                 <br />
-                akademik, <em>lebih dekat.</em>
+                <em>lebih dekat.</em>
               </h1>
               <p>
-                Satu tempat untuk jadwal, presensi, penilaian,
-                dan informasi belajar warga SMA Negeri 1 V Koto Timur.
+                Akses informasi belajar dan layanan akademik sekolah
+                sesuai peran dan kewenangan setiap pengguna.
               </p>
+            </div>
+
+            <div className="login-brand-art" aria-hidden="true">
+              <img
+                src="/images/auth/avatar-akses-siakad-3d.webp"
+                alt=""
+                width="860"
+                height="1075"
+                decoding="async"
+              />
             </div>
 
             <div className="login-brand-footer">
@@ -758,7 +743,7 @@ export default function LoginPage() {
         </section>
 
         <section className="login-form-panel" aria-label="Masuk ke SIAKAD">
-          <div className="login-form-container">
+          <div className="login-form-container" data-auth-scene={scene}>
             {mode !== 'login' ? (
               <button
                 type="button"
@@ -771,7 +756,7 @@ export default function LoginPage() {
                 Kembali ke Login
               </button>
             ) : (
-              <Link className="login-back-link" to="/">
+              <Link className="login-back-link" to="/" viewTransition>
                 <ArrowIcon direction="left" />
                 Kembali ke Beranda
               </Link>
@@ -894,7 +879,7 @@ export default function LoginPage() {
             )}
 
             {mode === 'username' && !recoveredUsername && (
-              <div style={recoveryStyles.helper}>
+              <div className="login-recovery-guide">
                 <strong style={{ display: 'block', color: '#193e5e', marginBottom: 4 }}>
                   Verifikasi kepemilikan akun Google
                 </strong>
@@ -905,7 +890,7 @@ export default function LoginPage() {
             )}
 
             {mode === 'username' && recoveredUsername && (
-              <div style={recoveryStyles.success} role="status" aria-live="polite">
+              <div className="login-recovery-success" role="status" aria-live="polite">
                 <div>
                   <strong style={{ color: '#1e6544', fontSize: 15 }}>
                     Username berhasil ditemukan
@@ -914,7 +899,7 @@ export default function LoginPage() {
                     Username akun SIAKAD yang tertaut ke Google kamu:
                   </p>
                 </div>
-                <div style={recoveryStyles.username}>
+                <div className="login-recovery-username">
                   {recoveredUsername}
                 </div>
                 <button
@@ -941,7 +926,7 @@ export default function LoginPage() {
 
             {mode === 'password' && !passwordResetComplete && !passwordGrant && (
               <>
-                <div style={recoveryStyles.helper}>
+                <div className="login-recovery-guide">
                   <strong style={{ display: 'block', color: '#193e5e', marginBottom: 4 }}>
                     Langkah 1 — Verifikasi akun Google
                   </strong>
@@ -971,7 +956,7 @@ export default function LoginPage() {
                     )}
                   </button>
                 ) : (
-                  <div style={{ ...recoveryStyles.helper, marginTop: 16 }} role="status">
+                  <div className="login-recovery-guide login-recovery-guide--spaced" role="status">
                     <strong style={{ color: '#193e5e' }}>Verifikasi siap</strong>
                     <p style={{ margin: '6px 0' }}>
                       Pilih Google pada tombol di bawah. Challenge berlaku 5 menit
@@ -998,7 +983,7 @@ export default function LoginPage() {
 
             {mode === 'password' && !passwordResetComplete && passwordGrant && (
               <>
-                <div style={recoveryStyles.success} role="status" aria-live="polite">
+                <div className="login-recovery-success" role="status" aria-live="polite">
                   <div>
                     <strong style={{ color: '#1e6544', fontSize: 15 }}>
                       Identitas berhasil diverifikasi
@@ -1007,7 +992,7 @@ export default function LoginPage() {
                       Akun SIAKAD yang terhubung dengan Google:
                     </p>
                   </div>
-                  <div style={recoveryStyles.username}>
+                  <div className="login-recovery-username">
                     {passwordGrant.username}
                   </div>
                   <span style={{ color: '#638477', fontSize: 12, lineHeight: 1.6 }}>
@@ -1093,7 +1078,7 @@ export default function LoginPage() {
             )}
 
             {mode === 'password' && passwordResetComplete && (
-              <div style={recoveryStyles.success} role="status" aria-live="polite">
+              <div className="login-recovery-success" role="status" aria-live="polite">
                 <strong style={{ color: '#1e6544', fontSize: 15 }}>
                   Password berhasil diperbarui
                 </strong>
@@ -1176,7 +1161,7 @@ export default function LoginPage() {
               <div className="login-activation-copy">
                 <strong>Baru menerima akun sekolah?</strong>
                 <span>Aktifkan dulu sebelum masuk ke SIAKAD.</span>
-                <Link to="/aktivasi-akun">
+                <Link to="/aktivasi-akun" viewTransition>
                   Aktivasi Akun Baru <ArrowIcon />
                 </Link>
               </div>
