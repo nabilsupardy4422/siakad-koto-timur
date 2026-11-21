@@ -1,132 +1,102 @@
 import './RoleOverview.css'
-import { useState } from 'react'
-import './Landing.css'
 
-const roles = [
+/**
+ * Informasi publik tentang konteks akses SIAKAD.
+ * Wali Kelas adalah penugasan tambahan pada Guru, BUKAN role akun kelima.
+ * Tidak menggunakan API ataupun state autentikasi.
+ */
+const roleProfiles = [
   {
-    id: '01',
+    number: '01',
     name: 'Siswa',
-    eyebrow: 'Untuk Siswa',
+    focus: 'Belajar dengan informasi yang jelas.',
     description:
-      'Mendapatkan akses terhadap informasi akademik yang dibutuhkan dalam kegiatan belajar secara terstruktur.',
-    items: ['Jadwal pelajaran', 'Rekap nilai', 'Informasi presensi', 'Bahan ajar'],
+      'Melihat jadwal, presensi, nilai, bahan ajar, tugas, dan rapor milik sendiri.',
+    scope: 'Data akademik pribadi',
   },
   {
-    id: '02',
-    name: 'Guru Mata Pelajaran',
-    eyebrow: 'Untuk Guru',
+    number: '02',
+    name: 'Guru',
+    focus: 'Mengelola kegiatan mengajar.',
     description:
-      'Mendukung pengelolaan kegiatan pembelajaran, presensi, penilaian, dan bahan ajar sesuai mata pelajaran yang diampu.',
-    items: ['Kelola presensi', 'Input nilai', 'Data siswa yang diajar', 'Bahan ajar'],
+      'Mengelola presensi, materi, tugas, dan penilaian sesuai kelas serta mata pelajaran yang ditugaskan.',
+    scope: 'Kelas dan pelajaran yang diajar',
   },
   {
-    id: '03',
-    name: 'Wali Kelas',
-    eyebrow: 'Untuk Wali Kelas',
-    description:
-      'Membantu wali kelas memantau kondisi akademik siswa dalam kelas yang menjadi tanggung jawabnya.',
-    items: ['Rekap nilai kelas', 'Rekap presensi', 'Data siswa', 'Evaluasi non-akademik'],
-  },
-  {
-    id: '04',
+    number: '03',
     name: 'Tata Usaha',
-    eyebrow: 'Untuk Tata Usaha',
+    focus: 'Menata administrasi akademik.',
     description:
-      'Mendukung pengelolaan data akademik utama dan kebutuhan administrasi sekolah secara terpusat.',
-    items: ['Data guru', 'Data siswa', 'Data mata pelajaran', 'Data kelas'],
+      'Mengelola akun pengguna dan data akademik sekolah sesuai kewenangan administratif.',
+    scope: 'Administrasi sekolah',
   },
   {
-    id: '05',
+    number: '04',
     name: 'Kepala Sekolah',
-    eyebrow: 'Untuk Kepala Sekolah',
+    focus: 'Memantau gambaran akademik.',
     description:
-      'Menyediakan akses monitoring terhadap informasi akademik sekolah melalui satu sistem terintegrasi.',
-    items: ['Monitoring akademik', 'Informasi sekolah', 'Rekap akademik'],
+      'Melihat informasi, ringkasan, dan laporan akademik sekolah sesuai hak akses pemantauan.',
+    scope: 'Pemantauan tingkat sekolah',
   },
 ]
 
 function RoleOverview() {
-  const [activeRole, setActiveRole] = useState(roles[0])
-
   return (
-    <section className="roles-section" id="pengguna">
+    <section className="roles-section" id="pengguna" aria-labelledby="roles-title">
       <div className="roles-container">
-        <div className="roles-heading">
-          <div className="section-eyebrow">
-            <span />
-            Untuk Siapa?
-          </div>
-
-          <h2>
-            Satu sistem,
-            <br />
-            <span>kebutuhan berbeda.</span>
-          </h2>
-
-          <p>
-            SIAKAD Koto Timur dirancang untuk mendukung kebutuhan
-            informasi akademik setiap pengguna sesuai dengan
-            peran dan kewenangannya.
-          </p>
-        </div>
-
-        <div className="roles-directory">
-          <div className="roles-list" aria-label="Peran pengguna">
-            {roles.map((role) => {
-              const isActive = activeRole.id === role.id
-
-              return (
-                <button
-                  className={`role-item ${isActive ? 'active' : ''}`}
-                  key={role.id}
-                  type="button"
-                  onClick={() => setActiveRole(role)}
-                  aria-pressed={isActive}
-                >
-                  <span className="role-number">{role.id}</span>
-
-                  <span className="role-name">
-                    {role.name}
-                  </span>
-
-                  <span className="role-arrow" aria-hidden="true">
-                    →
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="role-detail">
-            <div className="role-detail-top">
-              <span className="role-detail-label">
-                {activeRole.eyebrow}
-              </span>
-
-              <span className="role-detail-index">
-                {activeRole.id}
-              </span>
-            </div>
-
-            <h3>{activeRole.name}</h3>
-
-            <p className="role-description">
-              {activeRole.description}
+        <header className="roles-heading">
+          <div className="roles-heading-main">
+            <p className="roles-eyebrow">
+              <span className="roles-eyebrow-line" aria-hidden="true" />
+              PENGGUNA SIAKAD
             </p>
-
-            <div className="role-capabilities">
-              <span className="role-capabilities-label">
-                Akses utama
-              </span>
-
-              <div className="role-capabilities-list">
-                {activeRole.items.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
+            <h2 id="roles-title">
+              Setiap peran,
+              <span> ruang kerja yang tepat.</span>
+            </h2>
+          </div>
+          <div className="roles-heading-aside">
+            <p>
+              Setiap warga sekolah mendapatkan informasi dan layanan yang relevan
+              dengan tanggung jawabnya. Semua tetap berada dalam satu sistem.
+            </p>
+            <div className="roles-role-count" aria-label="Empat peran akun utama">
+              <strong>04</strong>
+              <span>Peran akun utama</span>
             </div>
           </div>
+        </header>
+
+        <div className="roles-matrix" aria-label="Ruang akses empat peran SIAKAD">
+          {roleProfiles.map((role) => (
+            <article className="roles-persona" key={role.number}>
+              <div className="roles-persona-meta">
+                <span className="roles-persona-number">{role.number}</span>
+                <span className="roles-persona-name">{role.name}</span>
+              </div>
+
+              <h3>{role.focus}</h3>
+              <p className="roles-persona-description">{role.description}</p>
+
+              <div className="roles-persona-scope">
+                <span>Lingkup akses</span>
+                <strong>{role.scope}</strong>
+              </div>
+            </article>
+          ))}
         </div>
+
+        <aside className="roles-assignment" aria-label="Penjelasan tugas Wali Kelas">
+          <div className="roles-assignment-heading">
+            <span className="roles-assignment-kicker">PENUGASAN TAMBAHAN</span>
+            <h3>Guru dapat menjadi Wali Kelas.</h3>
+          </div>
+          <p>
+            Guru yang mendapatkan penugasan Wali Kelas dapat memantau data,
+            rekap presensi, nilai, dan evaluasi pada kelas yang menjadi tanggung
+            jawabnya. <strong>Wali Kelas bukan akun atau role terpisah.</strong>
+          </p>
+        </aside>
       </div>
     </section>
   )

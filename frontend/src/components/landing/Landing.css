@@ -1,18 +1,243 @@
-.section-eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    margin-bottom: 1.15rem;
-    color: var(--color-primary-700);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    line-height: 1.2;
-    text-transform: uppercase;
+/* =============================================================
+   SIAKAD — LANDING DESIGN SYSTEM V2 / FINAL POLISHING BASELINE
+   Hanya untuk halaman publik / melalui class .app pada App.jsx.
+   Tidak mengubah login, aktivasi, AuthContext, atau dashboard.
+
+   Catatan:
+   - Poppins dimuat oleh Hero.css versi V5.
+   - Inter sudah dimuat pada styles/variables.css.
+   - Aturan khusus komponen tetap di *Section.css masing-masing.
+   - File ini dimuat SEKALI melalui src/main.jsx.
+   ============================================================= */
+
+/* Identitas visual landing page. Tidak menimpa token global :root. */
+.app {
+  --landing-primary: #2563eb;
+  --landing-primary-hover: #1d4ed8;
+  --landing-navy: #102a43;
+  --landing-ink: #0f172a;
+  --landing-muted: #475569;
+  --landing-surface: #f8fafc;
+  --landing-white: #ffffff;
+  --landing-border: #e2e8f0;
+  --landing-container: 1160px;
+  --landing-heading-font: 'Poppins', 'Inter', system-ui, sans-serif;
+  --landing-body-font: 'Inter', system-ui, sans-serif;
+  --landing-section-space: clamp(72px, 7vw, 104px);
+
+  color: var(--landing-ink);
+  font-family: var(--landing-body-font);
+}
+
+/* Komponen tetap memegang tata letak masing-masing. */
+.app > main,
+.app > main > section {
+  min-width: 0;
+}
+
+/* Lebar konten seragam pada layar besar.
+   Breakpoint tablet/mobile tetap mengikuti CSS komponen. */
+@media (min-width: 1024px) {
+  .app :is(
+    .features-container,
+    .about-container,
+    .roles-container,
+    .faq-v3__container,
+    .cta-v2__container,
+    .footer-v2__container
+  ) {
+    width: min(var(--landing-container), calc(100% - 48px));
+    margin-inline: auto;
   }
-  
-  .section-eyebrow span {
-    width: 28px;
-    height: 1px;
-    background: var(--color-primary-600);
+}
+
+/* Konsistensi jarak antarseksi, tanpa memaksa hero/footer sama. */
+@media (min-width: 901px) {
+  .app :is(
+    .features-section,
+    .about-section,
+    .roles-section,
+    .faq-v3,
+    .cta-v2
+  ) {
+    padding-top: var(--landing-section-space);
+    padding-bottom: var(--landing-section-space);
   }
+}
+
+/* Satu keluarga headline untuk section.
+   Hero sengaja tetap memakai skala tersendiri sebagai h1. */
+.app :is(
+  .features-heading h2,
+  .about-title,
+  .roles-heading h2,
+  .faq-v3__intro h2,
+  .cta-v2__title
+) {
+  color: var(--landing-ink);
+  font-family: var(--landing-heading-font);
+  font-size: clamp(34px, 3.65vw, 48px);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.043em;
+  text-wrap: balance;
+}
+
+/* Kata aksen selalu memakai primary blue, bukan warna baru. */
+.app :is(
+  .features-heading h2,
+  .about-title,
+  .roles-heading h2,
+  .faq-v3__intro h2,
+  .cta-v2__title
+) span {
+  color: var(--landing-primary);
+}
+
+/* Pola eyebrow/label yang sama, termasuk legacy .section-eyebrow.
+   Hindari mengubah bentuk garis di komponen yang sudah ada. */
+.app :is(
+  .hero-eyebrow,
+  .features-eyebrow,
+  .about-eyebrow,
+  .roles-eyebrow,
+  .faq-v3__eyebrow,
+  .cta-v2__eyebrow,
+  .section-eyebrow
+) {
+  color: var(--landing-primary-hover);
+  font-family: var(--landing-body-font);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Backward compatibility bila ada section lama memakai class ini. */
+.app .section-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.app .section-eyebrow > span {
+  display: block;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 2px;
+  background: var(--landing-primary);
+}
+
+/* Paragraf pengantar punya ritme membaca yang konsisten. */
+.app :is(
+  .features-lead,
+  .about-description,
+  .roles-heading-aside > p,
+  .faq-v3__lead,
+  .cta-v2__description
+) {
+  color: var(--landing-muted);
+  font-family: var(--landing-body-font);
+  font-size: 15.5px;
+  font-weight: 400;
+  line-height: 1.78;
+}
+
+/* Tombol aksi primer/sekunder: area klik minimal, radius satu keluarga.
+   Tidak mengubah background/warna khusus masing-masing komponen. */
+.app :is(
+  .navbar-login-button,
+  .hero-primary-button,
+  .hero-secondary-button,
+  .faq-v3__help-link,
+  .cta-v2__primary,
+  .footer-v2__login
+) {
+  min-height: 44px;
+  border-radius: 10px;
+}
+
+/* Visibilitas keyboard: gunakan style khusus komponen bila lebih kuat. */
+.app :is(a, button, summary):focus-visible {
+  outline: 3px solid var(--landing-primary);
+  outline-offset: 3px;
+}
+
+/* Keterbacaan footer yang sebelumnya terlalu kecil. */
+.app .footer-v2__identity > p,
+.app .footer-v2__access > p {
+  color: var(--landing-muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.app .footer-v2__nav-col nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.app .footer-v2__nav-col nav {
+  gap: 4px;
+}
+
+/* Scroll anchor mendapat ruang untuk floating navbar. */
+.app :is(#fitur, #tentang, #pengguna, #faq, #cta) {
+  scroll-margin-top: 112px;
+}
+.app #beranda {
+  scroll-margin-top: 0;
+}
+
+@media (max-width: 639px) {
+  /* Komposisi mobile tetap punya hierarki dan ruang yang jelas. */
+  .app :is(
+    .features-heading h2,
+    .about-title,
+    .roles-heading h2,
+    .faq-v3__intro h2,
+    .cta-v2__title
+  ) {
+    font-size: clamp(30px, 7.8vw, 36px);
+    line-height: 1.22;
+    letter-spacing: -0.039em;
+  }
+
+  .app :is(
+    .features-lead,
+    .about-description,
+    .roles-heading-aside > p,
+    .faq-v3__lead,
+    .cta-v2__description
+  ) {
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .app :is(
+    .features-section,
+    .about-section,
+    .roles-section,
+    .faq-v3,
+    .cta-v2
+  ) {
+    padding-top: 68px;
+    padding-bottom: 76px;
+  }
+
+  .app :is(#fitur, #tentang, #pengguna, #faq, #cta) {
+    scroll-margin-top: 92px;
+  }
+
+  .app .footer-v2__nav-col nav a {
+    min-height: 44px;
+  }
+}
+
+/* Pergerakan dekoratif tidak perlu jika pengguna memilih reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    scroll-behavior: auto;
+  }
+}

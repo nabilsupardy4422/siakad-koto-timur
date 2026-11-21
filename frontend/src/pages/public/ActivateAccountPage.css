@@ -1,305 +1,494 @@
-
-/* ==========================================
-   SIAKAD SMA NEGERI 1 V KOTO TIMUR
-   PUBLIC ACCOUNT ACTIVATION PAGE
-   ========================================== */
-
-.account-activation {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 32px 16px;
-  background:
-    radial-gradient(
-      circle at top left,
-      #e2efff,
-      transparent 52%
-    ),
-    #f4f7fb;
-  color: #14243c;
-}
-
+/*
+ * SIAKAD — Aktivasi Akun V3 (Visual/UX only)
+ * Scoped to .account-activation; backend contract and activation handler unchanged.
+ */
+.account-activation,
 .account-activation *,
 .account-activation *::before,
-.account-activation *::after {
-  box-sizing: border-box;
+.account-activation *::after { box-sizing: border-box; }
+
+.account-activation {
+  --auth-ink: #0f172a;
+  --auth-navy: #102a43;
+  --auth-blue: #2563eb;
+  --auth-muted: #475569;
+  --auth-border: #dbe5f0;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(16px, 2.25vw, 32px);
+  background: #f6f8fc;
+  color: var(--auth-ink);
+  font-family: Inter, system-ui, sans-serif;
 }
-
-/* ==========================================
-   CARD
-   ========================================== */
-
-.account-activation__card {
-  width: min(100%, 520px);
+.account-activation button,
+.account-activation input { font: inherit; }
+.account-activation :is(a, button, input):focus-visible {
+  outline: 3px solid var(--auth-blue);
+  outline-offset: 3px;
+}
+.account-activation__shell {
+  display: grid;
+  grid-template-columns: minmax(0, .98fr) minmax(0, 1.02fr);
+  width: min(1144px, 100%);
+  min-height: 760px;
+  border: 1px solid var(--auth-border);
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid #dce5f0;
-  border-radius: 18px;
   background: #fff;
-  box-shadow: 0 16px 60px rgb(15 39 76 / 10%);
+  box-shadow: 0 24px 72px rgb(14 42 75 / .08), 0 2px 8px rgb(14 42 75 / .025);
+  view-transition-name: siakad-auth;
 }
-
-/* ==========================================
-   HEADER
-   ========================================== */
-
+.account-activation__brand {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  padding: clamp(34px, 4vw, 58px);
+  overflow: hidden;
+  border-right: 1px solid var(--auth-border);
+  background: #eaf2fc;
+}
+.account-activation__brand::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 4px;
+  background: var(--auth-blue);
+}
+.account-activation__brand-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+.account-activation__brand-top img {
+  display: block;
+  flex: none;
+  width: 54px;
+  height: 54px;
+  padding: 4px;
+  object-fit: contain;
+  border: 1px solid #dce7f3;
+  border-radius: 12px;
+  background: #fff;
+}
+.account-activation__brand-top > div { display: grid; gap: 3px; min-width: 0; }
+.account-activation__brand-top strong {
+  font-family: Poppins, Inter, system-ui, sans-serif;
+  color: var(--auth-navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+.account-activation__brand-top span { color: #64748b; font-size: 12px; }
+.account-activation__brand-copy {
+  margin-top: auto;
+  padding-block: 70px 28px;
+  position: relative;
+  z-index: 1;
+}
+.account-activation__brand-eyebrow {
+  display: inline-block;
+  padding-left: 21px;
+  position: relative;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .1em;
+}
+.account-activation__brand-eyebrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 13px;
+  height: 1px;
+  background: #2563eb;
+}
+.account-activation__brand-copy h2 {
+  max-width: 470px;
+  margin: 18px 0 14px;
+  color: var(--auth-navy);
+  font: 700 clamp(30px, 3.3vw, 46px)/1.16 Poppins, Inter, system-ui, sans-serif;
+  letter-spacing: -.05em;
+  text-wrap: balance;
+}
+.account-activation__brand-copy p {
+  max-width: 425px;
+  margin: 0;
+  color: #466078;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.account-activation__steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 430px;
+  border-top: 1px solid #ccdfef;
+}
+.account-activation__steps li {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #ccdfef;
+}
+.account-activation__steps li > span {
+  color: #2466dd;
+  font-size: 11px;
+  font-weight: 800;
+}
+.account-activation__steps li div { display: grid; gap: 2px; }
+.account-activation__steps strong { color: #173957; font-size: 13px; }
+.account-activation__steps small { color: #60758b; font-size: 12px; }
+.account-activation__brand-foot {
+  margin: auto 0 0;
+  padding-top: 26px;
+  color: #64748b;
+  font-size: 12px;
+}
+.account-activation__card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
 .account-activation__header {
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 23px 28px;
-  border-bottom: 1px solid #e8edf4;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 78px;
+  padding: 18px clamp(30px, 4.6vw, 60px);
+  border-bottom: 1px solid #ecf1f6;
 }
-
+.account-activation__header-identity { display: flex; align-items: center; gap: 12px; }
 .account-activation__emblem {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #123f64;
-  color: white;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #eaf2fc;
+  color: #1d4ed8;
+  font-size: 18px;
   font-weight: 800;
-  font-size: 20px;
 }
-
-.account-activation__header > div:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.account-activation__header-name { display: grid; gap: 2px; }
+.account-activation__header-name strong { color: #142f4b; font-size: 13px; }
+.account-activation__header-name span { color: #64748b; font-size: 11px; }
+.account-activation__back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  color: #245c91;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 180ms ease, transform 180ms ease;
 }
-
-.account-activation__header strong {
-  color: #123f64;
-  font-size: 17px;
-}
-
-.account-activation__header span {
-  color: #698098;
-  font-size: 12px;
-}
-
-/* ==========================================
-   INTRO
-   ========================================== */
-
+.account-activation__back-link:hover { color: #1d4ed8; transform: translateX(-2px); }
 .account-activation__intro {
-  padding: 26px 28px 13px;
+  padding: 35px clamp(30px, 4.6vw, 60px) 14px;
 }
-
 .account-activation__eyebrow {
-  color: #3155d5;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #2563eb;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-weight: 750;
+  letter-spacing: .09em;
 }
-
+.account-activation__eyebrow::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+}
 .account-activation h1 {
-  margin: 8px 0;
-  color: #10263d;
-  font-size: clamp(22px, 4vw, 28px);
-  line-height: 1.25;
+  margin: 12px 0 11px;
+  color: #102a43;
+  font: 700 clamp(29px, 3vw, 38px)/1.2 Poppins, Inter, system-ui, sans-serif;
+  letter-spacing: -.05em;
+  text-wrap: balance;
 }
-
 .account-activation__intro p,
 .account-activation__help,
 .account-activation__success p {
   margin: 0;
-  color: #60748c;
-  font-size: 13px;
-  line-height: 1.7;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.75;
 }
-
-/* ==========================================
-   FORM
-   ========================================== */
-
 .account-activation__form {
   display: grid;
   gap: 16px;
-  padding: 10px 28px 20px;
+  padding: 13px clamp(30px, 4.6vw, 60px) 27px;
 }
-
-.account-activation__field {
-  display: grid;
-  gap: 7px;
-}
-
+.account-activation__field { display: grid; gap: 7px; }
 .account-activation__field label {
-  color: #243c57;
+  color: #17344f;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 700;
 }
-
 .account-activation__field input {
-  width: 100%;
+  display: block;
   min-width: 0;
-  min-height: 44px;
-  padding: 11px 12px;
-  border: 1px solid #cdd9e7;
-  border-radius: 9px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 15px;
+  border: 1px solid #d3deec;
+  border-radius: 10px;
+  background: #fff;
   outline: none;
-  background: white;
-  color: #132e48;
-  font: inherit;
-  font-size: 13px;
-
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  color: #0f172a;
+  font-size: 14px;
+  transition: border-color 170ms ease, box-shadow 170ms ease;
 }
-
-.account-activation__field input:focus {
-  border-color: #3475c7;
-  box-shadow: 0 0 0 3px rgb(52 117 199 / 13%);
-}
-
-.account-activation__field input[aria-invalid='true'] {
-  border-color: #dc6868;
-}
-
-.account-activation__field input:disabled {
-  background: #f1f5f9;
-  cursor: wait;
-}
-
-.account-activation__field input::placeholder {
-  color: #91a2b5;
-}
-
-.account-activation__field small {
-  color: #b42332;
-  font-size: 12px;
-}
-
-/* ==========================================
-   PASSWORD VISIBILITY
-   ========================================== */
-
-.account-activation__label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
+.account-activation__field input::placeholder { color: #8495a9; }
+.account-activation__field input:hover:not(:disabled) { border-color: #9bb7d8; }
+.account-activation__field input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgb(37 99 235 / .12); }
+.account-activation__field input[aria-invalid='true'] { border-color: #d84d56; }
+.account-activation__field input:disabled { background: #f1f5f9; opacity: .8; cursor: not-allowed; }
+.account-activation__field small { color: #ae2633; font-size: 12px; line-height: 1.5; }
+.account-activation__label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .account-activation__reveal {
-  border: 0;
+  min-height: 34px;
+  border: none;
   background: transparent;
-  color: #245a92;
+  color: #1d4ed8;
   font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
-
-.account-activation__reveal:hover {
-  text-decoration: underline;
-}
-
-/* ==========================================
-   SUBMIT BUTTON
-   ========================================== */
-
+.account-activation__reveal:hover { text-decoration: underline; text-underline-offset: 3px; }
 .account-activation__submit,
 .account-activation__primary-link {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
-  min-height: 46px;
+  justify-content: center;
+  min-height: 50px;
   width: 100%;
-  padding: 12px 18px;
-  border: 0;
+  margin-top: 4px;
+  padding: 11px 18px;
+  border: 1px solid #102a43;
   border-radius: 10px;
-  background: #123f64;
+  background: #102a43;
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
-
 .account-activation__submit:hover:not(:disabled),
 .account-activation__primary-link:hover {
-  background: #195781;
+  background: #193c5e;
+  box-shadow: 0 7px 16px rgb(16 42 67 / .13);
   color: #fff;
+  transform: translateY(-1px);
 }
-
-.account-activation__submit:disabled {
-  opacity: 0.65;
-  cursor: wait;
-}
-
-/* ==========================================
-   HELP AND ERROR
-   ========================================== */
-
+.account-activation__submit:disabled { opacity: .7; cursor: wait; }
 .account-activation__help {
-  border-top: 1px solid #e8edf4;
-  background: #f8fafc;
-  padding: 17px 28px 22px;
+  margin-top: auto;
+  padding: 18px clamp(30px, 4.6vw, 60px) 26px;
+  border-top: 1px solid #edf1f6;
+  background: #fafcfe;
+  font-size: 12px;
 }
-
 .account-activation__alert {
-  margin: 0 28px 12px;
-  padding: 11px 13px;
-  border: 1px solid #f1c1c1;
+  margin: 0 clamp(30px, 4.6vw, 60px) 6px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626;
   border-radius: 9px;
-  background: #fff5f5;
-  color: #a4262c;
+  background: #fff7f7;
+  color: #991b1b;
   font-size: 13px;
   line-height: 1.6;
 }
-
-/* ==========================================
-   SUCCESS STATE
-   ========================================== */
-
 .account-activation__success {
   display: grid;
   justify-items: center;
-  gap: 12px;
-  padding: 35px 28px;
+  align-content: center;
+  gap: 14px;
+  flex: 1;
+  padding: 42px clamp(30px, 4.6vw, 60px);
   text-align: center;
+  animation: activation-success-enter 320ms cubic-bezier(.22, 1, .36, 1) both;
 }
-
+@keyframes activation-success-enter {
+  from { opacity: .2; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .account-activation__success-icon {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
   background: #dcfce7;
   color: #16713f;
   font-size: 28px;
   font-weight: 700;
 }
+.account-activation__success h1 { font-size: clamp(26px, 2.8vw, 36px); }
+.account-activation__success .account-activation__primary-link { margin-top: 10px; }
 
-.account-activation__success h1 {
-  margin: 0;
+@media (max-width: 1023px) {
+  .account-activation__shell { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); }
+  .account-activation__brand { padding: 30px; }
+  .account-activation__brand-copy h2 { font-size: clamp(30px, 3.5vw, 38px); }
+  .account-activation__header { padding-inline: 30px; }
+  .account-activation__intro { padding-inline: 30px; }
+  .account-activation__form { padding-inline: 30px; }
+  .account-activation__help { padding-inline: 30px; }
+}
+@media (max-width: 767px) {
+  .account-activation { display: block; padding: 0; background: #fff; }
+  .account-activation__shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .account-activation__brand {
+    min-height: auto;
+    padding: 15px 20px;
+    border-right: 0;
+    border-bottom: 1px solid #dbe5f0;
+    background: #f0f6fe;
+  }
+  .account-activation__brand-top img { width: 44px; height: 44px; }
+  .account-activation__brand-top strong { font-size: 12px; }
+  .account-activation__brand-top span { font-size: 11px; }
+  .account-activation__brand-copy,
+  .account-activation__steps,
+  .account-activation__brand-foot { display: none; }
+  .account-activation__card { flex: 1; }
+  .account-activation__header { min-height: 60px; padding: 10px 20px 0; border-bottom: 0; }
+  .account-activation__emblem,
+  .account-activation__header-name { display: none; }
+  .account-activation__intro { padding: 23px 20px 12px; }
+  .account-activation h1 { font-size: clamp(27px, 7.5vw, 34px); }
+  .account-activation__form { padding: 12px 20px 24px; }
+  .account-activation__help { padding: 18px 20px 28px; }
+  .account-activation__alert { margin-inline: 20px; }
+  .account-activation__success { padding: 40px 20px; }
+}
+@media (max-width: 380px) {
+  .account-activation__brand { padding-inline: 16px; }
+  .account-activation__header { padding-inline: 16px; }
+  .account-activation__intro { padding-inline: 16px; }
+  .account-activation__form { padding-inline: 16px; }
+  .account-activation__help { padding-inline: 16px; }
+  .account-activation__alert { margin-inline: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-activation * { animation: none !important; transition: none !important; }
 }
 
-.account-activation__success .account-activation__primary-link {
-  margin-top: 8px;
+
+/* ================================================================
+   ACTIVATION V4 — 3D ILLUSTRATION / SAME AUTH DESIGN FAMILY
+   Presentation-only: activation form and API contract untouched.
+   ================================================================ */
+.account-activation {
+  background: radial-gradient(ellipse 68% 62% at 50% 6%, #eaf2fd 0%, #f7faff 68%, #f8fafc 100%);
 }
-
-/* ==========================================
-   RESPONSIVE MOBILE
-   ========================================== */
-
-@media (max-width: 600px) {
-  .account-activation {
-    padding: 16px 10px;
-    align-items: start;
+.account-activation__shell { min-height: 760px; box-shadow: 0 24px 70px rgba(15,41,71,.07); }
+.account-activation__brand {
+  background: linear-gradient(157deg, #f0f7ff 0%, #eaf3ff 60%, #e0edfc 100%);
+  padding: clamp(28px, 3.4vw, 46px);
+}
+.account-activation__brand::before { height: 3px; }
+.account-activation__brand-copy { margin-top: 26px; padding: 0; }
+.account-activation__brand-copy h2 {
+  font-size: clamp(30px, 3vw, 37px);
+  line-height: 1.18;
+  margin-block: 12px 10px;
+}
+.account-activation__brand-copy p { font-size: 13px; line-height: 1.65; }
+.account-activation__art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 1 1 235px;
+  min-height: 235px;
+  max-height: 315px;
+  margin: 6px -15px 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.account-activation__art img {
+  display: block;
+  width: min(100%, 340px);
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 13px 18px rgba(39,72,119,.09));
+}
+.account-activation__steps { flex: 0 0 auto; margin-top: 8px; }
+.account-activation__steps li { padding: 9px 0; }
+.account-activation__steps strong { font-size: 12px; }
+.account-activation__steps small { font-size: 11px; }
+.account-activation__brand-foot { margin: 8px 0 0; padding: 0; font-size: 11px; }
+@media (max-width: 1023px) and (min-width: 768px) {
+  .account-activation__brand { padding: 25px; }
+  .account-activation__brand-copy h2 { font-size: 30px; }
+  .account-activation__brand-copy p { font-size: 12px; }
+  .account-activation__art { max-height: 270px; min-height: 215px; }
+}
+@media (max-width: 767px) {
+  .account-activation { background: #fff; }
+  .account-activation__brand {
+    min-height: 110px;
+    padding: 16px 125px 16px 20px;
+    background: linear-gradient(112deg, #f4f9ff, #eaf3ff);
+    justify-content: center;
   }
-
-  .account-activation__card {
-    border-radius: 14px;
+  .account-activation__brand-top { z-index: 2; }
+  .account-activation__brand-copy,
+  .account-activation__steps,
+  .account-activation__brand-foot { display: none; }
+  .account-activation__art {
+    display: flex;
+    position: absolute;
+    z-index: 1;
+    right: 5px;
+    bottom: 0;
+    width: 122px;
+    height: 105px;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    align-items: flex-end;
   }
-
-  .account-activation__header,
-  .account-activation__intro,
-  .account-activation__form,
-  .account-activation__help,
-  .account-activation__success {
-    padding-left: 18px;
-    padding-right: 18px;
-  }
+  .account-activation__art img { width: 100%; height: 146px; object-fit: contain; object-position: center bottom; transform: translateY(10px); filter: none; }
+}
+@media (max-width: 380px) {
+  .account-activation__brand { padding-left: 16px; padding-right: 114px; }
+  .account-activation__art { width: 110px; height: 100px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-activation__art img { transition: none !important; animation: none !important; transform: none !important; }
 }

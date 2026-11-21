@@ -160,24 +160,58 @@ export default function ActivateAccountPage() {
 
   return (
     <main className="account-activation">
-      <section
-        className="account-activation__card"
-        aria-labelledby="activation-title"
-      >
+      <div className="account-activation__shell">
+        <aside className="account-activation__brand" aria-label="Informasi aktivasi akun SIAKAD">
+          <div className="account-activation__brand-top">
+            <img
+              src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
+              alt="Logo SMA Negeri 1 V Koto Timur"
+              width="52"
+              height="52"
+            />
+            <div>
+              <strong>SMA Negeri 1 V Koto Timur</strong>
+              <span>Sistem Informasi Akademik</span>
+            </div>
+          </div>
+          <div className="account-activation__brand-copy">
+            <span className="account-activation__brand-eyebrow">LANGKAH AWAL AKUN SEKOLAH</span>
+            <h2>Akun siap digunakan, belajar lebih tenang.</h2>
+            <p>Aktivasi dilakukan sekali sebelum pengguna masuk ke layanan akademik digital sekolah.</p>
+          </div>
+          <div className="account-activation__art" aria-hidden="true">
+            <img
+              src="/images/auth/avatar-akses-siakad-3d.webp"
+              alt=""
+              width="860"
+              height="1075"
+              decoding="async"
+            />
+          </div>
+          <ol className="account-activation__steps" aria-label="Tahapan aktivasi akun">
+            <li><span>01</span><div><strong>Siapkan slip</strong><small>Username dan kode dari Tata Usaha.</small></div></li>
+            <li><span>02</span><div><strong>Atur password</strong><small>Buat kata sandi pribadi yang kuat.</small></div></li>
+            <li><span>03</span><div><strong>Masuk SIAKAD</strong><small>Lanjut ke portal akademik sekolah.</small></div></li>
+          </ol>
+          <p className="account-activation__brand-foot">Layanan akademik sekolah · V Koto Timur</p>
+        </aside>
+        <section
+          className="account-activation__card"
+          aria-labelledby="activation-title"
+        >
         {/* HEADER */}
 
         <header className="account-activation__header">
-          <div
-            className="account-activation__emblem"
-            aria-hidden="true"
-          >
-            S
+          <div className="account-activation__header-identity">
+            <span className="account-activation__emblem" aria-hidden="true">S</span>
+            <span className="account-activation__header-name">
+              <strong>Aktivasi Akun</strong>
+              <span>Portal warga sekolah</span>
+            </span>
           </div>
-
-          <div>
-            <strong>SIAKAD</strong>
-            <span>SMA Negeri 1 V Koto Timur</span>
-          </div>
+          <Link to="/login" viewTransition className="account-activation__back-link">
+            <span aria-hidden="true">←</span> Login
+          </Link>
         </header>
 
         {success ? (
@@ -210,6 +244,7 @@ export default function ActivateAccountPage() {
 
             <Link
               to="/login"
+              viewTransition
               className="account-activation__primary-link"
             >
               Masuk ke SIAKAD →
@@ -447,7 +482,8 @@ export default function ActivateAccountPage() {
             </p>
           </>
         )}
-      </section>
+        </section>
+      </div>
     </main>
   )
 }

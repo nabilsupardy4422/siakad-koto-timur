@@ -1,73 +1,68 @@
 import './Footer.css'
 
 const footerNavigation = [
-    { label: 'Beranda', href: '#beranda' },
-    { label: 'Fitur', href: '#fitur' },
-    { label: 'Tentang', href: '#tentang' },
-    { label: 'FAQ', href: '#faq' },
-  ]
-  
-  function Footer() {
-    const currentYear = new Date().getFullYear()
-  
-    return (
-      <footer className="site-footer">
-        <div className="footer-container">
-          <div className="footer-main">
-            <div className="footer-brand">
-              <a className="footer-brand-link" href="#beranda">
-                <img
-                  src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
-                  alt="Logo SMA Negeri 1 V Koto Timur"
-                />
-  
-                <span className="footer-brand-copy">
-                  <strong>SIAKAD</strong>
-                  <span>Koto Timur</span>
-                </span>
-              </a>
-  
-              <p>
-                Sistem Informasi Akademik
-                <br />
-                SMA Negeri 1 V Koto Timur
-              </p>
-            </div>
-  
-            <div className="footer-navigation">
-              <span className="footer-label">Navigasi</span>
-  
-              <nav aria-label="Navigasi footer">
-                {footerNavigation.map((item) => (
-                  <a key={item.href} href={item.href}>
-                    {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-  
-            <div className="footer-access">
-              <span className="footer-label">Akses</span>
-  
-              <a className="footer-login-link" href="/login">
-                <span>Masuk ke SIAKAD</span>
-                <span aria-hidden="true">→</span>
-              </a>
-            </div>
+  { label: 'Beranda', href: '#beranda' },
+  { label: 'Mengenal Sekolah', href: '#tentang' },
+  { label: 'Layanan SIAKAD', href: '#fitur' },
+  { label: 'Peran Pengguna', href: '#pengguna' },
+  { label: 'FAQ', href: '#faq' },
+]
+
+function Footer() {
+  const currentYear = new Date().getFullYear()
+
+  return (
+    <footer className="footer-v2">
+      <div className="footer-v2__container">
+        <div className="footer-v2__main">
+          <div className="footer-v2__identity">
+            <a className="footer-v2__brand" href="#beranda" aria-label="SMA Negeri 1 V Koto Timur — kembali ke beranda">
+              <img
+                src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
+                alt=""
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+              <span className="footer-v2__brand-copy">
+                <strong>SMA Negeri 1 V Koto Timur</strong>
+                <span>Sistem Informasi Akademik</span>
+              </span>
+            </a>
+            <p>
+              Sekolah menengah atas negeri di Kecamatan V Koto Timur,
+              Kabupaten Padang Pariaman, Sumatera Barat.
+            </p>
           </div>
-  
-          <div className="footer-bottom">
-            <span>
-              © {currentYear} SMA Negeri 1 V Koto Timur
-            </span>
-  
-            <span className="footer-bottom-separator" />
-  
-            <span>SIAKAD Koto Timur</span>
+
+          <div className="footer-v2__nav-col">
+            <span className="footer-v2__label">JELAJAHI</span>
+            <nav aria-label="Navigasi footer">
+              {footerNavigation.map((item) => (
+                <a key={item.href} href={item.href}>{item.label}</a>
+              ))}
+            </nav>
+          </div>
+
+          <div className="footer-v2__access">
+            <span className="footer-v2__label">AKSES SIAKAD</span>
+            <p>Untuk siswa, guru, Tata Usaha, dan kepala sekolah yang memiliki akun.</p>
+            <a className="footer-v2__login" href="/login">
+              Masuk ke SIAKAD
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
           </div>
         </div>
-      </footer>
-    )
-  }
-  
-  export default Footer
+
+        <div className="footer-v2__bottom">
+          <span>© {currentYear} SMA Negeri 1 V Koto Timur</span>
+          <span>Informasi akademik sekolah, dalam satu layanan.</span>
+        </div>
+      </div>
+    </footer>
+  )
+}
+
+export default Footer

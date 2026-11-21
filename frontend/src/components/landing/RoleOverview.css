@@ -1,376 +1,223 @@
-/* =========================================================
-   SIAKAD KOTO TIMUR
-   Role Overview Component
-   ========================================================= */
+/* ===========================================================
+   SIAKAD Landing — Role Overview V2 | Clean editorial layout
+   Scoped to #pengguna. No changes to global tokens, auth or API.
+   =========================================================== */
+.roles-section {
+  --roles-blue: #2563eb;
+  --roles-blue-dark: #1d4ed8;
+  --roles-navy: #0f172a;
+  --roles-text: #243b53;
+  --roles-muted: #475569;
+  --roles-border: #e2e8f0;
+  position: relative;
+  isolation: isolate;
+  padding: clamp(72px, 8vw, 112px) 0;
+  scroll-margin-top: 112px;
+  background: #fff;
+  color: var(--roles-navy);
+}
 
-/* ---------------------------------------------------------
-   ROLE OVERVIEW
-   --------------------------------------------------------- */
+.roles-section *,
+.roles-section *::before,
+.roles-section *::after { box-sizing: border-box; }
 
-   .roles-section {
-    padding: 8rem 0;
-    background: #ffffff;
-  }
-  
-  .roles-container {
-    width: min(1120px, calc(100% - 3rem));
-    margin: 0 auto;
-  }
-  
-  /* Heading */
-  
-  .roles-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
-    column-gap: 5rem;
-    align-items: end;
-  
-    padding-bottom: 3.75rem;
-  
-    border-bottom: 1px solid #dce3eb;
-  }
-  
-  .roles-heading h2 {
-    margin: 1.35rem 0 0;
-  
-    color: #101828;
-  
-    font-family: "Montserrat", "Inter", sans-serif;
-    font-size: clamp(3rem, 5vw, 4.7rem);
-    font-weight: 700;
-    line-height: 0.98;
-    letter-spacing: -0.055em;
-  }
-  
-  .roles-heading h2 span {
-    color: #176fb0;
-  }
-  
-  .roles-heading p {
-    max-width: 440px;
-    margin: 0 0 0.25rem;
-  
-    color: #62748a;
-  
-    font-family: "Inter", sans-serif;
-    font-size: 0.9rem;
-    line-height: 1.8;
-  }
-  
-  /* Directory */
-  
-  .roles-directory {
-    display: grid;
-    grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
-  
-    border-bottom: 1px solid #dce3eb;
-  }
-  
-  /* Role list */
-  
-  .roles-list {
-    border-right: 1px solid #dce3eb;
-  }
-  
-  .role-item {
-    width: 100%;
-    min-height: 92px;
-  
-    display: grid;
-    grid-template-columns: 42px minmax(0, 1fr) 28px;
-    align-items: center;
-    gap: 1rem;
-  
-    padding: 1.25rem 1.75rem;
-  
-    border: 0;
-    border-bottom: 1px solid #e6ebf0;
-  
-    background: transparent;
-    color: #243b53;
-  
-    font-family: "Inter", sans-serif;
-    text-align: left;
-  
-    cursor: pointer;
-  
-    transition:
-      background-color 180ms ease,
-      color 180ms ease,
-      padding 180ms ease;
-  }
-  
-  .role-item:last-child {
-    border-bottom: 0;
-  }
-  
-  .role-item:hover {
-    background: #f8fafc;
-  }
-  
-  .role-item.active {
-    background: #edf5fb;
-    color: #176fb0;
-  
-    padding-left: 2rem;
-  
-    box-shadow: inset 3px 0 0 #176fb0;
-  }
-  
-  .role-item.active:hover {
-    background: #edf5fb;
-  }
-  
-  .role-number {
-    color: #176fb0;
-  
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-  }
-  
-  .role-name {
-    font-family: "Montserrat", "Inter", sans-serif;
-    font-size: 0.9rem;
-    font-weight: 650;
-  }
-  
-  .role-arrow {
-    color: #9aabba;
-  
-    font-size: 1rem;
-    text-align: right;
-  
-    transition:
-      color 180ms ease,
-      transform 180ms ease;
-  }
-  
-  .role-item:hover .role-arrow,
-  .role-item.active .role-arrow {
-    color: #176fb0;
-    transform: translateX(3px);
-  }
-  
-  /* Detail */
-  
-  .role-detail {
-    position: relative;
-  
-    min-height: 460px;
-  
-    display: flex;
-    flex-direction: column;
-  
-    padding: 3rem 3.25rem;
-  }
-  
-  .role-detail-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  
-  .role-detail-label {
-    color: #176fb0;
-  
-    font-family: "Inter", sans-serif;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-  
-  .role-detail-index {
-    color: #e7eef6;
-  
-    font-family: "Montserrat", "Inter", sans-serif;
-    font-size: 5.5rem;
-    font-weight: 700;
-    line-height: 0.8;
-    letter-spacing: -0.08em;
-  }
-  
-  .role-detail h3 {
-    max-width: 580px;
-    margin: 3rem 0 0;
-  
-    color: #101828;
-  
-    font-family: "Montserrat", "Inter", sans-serif;
-    font-size: clamp(2rem, 3.4vw, 3.2rem);
-    font-weight: 700;
-    line-height: 1.02;
-    letter-spacing: -0.045em;
-  }
-  
-  .role-description {
-    max-width: 520px;
-    margin: 1.25rem 0 0;
-  
-    color: #62748a;
-  
-    font-family: "Inter", sans-serif;
-    font-size: 0.9rem;
-    line-height: 1.8;
-  }
-  
-  .role-capabilities {
-    margin-top: auto;
-    padding-top: 2.5rem;
-  }
-  
-  .role-capabilities-label {
-    display: block;
-  
-    margin-bottom: 1rem;
-  
-    color: #8a99aa;
-  
-    font-family: "Inter", sans-serif;
-    font-size: 0.67rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  
-  .role-capabilities-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.65rem;
-  }
-  
-  .role-capabilities-list span {
-    padding: 0.55rem 0.8rem;
-  
-    border: 1px solid #dce5ed;
-  
-    color: #334e68;
-  
-    font-family: "Inter", sans-serif;
-    font-size: 0.72rem;
-    line-height: 1;
-  
-    background: #ffffff;
-  }
-  
-  /* ---------------------------------------------------------
-     ROLE OVERVIEW — TABLET
-     --------------------------------------------------------- */
-  
-  @media (max-width: 900px) {
-    .roles-section {
-      padding: 6rem 0;
-    }
-  
-    .roles-heading {
-      grid-template-columns: 1fr;
-      gap: 2rem;
-    }
-  
-    .roles-heading p {
-      max-width: 600px;
-    }
-  
-    .roles-directory {
-      grid-template-columns: 1fr;
-    }
-  
-    .roles-list {
-      border-right: 0;
-      border-bottom: 1px solid #dce3eb;
-    }
-  
-    .role-detail {
-      min-height: 400px;
-    }
-  }
-  
-  /* ---------------------------------------------------------
-     ROLE OVERVIEW — MOBILE
-     --------------------------------------------------------- */
-  
-  @media (max-width: 640px) {
-    .roles-section {
-      padding: 4.75rem 0;
-    }
-  
-    .roles-container {
-      width: min(100% - 2rem, 1120px);
-    }
-  
-    .roles-heading {
-      gap: 1.5rem;
-  
-      padding-bottom: 2.5rem;
-    }
-  
-    .roles-heading h2 {
-      margin-top: 1rem;
-  
-      font-size: clamp(2.4rem, 11vw, 3.2rem);
-      line-height: 1;
-    }
-  
-    .roles-heading p {
-      font-size: 0.82rem;
-      line-height: 1.75;
-    }
-  
-    .role-item {
-      min-height: 72px;
-  
-      grid-template-columns: 32px minmax(0, 1fr) 22px;
-  
-      padding: 1rem 0;
-      gap: 0.75rem;
-    }
-  
-    .role-item.active {
-      padding-left: 0.75rem;
-      padding-right: 0.75rem;
-    }
-  
-    .role-name {
-      font-size: 0.78rem;
-    }
-  
-    .role-number {
-      font-size: 0.62rem;
-    }
-  
-    .role-detail {
-      min-height: 360px;
-  
-      padding: 2rem 0;
-    }
-  
-    .role-detail-index {
-      font-size: 4rem;
-    }
-  
-    .role-detail h3 {
-      margin-top: 2.5rem;
-  
-      font-size: 2rem;
-    }
-  
-    .role-description {
-      font-size: 0.8rem;
-      line-height: 1.75;
-    }
-  
-    .role-capabilities {
-      padding-top: 2rem;
-    }
-  
-    .role-capabilities-list {
-      gap: 0.5rem;
-    }
-  
-    .role-capabilities-list span {
-      padding: 0.5rem 0.65rem;
-  
-      font-size: 0.67rem;
-    }
-  }
+.roles-container {
+  width: min(1160px, calc(100% - 48px));
+  margin-inline: auto;
+}
+
+/* Heading: simple editorial contrast, no giant decorative numbers */
+.roles-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(0, .84fr);
+  align-items: end;
+  column-gap: clamp(36px, 5vw, 90px);
+  padding-bottom: clamp(36px, 4.4vw, 56px);
+}
+.roles-heading-main, .roles-heading-aside { min-width: 0; }
+.roles-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 20px;
+  font: 700 11px/1.5 'Inter', system-ui, sans-serif;
+  color: var(--roles-blue-dark);
+  letter-spacing: .1em;
+}
+.roles-eyebrow-line {
+  display: inline-block;
+  width: 26px;
+  height: 2px;
+  flex: 0 0 26px;
+  background: var(--roles-blue);
+}
+.roles-heading h2 {
+  margin: 0;
+  max-width: 700px;
+  font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(35px, 3.6vw, 52px);
+  line-height: 1.18;
+  letter-spacing: -.045em;
+  text-wrap: balance;
+  color: var(--roles-navy);
+}
+.roles-heading h2 span { color: var(--roles-blue); }
+.roles-heading-aside { padding-bottom: 4px; }
+.roles-heading-aside > p {
+  max-width: 430px;
+  margin: 0;
+  font: 400 16px/1.75 'Inter', system-ui, sans-serif;
+  color: var(--roles-muted);
+}
+.roles-role-count {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+.roles-role-count strong {
+  font: 700 30px/1 'Poppins', 'Inter', system-ui, sans-serif;
+  letter-spacing: -.07em;
+  color: var(--roles-blue);
+}
+.roles-role-count span {
+  padding-left: 14px;
+  border-left: 1px solid #cbd5e1;
+  font: 600 12px/1.45 'Inter', system-ui, sans-serif;
+  color: var(--roles-text);
+}
+
+/* Accessible, always-visible role matrix; avoids repeating the
+   feature explorer's tab + detail interaction pattern. */
+.roles-matrix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--roles-border);
+  border-bottom: 1px solid var(--roles-border);
+}
+.roles-persona {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  min-height: 260px;
+  padding: clamp(24px, 3vw, 40px);
+  transition: background-color 180ms ease;
+}
+.roles-persona:nth-child(odd) { border-right: 1px solid var(--roles-border); }
+.roles-persona:nth-child(-n+2) { border-bottom: 1px solid var(--roles-border); }
+.roles-persona:hover { background: #f8fafc; }
+.roles-persona-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+.roles-persona-number {
+  color: var(--roles-blue);
+  font: 700 12px/1.4 'Inter', system-ui, sans-serif;
+  letter-spacing: .08em;
+}
+.roles-persona-name {
+  color: var(--roles-navy);
+  font: 700 13px/1.4 'Inter', system-ui, sans-serif;
+}
+.roles-persona h3 {
+  max-width: 430px;
+  margin: 0 0 12px;
+  font: 600 clamp(20px, 1.95vw, 26px)/1.35 'Poppins', 'Inter', system-ui, sans-serif;
+  letter-spacing: -.035em;
+  color: var(--roles-navy);
+  text-wrap: balance;
+}
+.roles-persona-description {
+  max-width: 455px;
+  margin: 0;
+  color: var(--roles-muted);
+  font: 400 15px/1.7 'Inter', system-ui, sans-serif;
+}
+.roles-persona-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 12px;
+  padding-top: 19px;
+  margin-top: auto;
+}
+.roles-persona-scope > span {
+  color: #64748b;
+  font: 600 11px/1.5 'Inter', system-ui, sans-serif;
+}
+.roles-persona-scope > strong {
+  color: #1d4ed8;
+  font: 600 12px/1.5 'Inter', system-ui, sans-serif;
+}
+
+/* Wali Kelas is a contextual assignment of Guru, not a fifth role. */
+.roles-assignment {
+  display: grid;
+  grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+  align-items: center;
+  gap: clamp(22px, 3vw, 40px);
+  padding: clamp(22px, 3.3vw, 36px) clamp(24px, 3.3vw, 40px);
+  margin-top: 28px;
+  background: #f8fafc;
+  border: 1px solid var(--roles-border);
+  border-left: 3px solid var(--roles-blue);
+  border-radius: 12px;
+}
+.roles-assignment-heading { min-width: 0; }
+.roles-assignment-kicker {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--roles-blue-dark);
+  font: 700 11px/1.5 'Inter', system-ui, sans-serif;
+  letter-spacing: .08em;
+}
+.roles-assignment h3 {
+  max-width: 375px;
+  margin: 0;
+  color: var(--roles-navy);
+  font: 600 clamp(21px, 2vw, 26px)/1.4 'Poppins', 'Inter', system-ui, sans-serif;
+  letter-spacing: -.03em;
+}
+.roles-assignment p {
+  max-width: 580px;
+  margin: 0;
+  color: var(--roles-muted);
+  font: 400 14px/1.8 'Inter', system-ui, sans-serif;
+}
+.roles-assignment p strong { color: var(--roles-text); font-weight: 700; }
+
+@media (max-width: 900px) {
+  .roles-heading { grid-template-columns: 1fr; gap: 22px; }
+  .roles-heading-aside > p { max-width: 610px; }
+  .roles-persona { min-height: 285px; padding: 28px 26px; }
+  .roles-assignment { grid-template-columns: 1fr; gap: 16px; }
+}
+
+@media (max-width: 640px) {
+  .roles-section { padding: 68px 0 76px; scroll-margin-top: 90px; }
+  .roles-container { width: calc(100% - 32px); }
+  .roles-heading { gap: 20px; padding-bottom: 30px; }
+  .roles-eyebrow { margin-bottom: 14px; font-size: 10px; }
+  .roles-heading h2 { font-size: clamp(31px, 8vw, 39px); line-height: 1.22; }
+  .roles-heading-aside > p { font-size: 15px; line-height: 1.7; }
+  .roles-role-count { margin-top: 18px; }
+  .roles-matrix { grid-template-columns: minmax(0, 1fr); }
+  .roles-persona { min-height: auto; padding: 26px 8px 27px; }
+  .roles-persona:nth-child(odd) { border-right: 0; }
+  .roles-persona:not(:last-child) { border-bottom: 1px solid var(--roles-border); }
+  .roles-persona-meta { margin-bottom: 14px; }
+  .roles-persona h3 { font-size: 22px; line-height: 1.35; }
+  .roles-persona-description { font-size: 15px; line-height: 1.7; }
+  .roles-persona-scope { margin-top: 14px; padding-top: 0; }
+  .roles-assignment { margin-top: 24px; padding: 24px 22px; gap: 14px; }
+  .roles-assignment h3 { font-size: 22px; }
+  .roles-assignment p { font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roles-persona { transition: none; }
+}
