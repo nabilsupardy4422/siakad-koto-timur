@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AcademicYearExcelController;
 use App\Http\Controllers\Api\AssignmentController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\ClassMemberExcelController;
 use App\Http\Controllers\Api\Auth\ActivateAccountController;
 use App\Http\Controllers\Api\Auth\GoogleLoginController;
 use App\Http\Controllers\Api\Auth\GoogleUsernameRecoveryController;
@@ -311,11 +312,15 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     */
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/classes/{class}/students', [ClassMemberController::class, 'index']);
-    });
-
-    Route::middleware('role:TU,GURU')->group(function (): void {
-        Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
-        Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
+        });
+        
+        Route::middleware('role:TU,GURU')->group(function (): void {
+            Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
+            Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
+            
+            Route::get('/classes/{class}/students/template', [ClassMemberExcelController::class, 'template']);
+            Route::post('/classes/{class}/students/import/preview', [ClassMemberExcelController::class, 'preview']);
+            Route::post('/classes/{class}/students/import', [ClassMemberExcelController::class, 'import']);
     });
 
     /*
