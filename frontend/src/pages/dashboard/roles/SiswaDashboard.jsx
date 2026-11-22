@@ -93,7 +93,7 @@ export default function SiswaDashboard() {
           </h1>
 
           <p>
-            Pantau kegiatan belajar, presensi, nilai, bahan ajar,
+            Pantau kegiatan belajar, Presensi, nilai, bahan ajar,
             dan tugas Anda melalui satu halaman.
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function SiswaDashboard() {
               <p>
                 Tingkat {studentClass.tingkat}
                 {academicYear
-                  ? ` · ${academicYear.tahun_mulai}/${academicYear.tahun_selesai} ${academicYear.semester}`
+                  ? ` · ${academicYear.Tahun_mulai}/${academicYear.tahun_selesai} ${academicYear.semester}`
                   : ''}
               </p>
 
