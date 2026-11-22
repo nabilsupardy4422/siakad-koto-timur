@@ -87,6 +87,7 @@ const [importError, setImportError] = useState('')
 const [previewLoading, setPreviewLoading] = useState(false)
 const [importing, setImporting] = useState(false)
 const [downloadingTemplate, setDownloadingTemplate] = useState(false)
+const [excludedRows, setExcludedRows] = useState([])
 
   const loadStudents = useCallback(async () => {
     setLoading(true)
@@ -327,6 +328,7 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
   function openImportModal() {
   setSelectedExcel(null)
   setPreviewData(null)
+  setExcludedRows([])
   setImportError('')
   setImportModalOpen(true)
   setSuccessMessage('')
@@ -338,7 +340,16 @@ function closeImportModal() {
   setImportModalOpen(false)
   setSelectedExcel(null)
   setPreviewData(null)
+  setExcludedRows([])
   setImportError('')
+}
+
+function toggleExcludedRow(rowNumber) {
+  setExcludedRows((current) =>
+    current.includes(rowNumber)
+      ? current.filter((row) => row !== rowNumber)
+      : [...current, rowNumber],
+  )
 }
 
 async function handleDownloadTemplate() {
@@ -362,6 +373,7 @@ function handleExcelChange(event) {
 
   setSelectedExcel(file)
   setPreviewData(null)
+  setExcludedRows([])
   setImportError('')
 
   if (!file) return
@@ -424,26 +436,30 @@ async function handlePreviewImport() {
 async function handleConfirmImport() {
   if (!selectedExcel || !previewData) return
 
-  if (previewData.summary?.invalid_rows > 0) {
+  if (previewSummary.invalid_rows > 0) {
     setImportError(
-      'Masih terdapat baris yang tidak valid. Perbaiki file Excel terlebih dahulu.',
+      'Masih terdapat baris yang tidak valid. Perbaiki file Excel atau keluarkan baris duplikat terlebih dahulu.',
     )
     return
   }
 
-  if (previewData.summary?.valid_rows === 0) {
+  if (previewSummary.valid_rows === 0) {
     setImportError('Tidak ada data Siswa valid untuk diimpor.')
     return
   }
 
   const confirmed = window.confirm(
-    `Impor ${previewData.summary.valid_rows} data Siswa ke dalam sistem?`,
+    `Impor ${previewSummary.valid_rows} data Siswa ke dalam sistem?`,
   )
 
   if (!confirmed) return
 
   const formData = new FormData()
   formData.append('file', selectedExcel)
+
+  excludedRows.forEach((rowNumber) => {
+    formData.append('excluded_rows[]', String(rowNumber))
+  })
 
   setImporting(true)
   setImportError('')
@@ -453,11 +469,12 @@ async function handleConfirmImport() {
 
     const importedRows =
       response?.data?.imported_rows ??
-      previewData.summary.valid_rows
+      previewSummary.valid_rows
 
     setImportModalOpen(false)
     setSelectedExcel(null)
     setPreviewData(null)
+    setExcludedRows([])
 
     setSuccessMessage(
       `${importedRows} data Siswa berhasil diimpor.`,
@@ -485,6 +502,100 @@ async function handleConfirmImport() {
     setImporting(false)
   }
 }
+
+const duplicateError =
+  'Duplikat: nama lengkap dan NISN sama dalam file Excel.'
+
+const potentialDuplicateError =
+  'Potensi duplikat: nama lengkap sama dan terdapat NISN kosong dalam file Excel.'
+
+const conflictError =
+  'Konflik: NISN sama tetapi nama lengkap berbeda.'
+
+const activePreviewRows = (previewData?.rows || [])
+  .filter((row) => !excludedRows.includes(Number(row.row)))
+  .map((row) => {
+    const normalizedName = (row.nama_lengkap || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+
+    const normalizedNisn = (row.nisn || '').trim()
+
+    const sameNameRows = (previewData?.rows || []).filter(
+      (otherRow) => {
+        if (excludedRows.includes(Number(otherRow.row))) return false
+
+        const otherName = (otherRow.nama_lengkap || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+          .toLowerCase()
+
+        return normalizedName !== '' && normalizedName === otherName
+      },
+    )
+
+    const sameNameNisnCount = sameNameRows.filter(
+      (otherRow) =>
+        (otherRow.nisn || '').trim() === normalizedNisn &&
+        normalizedNisn !== '',
+    ).length
+
+    const hasEmptyNisn = sameNameRows.some(
+      (otherRow) => !(otherRow.nisn || '').trim(),
+    )
+
+    const sameNisnDifferentName = (previewData?.rows || []).filter(
+      (otherRow) => {
+        if (excludedRows.includes(Number(otherRow.row))) return false
+
+        const otherNisn = (otherRow.nisn || '').trim()
+
+        const otherName = (otherRow.nama_lengkap || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+          .toLowerCase()
+
+        return (
+          normalizedNisn !== '' &&
+          normalizedNisn === otherNisn &&
+          normalizedName !== otherName
+        )
+      },
+    ).length
+
+    const errors = (row.errors || []).filter(
+      (error) =>
+        error !== duplicateError &&
+        error !== potentialDuplicateError &&
+        error !== conflictError,
+    )
+
+    if (sameNameNisnCount > 1) {
+      errors.push(duplicateError)
+    } else if (sameNameRows.length > 1 && hasEmptyNisn) {
+      errors.push(potentialDuplicateError)
+    }
+
+    if (sameNisnDifferentName > 0) {
+      errors.push(conflictError)
+    }
+
+    return {
+      ...row,
+      errors: [...new Set(errors)],
+      valid: errors.length === 0,
+    }
+  })
+
+  const previewSummary = {
+    total_rows: activePreviewRows.length,
+    valid_rows: activePreviewRows.filter((row) => row.valid).length,
+    invalid_rows: activePreviewRows.filter((row) => !row.valid).length,
+  }
+
+
+
   const accountOptions = accounts.map((account) => ({
     value: String(account.id),
     label: `${account.name || account.username} (${account.username})`,
@@ -866,8 +977,8 @@ async function handleConfirmImport() {
                 disabled={
                   importing ||
                   previewLoading ||
-                  previewData.summary?.invalid_rows > 0 ||
-                  previewData.summary?.valid_rows === 0
+                  previewSummary.invalid_rows > 0 ||
+                  previewSummary.valid_rows === 0
                 }
                 onClick={handleConfirmImport}
               >
@@ -947,77 +1058,119 @@ async function handleConfirmImport() {
                 <div className="students-page__preview-stat">
                   <span>Total Data</span>
                   <strong>
-                    {previewData.summary?.total_rows ?? 0}
+                    {previewSummary.total_rows }
                   </strong>
                 </div>
 
                 <div className="students-page__preview-stat students-page__preview-stat--valid">
                   <span>Data Valid</span>
                   <strong>
-                    {previewData.summary?.valid_rows ?? 0}
+                    {previewSummary.valid_rows}
                   </strong>
                 </div>
 
                 <div className="students-page__preview-stat students-page__preview-stat--invalid">
                   <span>Data Tidak Valid</span>
                   <strong>
-                    {previewData.summary?.invalid_rows ?? 0}
+                    {previewSummary.invalid_rows}
                   </strong>
                 </div>
               </div>
 
               <div className="students-page__preview-table-wrapper">
-                <table className="students-page__preview-table">
-                  <thead>
-                    <tr>
-                      <th>Baris</th>
-                      <th>NISN</th>
-                      <th>NIPD</th>
-                      <th>Nama Lengkap</th>
-                      <th>Status</th>
-                      <th>Keterangan</th>
-                    </tr>
-                  </thead>
+  <table className="students-page__preview-table">
+    <thead>
+      <tr>
+        <th>Baris</th>
+        <th>NISN</th>
+        <th>NIPD</th>
+        <th>Nama Lengkap</th>
+        <th>Status</th>
+        <th>Keterangan</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
 
-                  <tbody>
-                    {(previewData.rows || []).map((row) => (
-                      <tr key={row.row}>
-                        <td>{row.row}</td>
-                        <td>{row.nisn || '-'}</td>
-                        <td>{row.nipd || '-'}</td>
-                        <td>{row.nama_lengkap || '-'}</td>
-                        <td>
-                          <span
-                            className={`students-page__preview-status ${
-                              row.valid
-                                ? 'students-page__preview-status--valid'
-                                : 'students-page__preview-status--invalid'
-                            }`}
-                          >
-                            {row.valid ? 'Valid' : 'Tidak Valid'}
-                          </span>
-                        </td>
-                        <td className="students-page__preview-error">
-                          {row.errors?.length > 0
-                            ? row.errors.join(' ')
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+   <tbody>
+  {(previewData.rows || []).map((row) => {
+    const isDuplicate = row.errors?.some((error) =>
+      error.includes('Duplikat: nama lengkap dan NISN sama') ||
+      error.includes('Potensi duplikat: nama lengkap sama'),
+    )
 
-              {previewData.summary?.invalid_rows > 0 && (
+    const isExcluded = excludedRows.includes(Number(row.row))
+
+    const activeRow = activePreviewRows.find(
+      (item) => Number(item.row) === Number(row.row),
+    )
+
+    const isValid = isExcluded ? false : activeRow?.valid
+
+    const rowErrors = isExcluded
+      ? row.errors || []
+      : activeRow?.errors || []
+
+    return (
+      <tr key={row.row}>
+        <td>{row.row}</td>
+        <td>{row.nisn || '-'}</td>
+        <td>{row.nipd || '-'}</td>
+        <td>{row.nama_lengkap || '-'}</td>
+
+        <td>
+          <span
+            className={`students-page__preview-status ${
+              isExcluded
+                ? 'students-page__preview-status--valid'
+                : isValid
+                  ? 'students-page__preview-status--valid'
+                  : 'students-page__preview-status--invalid'
+            }`}
+          >
+            {isExcluded
+              ? 'Dikecualikan'
+              : isValid
+                ? 'Valid'
+                : 'Tidak Valid'}
+          </span>
+        </td>
+
+        <td className="students-page__preview-error">
+          {rowErrors.length > 0
+            ? rowErrors.join(' ')
+            : isExcluded
+              ? 'Baris dikeluarkan dari proses import.'
+              : '-'}
+        </td>
+
+        <td>
+          {isDuplicate && (
+            <Button
+              type="button"
+              disabled={previewLoading || importing}
+              onClick={() => toggleExcludedRow(Number(row.row))}
+            >
+              {isExcluded ? 'Batalkan' : 'Keluarkan'}
+            </Button>
+          )}
+        </td>
+      </tr>
+    )
+  })}
+</tbody>
+  </table>
+</div>
+
+              {previewSummary.invalid_rows > 0 && (
                 <div className="students-page__preview-note">
                   Import belum dapat dilakukan karena masih ada{' '}
-                  {previewData.summary.invalid_rows} baris yang tidak
+                  {previewSummary.invalid_rows} baris yang tidak
                   valid. Perbaiki file Excel, kemudian unggah ulang.
                 </div>
               )}
 
-              {previewData.summary?.invalid_rows === 0 &&
-                previewData.summary?.valid_rows > 0 && (
+              {previewSummary.invalid_rows === 0 &&
+                previewSummary.valid_rows > 0 && (
                   <div className="students-page__import-info">
                     Semua data telah lolos validasi. Kamu dapat
                     melanjutkan dengan menekan tombol

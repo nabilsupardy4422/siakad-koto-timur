@@ -87,9 +87,10 @@ class StudentController extends Controller
         );
 
         $students = $students
-            ->latest('id')
-            ->paginate($request->integer('page_size', 15))
-            ->withQueryString();
+             ->orderBy('nama_lengkap', 'asc')
+    ->orderBy('id', 'asc')
+    ->paginate($request->integer('page_size', 15))
+    ->withQueryString();
 
         return ApiResponse::collection(
             StudentResource::collection($students->items()),
