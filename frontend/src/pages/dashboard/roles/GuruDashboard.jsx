@@ -5,6 +5,7 @@ import LoadingState from '../../../components/ui/LoadingState'
 import ErrorState from '../../../components/ui/ErrorState'
 import './GuruDashboard.css'
 
+
 function SummaryCard({ label, value, description, marker }) {
   return (
     <article className="guru-summary-card">
@@ -66,7 +67,7 @@ export default function GuruDashboard() {
           </span>
 
           <h1>
-            Selamat datang,
+            Selamat Datang,
             <br />
             <strong>{displayName}</strong>
           </h1>
@@ -86,7 +87,7 @@ export default function GuruDashboard() {
             <span className="guru-dashboard__section-eyebrow">
               AKTIVITAS MENGAJAR
             </span>
-            <h2>Ringkasan aktivitas</h2>
+            <h2>Ringkasan Aktivitas</h2>
           </div>
           <p>Data ditampilkan berdasarkan respons sistem.</p>
         </div>
