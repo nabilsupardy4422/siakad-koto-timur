@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\JadwalPelajaran;
 use App\Models\Siswa;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Support\AttendanceTeachingAccess;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -12,7 +13,16 @@ class StoreAttendanceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        if ($this->user()?->role?->code !== 'GURU') {
+            return false;
+        }
+        $id = $this->input('jadwal_pelajaran_id');
+        // Unknown or malformed IDs remain normal validation errors.
+        if (!is_scalar($id) || !ctype_digit((string) $id)) {
+            return true;
+        }
+        $schedule = JadwalPelajaran::query()->find((int) $id);
+        return $schedule === null || AttendanceTeachingAccess::canManage($this->user(), $schedule);
     }
 
     public function rules(): array
@@ -32,7 +42,7 @@ class StoreAttendanceRequest extends FormRequest
 
             'tanggal' => [
                 'required',
-                'date',
+                'date_format:Y-m-d',
             ],
 
             'status' => [
@@ -56,6 +66,9 @@ class StoreAttendanceRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
                 $scheduleId = $this->input('jadwal_pelajaran_id');
                 $studentId = $this->input('siswa_id');
                 $tanggal = $this->input('tanggal');

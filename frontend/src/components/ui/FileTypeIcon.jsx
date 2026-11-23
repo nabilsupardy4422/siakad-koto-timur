@@ -1,0 +1,2 @@
+import './FileTypeIcon.css'
+export default function FileTypeIcon({name=''}){const ext=String(name||'').split('.').pop().toLowerCase();const label=/^[a-z0-9]{1,5}$/.test(ext)&&String(name).includes('.')?ext.toUpperCase():'FILE';const kind=ext==='pdf'?'pdf':['ppt','pptx'].includes(ext)?'slide':['png','jpg','jpeg','webp','gif'].includes(ext)?'image':['xls','xlsx','csv'].includes(ext)?'sheet':'doc';return <span className={`siakad-file-type ${kind}`} aria-label={`Tipe file ${label}`}>{label}</span>}

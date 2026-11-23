@@ -9,9 +9,9 @@ use App\Http\Resources\AssignmentResource;
 use App\Models\Assignment;
 use App\Models\AssignmentLampiran;
 use App\Models\JadwalPelajaran;
-use App\Models\TahunAkademik;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\AssignmentTeachingAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,32 +39,11 @@ class AssignmentController extends Controller
 
         $this->applyViewScope($query, $user);
 
-        if ($user->role?->code === 'GURU') {
-            $activeAcademicYearId = TahunAkademik::query()
-                ->where('is_active', true)
-                ->value('id');
-
-            if ($activeAcademicYearId === null) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $query->whereHas(
-                    'jadwalPelajaran',
-                    fn (Builder $builder) => $builder->where(
-                        'tahun_akademik_id',
-                        $activeAcademicYearId
-                    )
-                );
-            }
-        } elseif ($request->filled('academic_year_id')) {
-            $academicYearId = $request->integer('academic_year_id');
-
-            $query->whereHas(
-                'jadwalPelajaran',
-                fn (Builder $builder) => $builder->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            );
+        if ($request->filled('academic_year_id')) {
+            $query->whereHas('jadwalPelajaran', fn (Builder $builder) => $builder->where('tahun_akademik_id', $request->integer('academic_year_id')));
+        }
+        if ($request->filled('schedule_id')) {
+            $query->where('jadwal_pelajaran_id', $request->integer('schedule_id'));
         }
 
         $assignments = $query
@@ -98,9 +77,7 @@ class AssignmentController extends Controller
             ], 403);
         }
 
-        $activeAcademicYearId = TahunAkademik::query()
-            ->where('is_active', true)
-            ->value('id');
+        $activeAcademicYearId = AssignmentTeachingAccess::activeYearId();
 
         if (! $activeAcademicYearId) {
             return response()->json([
@@ -276,9 +253,7 @@ class AssignmentController extends Controller
 
         $validated = $request->validated();
 
-        $activeAcademicYearId = TahunAkademik::query()
-            ->where('is_active', true)
-            ->value('id');
+        $activeAcademicYearId = AssignmentTeachingAccess::activeYearId();
 
         if ($activeAcademicYearId === null) {
             return response()->json([
@@ -318,6 +293,19 @@ class AssignmentController extends Controller
             fn ($id) => filter_var($id, FILTER_VALIDATE_INT) !== false
                 && (int) $id > 0
         )));
+
+        if (isset($validated['jadwal_pelajaran_id']) && (int) $validated['jadwal_pelajaran_id'] !== (int) $assignment->jadwal_pelajaran_id && $assignment->submissionTugas()->exists()) {
+            return response()->json(['message' => 'Jadwal tidak dapat dipindahkan setelah ada pengumpulan siswa.'], 422);
+        }
+        $attachments = $assignment->lampiran()->get();
+        if (count($removeIds) !== $attachments->whereIn('id', $removeIds)->count()) {
+            return response()->json(['message' => 'Lampiran yang dipilih bukan milik tugas ini.'], 422);
+        }
+        $remaining = $attachments->reject(fn ($file) => in_array((int) $file->id, array_map('intval', $removeIds), true) || ($request->boolean('remove_file') && $file->file_path === $assignment->file_path))->count();
+        if ($assignment->file_path && ! $request->boolean('remove_file') && ! $attachments->contains('file_path', $assignment->file_path)) $remaining++;
+        if ($remaining + count($request->file('files', []) ?? []) > 10) {
+            return response()->json(['message' => 'Maksimal 10 lampiran tugas.'], 422);
+        }
 
         $storedPaths = [];
         $deletedPaths = [];
@@ -586,7 +574,7 @@ class AssignmentController extends Controller
             ], 404);
         }
 
-        return Storage::disk('local')->download($path, $filename);
+        return Storage::disk('local')->download($path, $filename, ['X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store']);
     }
 
     private function applyViewScope(
@@ -600,51 +588,23 @@ class AssignmentController extends Controller
         }
 
         if ($role === 'GURU') {
-            $guruId = $user->guru?->id;
-
-            $activeAcademicYearId = TahunAkademik::query()
-                ->where('is_active', true)
-                ->value('id');
-
-            if ($guruId === null || $activeAcademicYearId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->whereHas(
-                'jadwalPelajaran',
-                function (Builder $builder) use (
-                    $guruId,
-                    $activeAcademicYearId
-                ): void {
-                    $builder
-                        ->where('guru_id', $guruId)
-                        ->where('tahun_akademik_id', $activeAcademicYearId);
-                }
-            );
-
+            $query->whereHas('jadwalPelajaran', fn (Builder $builder) => AssignmentTeachingAccess::applyTeacher($builder, $user));
             return;
         }
-
         if ($role === 'SISWA') {
             $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
+            $year = AssignmentTeachingAccess::activeYearId();
+            if ($studentId === null || $year === null) {
                 $query->whereRaw('1 = 0');
-
                 return;
             }
-
-            $query->whereHas(
-                'jadwalPelajaran.kelas.anggotaKelas',
-                function (Builder $builder) use ($studentId): void {
-                    $builder
+            $query->whereHas('jadwalPelajaran', function (Builder $schedule) use ($studentId, $year): void {
+                $schedule->where('tahun_akademik_id', $year)
+                    ->whereHas('kelas.anggotaKelas', fn (Builder $members) => $members
                         ->where('siswa_id', $studentId)
-                        ->whereNull('tanggal_selesai');
-                }
-            );
-
+                        ->whereDate('tanggal_mulai', '<=', now('Asia/Jakarta')->toDateString())
+                        ->whereNull('tanggal_selesai'));
+            });
             return;
         }
 
@@ -662,28 +622,10 @@ class AssignmentController extends Controller
         }
 
         if ($role === 'GURU') {
-            return $assignment->jadwalPelajaran?->guru_id
-                === $user->guru?->id;
+            return AssignmentTeachingAccess::teacherCanAccess($user, $assignment->jadwalPelajaran);
         }
-
         if ($role === 'SISWA') {
-            $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
-                return false;
-            }
-
-            return $assignment->jadwalPelajaran
-                ->kelas()
-                ->whereHas(
-                    'anggotaKelas',
-                    function (Builder $builder) use ($studentId): void {
-                        $builder
-                            ->where('siswa_id', $studentId)
-                            ->whereNull('tanggal_selesai');
-                    }
-                )
-                ->exists();
+            return AssignmentTeachingAccess::studentCanAccess($user->siswa, $assignment->jadwalPelajaran);
         }
 
         return false;
@@ -693,29 +635,6 @@ class AssignmentController extends Controller
         Assignment $assignment,
         User $user
     ): bool {
-        if ($user->role?->code !== 'GURU') {
-            return false;
-        }
-
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return false;
-        }
-
-        $activeAcademicYearId = TahunAkademik::query()
-            ->where('is_active', true)
-            ->value('id');
-
-        if ($activeAcademicYearId === null) {
-            return false;
-        }
-
-        $schedule = $assignment->jadwalPelajaran;
-
-        return $schedule !== null
-            && (int) $schedule->guru_id === (int) $guruId
-            && (int) $schedule->tahun_akademik_id
-                === (int) $activeAcademicYearId;
+        return AssignmentTeachingAccess::teacherCanAccess($user, $assignment->jadwalPelajaran);
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Models\Assignment;
-use App\Models\TahunAkademik;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreSubmissionRequest extends FormRequest
@@ -32,32 +31,7 @@ class StoreSubmissionRequest extends FormRequest
             return false;
         }
 
-        $assignment->loadMissing([
-            'jadwalPelajaran',
-        ]);
-
-        $schedule = $assignment->jadwalPelajaran;
-
-        if (! $schedule) {
-            return false;
-        }
-
-        $activeAcademicYearId = TahunAkademik::query()
-            ->where('is_active', true)
-            ->value('id');
-
-        if (
-            $activeAcademicYearId === null ||
-            (int) $schedule->tahun_akademik_id !==
-                (int) $activeAcademicYearId
-        ) {
-            return false;
-        }
-
-        return $student->anggotaKelas()
-            ->where('kelas_id', $schedule->kelas_id)
-            ->whereNull('tanggal_selesai')
-            ->exists();
+        return \App\Support\AssignmentTeachingAccess::studentCanAccess($student, $assignment->jadwalPelajaran);
     }
 
     public function rules(): array
@@ -74,6 +48,7 @@ class StoreSubmissionRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
 
             // Maksimal 10 file dalam satu submission.
@@ -88,6 +63,7 @@ class StoreSubmissionRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
         ];
     }

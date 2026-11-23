@@ -1,563 +1,171 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { materialApi } from '../../../services/materialApi'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { academicYearApi } from '../../../services/academicYearApi'
+import { materialApi } from '../../../services/materialApi'
+import { studentMaterialWorkspaceApi } from '../../../services/studentMaterialWorkspaceApi'
+import {
+  fileKind, fileSize, formatDateWib, parseMaterialsWorkspace, uniqueTeachers,
+} from './studentMaterialsView'
 import './SiswaMaterialsPage.css'
 
-function collection(response) {
-  if (Array.isArray(response?.data?.data)) return response.data.data
-  if (Array.isArray(response?.data)) return response.data
-  if (Array.isArray(response)) return response
-  return []
+function getYears(response) {
+  const value = response?.data?.data ?? response?.data ?? response
+  return Array.isArray(value) ? value : []
 }
-
-function message(error) {
-  return (
-    error?.payload?.message ||
-    error?.response?.data?.message ||
-    error?.message ||
-    'Terjadi kesalahan saat memuat bahan ajar.'
-  )
-}
-
-function formatUploadDate(value) {
-  if (!value) return 'Tanggal tidak tersedia'
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return 'Tanggal tidak tersedia'
-  }
-
-  const formatted = new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Jakarta',
-  }).format(date)
-
-  return `${formatted} WIB`
-}
-
-function scheduleDetails(item) {
-  const schedule = item?.jadwal_pelajaran || {}
-  const className =
-    schedule?.kelas?.nama_kelas ||
-    schedule?.kelas?.nama ||
-    'Kelas tidak tersedia'
-  const level = schedule?.kelas?.tingkat
-  const subject =
-    schedule?.mapel?.nama_mapel ||
-    schedule?.mapel?.nama ||
-    'Mata pelajaran tidak tersedia'
-  const time = [schedule?.jam_mulai, schedule?.jam_selesai]
-    .filter(Boolean)
-    .join('–')
-
-  return {
-    className,
-    level: level === null || level === undefined || level === '' ? '' : String(level),
-    subject,
-    day: schedule?.hari || '',
-    time,
-  }
-}
-
-function scheduleLabel(item) {
-  const details = scheduleDetails(item)
-
-  // Pada halaman siswa, tampilkan konteks pembelajaran tanpa tingkat/kelas.
-  return [details.subject, details.day, details.time]
-    .filter(Boolean)
-    .join(' • ')
-}
-
-function materialAttachments(item) {
-  if (Array.isArray(item?.lampiran)) {
-    return item.lampiran
-  }
-
-  if (item?.has_file || item?.file_name) {
-    return [
-      {
-        id: null,
-        file_name: item.file_name || 'Unduh materi',
-        file_size: item.file_size ?? null,
-        created_at: item.created_at ?? null,
-      },
-    ]
-  }
-
-  return []
-}
-
-function formatFileSize(bytes) {
-  if (bytes === null || bytes === undefined || bytes === '') {
-    return ''
-  }
-
-  const size = Number(bytes)
-
-  if (!Number.isFinite(size) || size < 0) {
-    return ''
-  }
-
-  if (size < 1024 * 1024) {
-    return `${Math.max(1, Math.round(size / 1024))} KB`
-  }
-
-  return `${(size / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function normalized(value) {
-  return String(value ?? '').trim().toLocaleLowerCase('id-ID')
-}
-
-function compareText(a, b) {
-  return String(a ?? '').localeCompare(String(b ?? ''), 'id-ID', {
-    numeric: true,
-    sensitivity: 'base',
-  })
+function errorMessage(error) {
+  return error?.payload?.message || error?.response?.data?.message || error?.message || 'Bahan ajar tidak berhasil dimuat.'
 }
 
 export default function SiswaMaterialsPage() {
-  const [materials, setMaterials] = useState([])
-  const [academicYears, setAcademicYears] = useState([])
-  const [selectedYearId, setSelectedYearId] = useState('')
+  const [years, setYears] = useState([])
+  const [yearId, setYearId] = useState('')
+  const [subjectId, setSubjectId] = useState(null)
+  const [workspace, setWorkspace] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState('newest')
+  const [page, setPage] = useState(1)
   const [downloading, setDownloading] = useState(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [subjectFilter, setSubjectFilter] = useState('')
-  const [levelFilter, setLevelFilter] = useState('')
-  const [classFilter, setClassFilter] = useState('')
-  const [dateSort, setDateSort] = useState('newest')
+  const generation = useRef(0)
 
-  // Muat daftar tahun akademik dan pilih tahun aktif sebagai pilihan awal.
   useEffect(() => {
-    let cancelled = false
+    let live = true
+    academicYearApi.getAll().then((r) => {
+      if (!live) return
+      const list = getYears(r)
+      setYears(list)
+      const active = list.find((y) => y.is_active === true || y.is_active === 1 || y.is_active === '1')
+      setYearId(active ? String(active.id) : '')
+      if (!active) setLoading(false)
+    }).catch((err) => {
+      if (live) { setError(errorMessage(err)); setLoading(false) }
+    })
+    return () => { live = false; generation.current += 1 }
+  }, [])
 
-    async function loadAcademicYears() {
-      try {
-        const response = await academicYearApi.getAll()
-        const years = collection(response)
-        const activeYear = years.find(
-          (year) =>
-            year.is_active === true ||
-            year.is_active === 1 ||
-            year.is_active === '1',
-        )
-
-        if (cancelled) return
-
-        setAcademicYears(years)
-        setSelectedYearId((current) => {
-          if (current && years.some(
-            (year) => String(year.id) === String(current),
-          )) {
-            return current
-          }
-
-          return activeYear ? String(activeYear.id) : ''
-        })
-      } catch (err) {
-        if (!cancelled) {
-          setError(message(err))
-        }
-      }
-    }
-
-    loadAcademicYears()
-
-    return () => {
-      cancelled = true
+  const load = useCallback(async (selectedYear, selectedSubject, selectedPage, term, order) => {
+    const requestId = ++generation.current
+    if (!selectedYear) { setWorkspace(null); setLoading(false); setDetailLoading(false); return }
+    if (selectedSubject) setDetailLoading(true)
+    else setLoading(true)
+    setError('')
+    try {
+      const response = await studentMaterialWorkspaceApi.get({
+        academic_year_id: selectedYear,
+        ...(selectedSubject ? { subject_id: selectedSubject, page: selectedPage, per_page: 10, search: term.trim(), sort: order } : {}),
+      })
+      const result = parseMaterialsWorkspace(response)
+      if (requestId !== generation.current) return
+      setWorkspace(result)
+    } catch (err) {
+      if (requestId !== generation.current) return
+      setError(errorMessage(err))
+      setWorkspace(null)
+    } finally {
+      if (requestId === generation.current) { setLoading(false); setDetailLoading(false) }
     }
   }, [])
 
-  const load = useCallback(async () => {
-    if (!selectedYearId) {
-      setMaterials([])
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await materialApi.getAll({
-        per_page: 100,
-        academic_year_id: selectedYearId,
-      })
-      setMaterials(collection(response))
-    } catch (err) {
-      setError(message(err))
-      setMaterials([])
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedYearId])
-
   useEffect(() => {
-    load()
-  }, [load])
+    setWorkspace(null)
+    setSubjectId(null)
+    setSearch('')
+    setSort('newest')
+    setPage(1)
+    load(yearId, null, 1, '', 'newest')
+  }, [yearId, load])
 
-  const filterOptions = useMemo(() => {
-    const details = materials.map((item) => ({
-      item,
-      schedule: scheduleDetails(item),
-    }))
-
-    const subjects = [...new Set(details.map(({ schedule }) => schedule.subject)
-      .filter((value) => value && value !== 'Mata pelajaran tidak tersedia'))]
-      .sort(compareText)
-
-    const subjectItems = details.filter(({ schedule }) =>
-      !subjectFilter || schedule.subject === subjectFilter,
-    )
-
-    const levels = [...new Set(subjectItems.map(({ schedule }) => schedule.level)
-      .filter(Boolean))]
-      .sort(compareText)
-
-    const levelItems = subjectItems.filter(({ schedule }) =>
-      !levelFilter || schedule.level === levelFilter,
-    )
-
-    const classes = [...new Set(levelItems.map(({ schedule }) => schedule.className)
-      .filter((value) => value && value !== 'Kelas tidak tersedia'))]
-      .sort(compareText)
-
-    return { subjects, levels, classes }
-  }, [materials, subjectFilter, levelFilter])
-
-  useEffect(() => {
-    if (levelFilter && !filterOptions.levels.includes(levelFilter)) {
-      setLevelFilter('')
-      setClassFilter('')
-      return
-    }
-
-    if (classFilter && !filterOptions.classes.includes(classFilter)) {
-      setClassFilter('')
-    }
-  }, [filterOptions, levelFilter, classFilter])
-
-  const visibleMaterials = useMemo(() => {
-    const query = normalized(searchTerm)
-
-    return materials
-      .filter((item) => {
-        const details = scheduleDetails(item)
-        const attachmentNames = materialAttachments(item)
-          .map((attachment) => attachment.file_name)
-          .join(' ')
-
-        const searchable = normalized([
-          item.judul,
-          item.deskripsi,
-          attachmentNames,
-          details.subject,
-          details.className,
-          details.level,
-        ].join(' '))
-
-        if (query && !searchable.includes(query)) return false
-        if (subjectFilter && details.subject !== subjectFilter) return false
-        if (levelFilter && details.level !== levelFilter) return false
-        if (classFilter && details.className !== classFilter) return false
-
-        return true
-      })
-      .sort((a, b) => {
-        const dateA = new Date(a.created_at || 0).getTime()
-        const dateB = new Date(b.created_at || 0).getTime()
-        const safeA = Number.isFinite(dateA) ? dateA : 0
-        const safeB = Number.isFinite(dateB) ? dateB : 0
-
-        return dateSort === 'oldest' ? safeA - safeB : safeB - safeA
-      })
-  }, [materials, searchTerm, subjectFilter, levelFilter, classFilter, dateSort])
-
-  function resetFilters() {
-    setSearchTerm('')
-    setSubjectFilter('')
-    setLevelFilter('')
-    setClassFilter('')
-    setDateSort('newest')
+  // Clicking a card changes React state only; the page is never navigated/reloaded.
+  function openSubject(id) {
+    setSubjectId(id)
+    setSearch('')
+    setSort('newest')
+    setPage(1)
+    load(yearId, id, 1, '', 'newest')
   }
-
-  async function downloadAttachment(material, attachment, index) {
-    const key = `${material.id}-${attachment.id ?? index}`
-
+  function back() {
+    setSubjectId(null)
+    setSearch('')
+    setPage(1)
+    load(yearId, null, 1, '', sort)
+  }
+  function changePage(next) {
+    setPage(next)
+    load(yearId, subjectId, next, search, sort)
+  }
+  async function download(material, file, index) {
+    const key = `${material.id}-${file.id ?? index}`
+    setDownloading(key)
     setError('')
     setNotice('')
-    setDownloading(key)
-
     try {
-      if (attachment.id !== null && attachment.id !== undefined) {
-        await materialApi.downloadAttachment(
-          material.id,
-          attachment.id,
-          attachment.file_name || material.judul,
-        )
+      if (file.id !== null && file.id !== undefined) {
+        await materialApi.downloadAttachment(material.id, file.id, file.name || material.title)
       } else {
-        await materialApi.download(
-          material.id,
-          attachment.file_name || material.judul,
-        )
+        await materialApi.download(material.id, file.name || material.title)
       }
-
-      setNotice(
-        `Permintaan unduhan "${attachment.file_name || material.judul}" berhasil diproses.`,
-      )
-    } catch (err) {
-      setError(message(err))
-    } finally {
-      setDownloading(null)
-    }
+      setNotice('Unduhan berhasil diproses.')
+    } catch (err) { setError(errorMessage(err)) }
+    finally { setDownloading(null) }
   }
 
+  const activeSubject = workspace?.subjects?.find((s) => s.id === subjectId)
+  const materials = workspace?.materials
+  const totalMaterials = workspace?.subjects?.reduce((sum, s) => sum + Number(s.material_count || 0), 0) ?? 0
+
   return (
-    <main className="student-materials-page">
-      <header className="student-materials-heading">
-        <div>
-          <p className="student-materials-eyebrow">PEMBELAJARAN</p>
-          <h1>Bahan Ajar</h1>
-          <p>
-            Materi, tanggal unggah, dan lampiran yang tersedia untuk kelas Anda.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="student-materials-refresh"
-          onClick={load}
-          disabled={loading}
-        >
-          {loading ? 'Memuat…' : 'Muat ulang'}
-        </button>
-      </header>
-
-      {error && (
-        <div className="student-materials-alert error" role="alert">
-          {error}
-        </div>
-      )}
-
-      {notice && (
-        <div className="student-materials-alert success" role="status">
-          {notice}
-        </div>
-      )}
-
-      <section className="student-materials-panel">
-        <div className="student-materials-panel-title">
-          <div>
-            <h2>Materi pembelajaran</h2>
-            <span>
-              Menampilkan {visibleMaterials.length} dari {materials.length} materi
-            </span>
-          </div>
-
-          <label className="student-materials-filter-field">
-            <span>Tahun akademik</span>
-            <select
-              value={selectedYearId}
-              onChange={(event) => setSelectedYearId(event.target.value)}
-              disabled={loading}
-            >
-              {!selectedYearId && (
-                <option value="">Tidak ada tahun akademik aktif</option>
-              )}
-
-              {academicYears.map((year) => (
-                <option key={year.id} value={String(year.id)}>
-                  {year.tahun_mulai}/{year.tahun_selesai}
-                  {' — '}
-                  {year.semester === 'GANJIL'
-                    ? 'Ganjil'
-                    : year.semester === 'GENAP'
-                      ? 'Genap'
-                      : year.semester}
-                  {year.is_active === true ||
-                  year.is_active === 1 ||
-                  year.is_active === '1'
-                    ? ' (Aktif)'
-                    : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="student-materials-filters">
-          <label className="student-materials-filter-field student-materials-search">
-            <span>Cari judul atau nama file</span>
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Ketik judul atau nama lampiran…"
-              aria-label="Cari judul atau nama file"
-            />
-          </label>
-
-          <label className="student-materials-filter-field">
-            <span>Mata pelajaran</span>
-            <select
-              value={subjectFilter}
-              onChange={(event) => {
-                setSubjectFilter(event.target.value)
-                setLevelFilter('')
-                setClassFilter('')
-              }}
-            >
-              <option value="">Semua mata pelajaran</option>
-              {filterOptions.subjects.map((subject) => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="student-materials-filter-field">
-            <span>Tingkat</span>
-            <select
-              value={levelFilter}
-              onChange={(event) => {
-                setLevelFilter(event.target.value)
-                setClassFilter('')
-              }}
-              disabled={!subjectFilter || filterOptions.levels.length === 0}
-            >
-              <option value="">Semua tingkat</option>
-              {filterOptions.levels.map((level) => (
-                <option key={level} value={level}>Tingkat {level}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="student-materials-filter-field">
-            <span>Kelas</span>
-            <select
-              value={classFilter}
-              onChange={(event) => setClassFilter(event.target.value)}
-              disabled={!subjectFilter || !levelFilter || filterOptions.classes.length === 0}
-            >
-              <option value="">Semua kelas</option>
-              {filterOptions.classes.map((className) => (
-                <option key={className} value={className}>{className}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="student-materials-filter-field">
-            <span>Urutkan tanggal</span>
-            <select value={dateSort} onChange={(event) => setDateSort(event.target.value)}>
-              <option value="newest">Terbaru</option>
-              <option value="oldest">Terlama</option>
-            </select>
-          </label>
-
-          <button
-            type="button"
-            className="student-materials-reset"
-            onClick={resetFilters}
-          >
-            Reset filter
-          </button>
-        </div>
-
-        {loading ? (
-          <p className="student-materials-state">Memuat bahan ajar…</p>
-        ) : visibleMaterials.length === 0 ? (
-          <p className="student-materials-state">
-            {materials.length === 0
-              ? 'Belum ada bahan ajar yang tersedia.'
-              : 'Tidak ada bahan ajar yang cocok dengan filter pencarian.'}
-          </p>
-        ) : (
-          <div className="student-materials-list">
-            {visibleMaterials.map((item) => {
-              const attachments = materialAttachments(item)
-
-              return (
-                <article className="student-material-card" key={item.id}>
-                  <div className="student-material-symbol">
-                    <span>DOC</span>
-                  </div>
-
-                  <div className="student-material-info">
-                    <h3>{item.judul || 'Bahan ajar tanpa judul'}</h3>
-
-                    <p className="student-material-upload-date">
-                      <span>Diunggah:</span>{' '}
-                      {formatUploadDate(item.created_at)}
-                    </p>
-
-                    <p className="student-material-meta">
-                      {scheduleLabel(item)}
-                    </p>
-
-                    {item.deskripsi && (
-                      <p className="student-material-description">
-                        {item.deskripsi}
-                      </p>
-                    )}
-
-                    {attachments.length > 0 ? (
-                      <div className="student-material-attachments">
-                        <strong>Lampiran ({attachments.length})</strong>
-
-                        <ul>
-                          {attachments.map((attachment, index) => {
-                            const key = `${item.id}-${attachment.id ?? index}`
-
-                            return (
-                              <li
-                                key={attachment.id ?? `${attachment.file_name}-${index}`}
-                              >
-                                <div className="student-material-file-info">
-                                  <span className="student-material-filename">
-                                    {attachment.file_name || 'Lampiran tanpa nama'}
-                                  </span>
-
-                                  <small className="student-material-attachment-date">
-                                    Diunggah: {formatUploadDate(attachment.created_at)}
-                                  </small>
-
-                                  {attachment.file_size !== null &&
-                                    attachment.file_size !== undefined && (
-                                      <small className="student-material-file-size">
-                                        {formatFileSize(attachment.file_size)}
-                                      </small>
-                                    )}
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => downloadAttachment(item, attachment, index)}
-                                  disabled={downloading !== null}
-                                >
-                                  {downloading === key ? 'Mengunduh…' : 'Unduh'}
-                                </button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
-                    ) : (
-                      <small>Tidak ada file lampiran.</small>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
+    <main className="smv2-page">
+      <div className="smv2-heading">
+        <div><p className="smv2-eyebrow">PEMBELAJARAN / BAHAN AJAR</p><h1>Bahan ajar</h1><p>Materi dan lampiran dari guru pada kelas dan periode akademikmu.</p></div>
+        <button type="button" className="smv2-button" onClick={() => load(yearId, subjectId, page, search, sort)} disabled={!yearId || loading || detailLoading}>Perbarui data</button>
+      </div>
+      {error && <div className="smv2-alert" role="alert">{error}</div>}
+      {notice && <div className="smv2-notice" role="status">{notice}</div>}
+      <section className="smv2-context" aria-label="Konteks akademik">
+        <label><span>Periode akademik</span><select aria-label="Periode akademik" value={yearId} onChange={(e) => setYearId(e.target.value)}>
+          {!yearId && <option value="">Tidak ada periode aktif</option>}
+          {years.map((y) => <option key={y.id} value={String(y.id)}>{y.tahun_mulai}/{y.tahun_selesai} · {y.semester === 'GANJIL' ? 'Ganjil' : 'Genap'}{y.is_active ? ' (Aktif)' : ''}</option>)}
+        </select></label>
+        <div><span>Kelas</span><strong>{workspace?.class?.nama ?? (workspace?.placement_status === 'scheduled' ? 'Belum efektif' : 'Sesuai periode')}</strong></div>
+        <div><span>Status data</span><strong>{workspace?.placement_status === 'active' ? 'Penempatan aktif' : workspace?.academic_year?.is_active ? 'Tidak ada penempatan aktif' : 'Riwayat akademik'}</strong></div>
       </section>
+      <section className="smv2-metrics" aria-label="Ringkasan bahan ajar">
+        <div><span>Mata pelajaran</span><strong>{workspace?.subjects?.length ?? '—'}</strong></div>
+        <div><span>Materi tersedia</span><strong>{workspace ? totalMaterials : '—'}</strong></div>
+      </section>
+      {loading && !workspace ? <section className="smv2-empty" role="status">Memuat bahan ajar…</section> : null}
+      {workspace && subjectId === null && <section className="smv2-section">
+        <div className="smv2-section-head"><div><h2>Mata pelajaran</h2><p>Pilih mata pelajaran untuk melihat materi.</p></div><small>{workspace.subjects.length} mata pelajaran</small></div>
+        {workspace.subjects.length === 0 ? <div className="smv2-empty">Belum ada mata pelajaran yang tersedia untuk penempatan ini.</div> :
+          <div className="smv2-grid">{workspace.subjects.map((subject) => <button type="button" key={subject.id} className="smv2-subject" onClick={() => openSubject(subject.id)}>
+            <span className="smv2-icon" aria-hidden="true">▤</span><strong>{subject.name}</strong>
+            <span className="smv2-muted">{uniqueTeachers(subject.teachers).join(' · ') || 'Guru belum tersedia'}</span>
+            <span className="smv2-subject-footer">{subject.material_count} materi <span>Lihat materi →</span></span>
+          </button>)}</div>}
+      </section>}
+      {workspace && subjectId !== null && <section className="smv2-section">
+        <button type="button" className="smv2-button" onClick={back}>← Semua mata pelajaran</button>
+        <div className="smv2-section-head"><div><p className="smv2-eyebrow">MATERI MATA PELAJARAN</p><h2>{activeSubject?.name || 'Bahan ajar'}</h2><p>{uniqueTeachers(activeSubject?.teachers).join(' · ')}</p></div><small>{materials?.total ?? 0} materi</small></div>
+        <form className="smv2-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); load(yearId, subjectId, 1, search, sort) }}>
+          <label>Cari judul atau nama file<input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari bahan ajar…" /></label>
+          <label>Urutkan<select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); load(yearId, subjectId, 1, search, e.target.value) }}><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select></label>
+          <button type="submit" className="smv2-button smv2-primary">Cari</button>
+        </form>
+        {detailLoading && <p className="smv2-loading" role="status">Memuat daftar materi…</p>}
+        {!detailLoading && materials?.data?.length === 0 && <div className="smv2-empty">Belum ada materi yang cocok. Materi kosong bukan berarti ada kesalahan.</div>}
+        <div className="smv2-materials">{materials?.data?.map((m) => <article key={m.id} className="smv2-material">
+          <div className="smv2-material-header"><div><h3>{m.title}</h3><p>{m.teacher || 'Guru pengampu'} · {formatDateWib(m.created_at)}</p></div><span className="smv2-count">{m.files.length} lampiran</span></div>
+          {m.description && <p className="smv2-description">{m.description}</p>}
+          {m.files.length ? <ul className="smv2-files">{m.files.map((file, index) => <li key={file.id ?? `legacy-${index}`}>
+            <span className="smv2-file-kind">{fileKind(file.name, file.mime_type)}</span><span className="smv2-file-label"><strong>{file.name || 'Lampiran'}</strong><small>{fileSize(file.size)}</small></span>
+            <button type="button" className="smv2-button" onClick={() => download(m, file, index)} disabled={downloading !== null}>{downloading === `${m.id}-${file.id ?? index}` ? 'Mengunduh…' : 'Unduh'}</button>
+          </li>)}</ul> : <p className="smv2-muted">Materi ini tidak memiliki lampiran.</p>}
+        </article>)}</div>
+        {materials && materials.last_page > 1 && <div className="smv2-pagination"><button type="button" className="smv2-button" disabled={page <= 1 || detailLoading} onClick={() => changePage(page - 1)}>Sebelumnya</button><span>Halaman {page} dari {materials.last_page}</span><button type="button" className="smv2-button" disabled={page >= materials.last_page || detailLoading} onClick={() => changePage(page + 1)}>Berikutnya</button></div>}
+      </section>}
+      <p className="smv2-footnote">Akses materi mengikuti penempatan kelas dan periode akademik yang diverifikasi oleh sekolah. File diunduh melalui API terlindungi.</p>
     </main>
   )
 }

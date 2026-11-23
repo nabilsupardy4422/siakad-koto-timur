@@ -3,7 +3,10 @@
 use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AcademicYearExcelController;
 use App\Http\Controllers\Api\AssignmentController;
+use App\Http\Controllers\Api\StudentAssignmentWorkspaceController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\StudentAttendanceWorkspaceController;
+use App\Http\Controllers\Api\StudentGradeWorkspaceController;
 use App\Http\Controllers\Api\Auth\ActivateAccountController;
 use App\Http\Controllers\Api\Auth\GoogleLoginController;
 use App\Http\Controllers\Api\Auth\GoogleUsernameRecoveryController;
@@ -21,6 +24,7 @@ use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\IssueUserActivationCodeController;
 use App\Http\Controllers\Api\MaterialController;
+use App\Http\Controllers\Api\StudentMaterialWorkspaceController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ScheduleController;
@@ -144,6 +148,12 @@ Route::middleware([
         '/dashboard',
         DashboardController::class
     )->middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA');
+
+    // Dashboard Siswa V2: workspace baca terisolasi berdasarkan akun login.
+    Route::get(
+        '/dashboard/student-workspace',
+        [\App\Http\Controllers\Api\StudentDashboardWorkspaceController::class, 'index']
+    )->middleware('role:SISWA');
 
     /*
     |--------------------------------------------------------------------------
@@ -380,9 +390,16 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/attendance', [AttendanceController::class, 'index']);
         Route::get('/attendance/recap', [AttendanceController::class, 'recap']);
+
+        // Presensi Siswa V2: data pribadi siswa, hanya baca.
+        Route::get(
+            '/attendance/student-workspace',
+            [StudentAttendanceWorkspaceController::class, 'index']
+        )->middleware('role:SISWA');
     });
 
     Route::middleware('role:GURU')->group(function (): void {
+        Route::get('/attendance/roster', [AttendanceController::class, 'roster']);
         Route::post('/attendance', [AttendanceController::class, 'store']);
         Route::post('/attendance/bulk', [AttendanceController::class, 'bulkStore']);
         Route::put('/attendance/{attendance}', [AttendanceController::class, 'update']);
@@ -398,6 +415,10 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     | Teaching Materials
     |--------------------------------------------------------------------------
     */
+    // Student Materials V2: server-scoped read-only workspace.
+    Route::get('/materials/student-workspace', [StudentMaterialWorkspaceController::class, 'index'])
+        ->middleware('role:SISWA');
+
     Route::middleware('role:GURU,SISWA')->group(function (): void {
         Route::get('/materials', [MaterialController::class, 'index']);
         Route::get('/materials/{material}', [MaterialController::class, 'show']);
@@ -448,6 +469,12 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/grades', [GradeController::class, 'index']);
         Route::get('/grades/recap', [GradeController::class, 'recap']);
+
+        // Nilai Siswa V2: hanya membaca nilai milik akun SISWA.
+        Route::get(
+            '/grades/student-workspace',
+            [StudentGradeWorkspaceController::class, 'index']
+        )->middleware('role:SISWA');
     });
 
     Route::middleware('role:GURU')->group(function (): void {
@@ -461,6 +488,9 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        // Tugas Siswa V2 — read-only, current-period server scope.
+        Route::get('/assignments/student-workspace', [StudentAssignmentWorkspaceController::class, 'index'])
+            ->middleware('role:SISWA');
         Route::get('/assignments', [AssignmentController::class, 'index']);
         Route::get('/assignments/{assignment}', [AssignmentController::class, 'show']);
 
@@ -532,6 +562,17 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        // Reporting Workspace V2 - Guru only.
+        Route::get(
+            '/reports/context',
+            [ReportController::class, 'context']
+        )->middleware('role:GURU')->name('reports.context');
+
+        Route::get(
+            '/reports/{reportType}/preview',
+            [ReportController::class, 'preview']
+        )->middleware('role:GURU')->name('reports.preview');
+
         Route::get('/reports/{reportType}', [ReportController::class, 'index']);
     });
 

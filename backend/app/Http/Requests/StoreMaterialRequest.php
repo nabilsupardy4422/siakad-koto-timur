@@ -36,6 +36,8 @@ class StoreMaterialRequest extends FormRequest
                 'nullable',
                 'file',
                 'max:10240',
+                'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp,jpg,jpeg,png,gif,webp,txt,csv,zip,mp3,mp4,wav',
+                'extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp,jpg,jpeg,png,gif,webp,txt,csv,zip,mp3,mp4,wav',
             ],
 
             // Mendukung beberapa lampiran dalam satu request.
@@ -48,6 +50,8 @@ class StoreMaterialRequest extends FormRequest
             'files.*' => [
                 'file',
                 'max:10240',
+                'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp,jpg,jpeg,png,gif,webp,txt,csv,zip,mp3,mp4,wav',
+                'extensions:pdf,doc,docx,xls,xlsx,ppt,pptx,odt,ods,odp,jpg,jpeg,png,gif,webp,txt,csv,zip,mp3,mp4,wav',
             ],
         ];
     }
@@ -81,6 +85,11 @@ class StoreMaterialRequest extends FormRequest
 
             'file.max' =>
                 'Ukuran file bahan ajar maksimal 10 MB.',
+
+            'file.mimes' => 'Format file bahan ajar tidak didukung.',
+            'file.extensions' => 'Ekstensi file bahan ajar tidak didukung.',
+            'files.*.mimes' => 'Format salah satu lampiran tidak didukung.',
+            'files.*.extensions' => 'Ekstensi salah satu lampiran tidak didukung.',
 
             'files.array' =>
                 'Daftar lampiran harus berupa kumpulan file.',

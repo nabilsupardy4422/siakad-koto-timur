@@ -45,6 +45,8 @@ class AssignmentResource extends JsonResource
                 'jadwalPelajaran',
                 fn () => [
                     'id' => $schedule?->id,
+                    'guru_id' => $schedule?->guru_id,
+                    'tahun_akademik_id' => $schedule?->tahun_akademik_id,
                     'semester' => $schedule?->semester,
 
                     'mapel' => $schedule?->mapel

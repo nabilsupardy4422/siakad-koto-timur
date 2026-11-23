@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\AnggotaKelas;
 use App\Models\Presensi;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Support\AttendanceTeachingAccess;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -12,7 +13,9 @@ class UpdateAttendanceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $attendance = $this->route('attendance');
+        return $attendance instanceof Presensi && $attendance->jadwalPelajaran !== null
+            && AttendanceTeachingAccess::canManage($this->user(), $attendance->jadwalPelajaran);
     }
 
     public function rules(): array
@@ -20,7 +23,7 @@ class UpdateAttendanceRequest extends FormRequest
         return [
             'tanggal' => [
                 'sometimes',
-                'date',
+                'date_format:Y-m-d',
             ],
 
             'status' => [
@@ -44,6 +47,9 @@ class UpdateAttendanceRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
                 /** @var Presensi|null $attendance */
                 $attendance = $this->route('attendance');
 
@@ -51,13 +57,8 @@ class UpdateAttendanceRequest extends FormRequest
                     return;
                 }
 
-                // Jika tanggal tidak diubah, tidak perlu melakukan
-                // validasi membership/duplicate berdasarkan tanggal baru.
-                if (!$this->has('tanggal')) {
-                    return;
-                }
-
-                $tanggal = $this->input('tanggal');
+                // Validate the effective date even for a status-only update.
+                $tanggal = $this->input('tanggal', $attendance->tanggal?->toDateString());
 
                 if (!is_string($tanggal)) {
                     return;

@@ -395,7 +395,7 @@ class ClassMemberTest extends TestCase
         ]);
     }
 
-    public function test_wali_kelas_can_add_student_to_assigned_class(): void
+    public function test_wali_kelas_cannot_add_student_to_assigned_class(): void
     {
         [$user, $guru] = $this->createTeacher();
 
@@ -414,12 +414,11 @@ class ClassMemberTest extends TestCase
                 'siswa_id' => $student->id,
                 'tanggal_mulai' => '2026-07-01',
             ]
-        )->assertCreated();
+        )->assertForbidden();
 
-        $this->assertDatabaseHas('anggota_kelas', [
+        $this->assertDatabaseMissing('anggota_kelas', [
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
-            'tanggal_mulai' => '2026-07-01 00:00:00',
         ]);
     }
 
@@ -679,7 +678,7 @@ class ClassMemberTest extends TestCase
         );
     }
 
-    public function test_wali_kelas_can_end_class_membership(): void
+    public function test_wali_kelas_cannot_end_class_membership(): void
     {
         [$user, $guru] = $this->createTeacher();
 
@@ -699,9 +698,9 @@ class ClassMemberTest extends TestCase
 
         $this->deleteJson(
             "/api/classes/{$class->id}/students/{$student->id}"
-        )->assertOk();
+        )->assertForbidden();
 
-        $this->assertNotNull(
+        $this->assertNull(
             AnggotaKelas::find($membership->id)->tanggal_selesai
         );
     }
@@ -828,5 +827,66 @@ class ClassMemberTest extends TestCase
             ->assertJsonPath('meta.per_page', 2)
             ->assertJsonPath('meta.current_page', 1)
             ->assertJsonPath('meta.total', 3);
+    }
+
+    public function test_homeroom_scope_disappears_when_period_changes_and_returns_only_after_new_assignment(): void
+    {
+        [$user, $guru] = $this->createTeacher();
+        $old = $this->createAcademicYear();
+        $new = TahunAkademik::create(['tahun_mulai'=>2026,'tahun_selesai'=>2027,'semester'=>'GENAP','is_active'=>false]);
+        $oldClass = $this->createClass($old);
+        [, $peer] = $this->createTeacher();
+        $this->createTeachingSchedule($peer, $oldClass, $old);
+        $newClass = $this->createClass($new);
+        [, $student] = $this->createStudent();
+        $this->createMembership($oldClass, $student, today()->subDays(2)->toDateString());
+        $assignment = $this->assignWaliKelas($guru, $oldClass, $old);
+        $assignment->update(['tanggal_mulai'=>today()->subDays(2)->toDateString()]);
+        Sanctum::actingAs($user);
+        $this->getJson('/api/me')->assertOk()->assertJsonPath('data.assignments.0.academic_year_id',$old->id);
+        $this->getJson("/api/classes/{$oldClass->id}/students?scope=homeroom&membership_status=all")->assertOk()->assertJsonCount(1,'data');
+        $this->getJson("/api/classes/{$oldClass->id}")->assertOk();
+        $this->getJson("/api/students/{$student->id}")->assertOk();
+        $this->get("/api/reports/schedules?format=excel&scope=homeroom&academic_year_id={$old->id}&class_id={$oldClass->id}")->assertOk();
+        $old->update(['is_active'=>false]);
+        $new->update(['is_active'=>true]);
+        $this->getJson('/api/me')->assertOk()->assertJsonPath('data.assignments',[]);
+        $this->getJson("/api/classes/{$oldClass->id}/students?scope=homeroom")->assertForbidden();
+        $this->getJson("/api/classes/{$oldClass->id}/students")->assertForbidden();
+        $this->getJson("/api/classes/{$oldClass->id}")->assertForbidden();
+        $this->getJson("/api/students/{$student->id}")->assertForbidden();
+        $this->getJson("/api/grades/recap?scope=homeroom&class_id={$oldClass->id}")->assertForbidden();
+        $this->getJson("/api/attendance/recap?scope=homeroom&class_id={$oldClass->id}")->assertForbidden();
+        $this->getJson("/api/reports/schedules?format=excel&scope=homeroom&academic_year_id={$old->id}&class_id={$oldClass->id}")->assertForbidden();
+        $this->getJson("/api/classes/{$newClass->id}/students?scope=homeroom")->assertForbidden();
+        $this->getJson('/api/homeroom-assignments?scope=homeroom')->assertOk()->assertJsonCount(0,'data');
+        $this->assertDatabaseHas('wali_kelas',['id'=>$assignment->id,'tanggal_selesai'=>null]);
+        $next = $this->assignWaliKelas($guru, $newClass, $new);
+        $next->update(['tanggal_mulai'=>today()->subDay()->toDateString()]);
+        $this->getJson('/api/me')->assertOk()->assertJsonPath('data.assignments.0.academic_year_id',$new->id);
+        $this->getJson("/api/classes/{$newClass->id}/students?scope=homeroom")->assertOk();
+        $this->getJson("/api/classes/{$oldClass->id}/students?scope=homeroom")->assertForbidden();
+    }
+
+    public function test_homeroom_history_requires_effective_assignment_and_legacy_roster_is_unchanged(): void
+    {
+        [$user,$guru]=$this->createTeacher();
+        $year=$this->createAcademicYear();
+        $class=$this->createClass($year);
+        $outside=$this->createClass($year,'Outside');
+        $assignment=$this->assignWaliKelas($guru,$class,$year);
+        $assignment->update(['tanggal_mulai'=>today()->subDays(10)->toDateString()]);
+        [, $student]=$this->createStudent();
+        [, $future]=$this->createStudent();
+        $this->createMembership($class,$student,today()->subDays(3)->toDateString(),today()->subDay()->toDateString());
+        $this->createMembership($class,$future,today()->addDay()->toDateString());
+        Sanctum::actingAs($user);
+        $all="/api/classes/{$class->id}/students?scope=homeroom&membership_status=all";
+        $this->getJson($all)->assertOk()->assertJsonCount(2,'data')->assertJsonPath('meta.as_of',today()->toDateString());
+        $this->getJson("/api/classes/{$class->id}/students?scope=homeroom")->assertOk()->assertJsonCount(0,'data');
+        $this->getJson("/api/classes/{$class->id}/students?membership_status=all")->assertForbidden();
+        $this->getJson("/api/classes/{$outside->id}/students?scope=homeroom&membership_status=all")->assertForbidden();
+        $assignment->update(['tanggal_selesai'=>today()->toDateString()]);
+        $this->getJson($all)->assertForbidden();
     }
 }

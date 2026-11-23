@@ -10,7 +10,7 @@ class StoreClassMemberRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->role?->code === 'TU';
     }
 
     public function rules(): array

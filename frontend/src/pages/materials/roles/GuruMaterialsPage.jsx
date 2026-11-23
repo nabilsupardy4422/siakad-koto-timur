@@ -1,24 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '../../../context/useAuth'
+import { collectPages, teacherId } from '../../../utils/teachingScope'
+import { loadMaterialWorkspace, canSelectMaterialSchedule } from './materialScope'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog'
+import ToastNotification from '../../../components/ui/ToastNotification'
 import { materialApi } from '../../../services/materialApi'
 import { scheduleApi } from '../../../services/scheduleApi'
 import { academicYearApi } from '../../../services/academicYearApi'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
+import FileDropzone from '../../../components/ui/FileDropzone'
+import FileTypeIcon from '../../../components/ui/FileTypeIcon'
+import WorkspaceModal from '../../../components/ui/WorkspaceModal'
 import './GuruMaterialsPage.css'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_FILE_LABEL = '10 MB'
+const EMPTY_LIST = []
+const SUPPORTED_EXTENSIONS = new Set('pdf doc docx xls xlsx ppt pptx odt ods odp jpg jpeg png gif webp txt csv zip mp3 mp4 wav'.split(' '))
+const supportedFile = file => file.name.includes('.') && SUPPORTED_EXTENSIONS.has(file.name.split('.').pop().toLowerCase())
 
 const EMPTY_FORM = {
   jadwal_pelajaran_id: '',
   judul: '',
   deskripsi: '',
   files: [],
-}
-
-function collection(response) {
-  if (Array.isArray(response?.data?.data)) return response.data.data
-  if (Array.isArray(response?.data)) return response.data
-  if (Array.isArray(response)) return response
-  return []
 }
 
 function message(error) {
@@ -79,10 +84,6 @@ function scheduleDetails(schedule) {
   }
 }
 
-function scheduleLabel(schedule) {
-  return scheduleDetails(schedule).label
-}
-
 function materialSearchText(material) {
   const schedule = scheduleDetails(material?.jadwal_pelajaran || {})
   const filenames = materialAttachments(material).map((file) => file?.file_name || '').join(' ')
@@ -138,10 +139,18 @@ function formatFileSize(bytes) {
 }
 
 export default function GuruMaterialsPage() {
-  const [materials, setMaterials] = useState([])
-  const [schedules, setSchedules] = useState([])
+  const { user } = useAuth()
+  const guruId = teacherId(user)
+  const requestVersion = useRef(0)
+  const [expanded, setExpanded] = useState({})
+  const [loadedMaterials, setMaterials] = useState([])
+  const [loadedSchedules, setSchedules] = useState([])
   const [academicYears, setAcademicYears] = useState([])
   const [selectedYearId, setSelectedYearId] = useState('')
+  const contextKey = `${guruId ?? ''}:${selectedYearId}`
+  const [loadedContext, setLoadedContext] = useState(null)
+  const materials = loadedContext === contextKey ? loadedMaterials : EMPTY_LIST
+  const schedules = loadedContext === contextKey ? loadedSchedules : EMPTY_LIST
   const [form, setForm] = useState(EMPTY_FORM)
   const [searchTerm, setSearchTerm] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
@@ -160,6 +169,13 @@ export default function GuruMaterialsPage() {
   const [notice, setNotice] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [attachmentTarget, setAttachmentTarget] = useState(null)
+  const [toast, setToast] = useState(null)
+  const closeToast = useCallback(() => setToast(null), [])
+  const notify = useCallback((type, title, message) => setToast({type, title, message}), [])
+  const hasOwnMaterial = item => materials.some(m => String(m.id) === String(item?.id))
+  const canSelectSchedule = id => canSelectMaterialSchedule(schedules, id, guruId, selectedYearId)
+
 
   const selectedMaterial = useMemo(
     () => materials.find((item) => String(item.id) === String(editing)),
@@ -176,8 +192,7 @@ export default function GuruMaterialsPage() {
 
     const subjectSchedules = subjectFilter
       ? teacherSchedules.filter((schedule) => {
-          const details = scheduleDetails(schedule)
-          return details.mapel === subjectFilter
+          return String(schedule.mapel_id ?? schedule.mapel?.id ?? '') === subjectFilter
         })
       : teacherSchedules
 
@@ -188,33 +203,44 @@ export default function GuruMaterialsPage() {
         })
       : subjectSchedules
 
+    const classes = new Map()
+    levelSchedules.forEach(schedule => {
+      const d = scheduleDetails(schedule)
+      if (schedule?.kelas?.nama || schedule?.kelas?.nama_kelas) {
+        const value = String(schedule.kelas_id ?? schedule.kelas?.id ?? '')
+        if (!value) return
+        classes.set(value, { value, label: `${d.kelas}${d.tingkat ? ` · Tingkat ${d.tingkat}` : " · Tingkat belum tersedia"}` })
+      }
+    })
     return {
-      subjects: unique(
-        teacherSchedules.map((schedule) => schedule?.mapel?.nama || schedule?.mapel?.nama_mapel),
-      ).sort((a, b) => a.localeCompare(b, 'id')),
+      subjects: [...new Map(teacherSchedules.filter(schedule => (schedule.mapel_id ?? schedule.mapel?.id) != null).map(schedule => {
+        const value = String(schedule.mapel_id ?? schedule.mapel?.id)
+        return [value, {value, label: scheduleDetails(schedule).mapel}]
+      })).values()].sort((a,b) => a.label.localeCompare(b.label, 'id')),
       levels: unique(
         subjectSchedules
           .map((schedule) => schedule?.kelas?.tingkat)
           .map((value) => value == null ? '' : String(value)),
       ).sort((a, b) => Number(a) - Number(b)),
-      classes: unique(
-        levelSchedules.map((schedule) => schedule?.kelas?.nama || schedule?.kelas?.nama_kelas),
-      ).sort((a, b) => a.localeCompare(b, 'id')),
+      classes: [...classes.values()].sort((a,b) => a.label.localeCompare(b.label, "id")),
     }
   }, [teacherSchedules, subjectFilter, levelFilter])
 
   // Bersihkan filter turunan jika pilihan induk membuatnya tidak valid.
   useEffect(() => {
+    if (subjectFilter && !filterOptions.subjects.some(option => option.value === subjectFilter)) {
+      setSubjectFilter(''); setLevelFilter(''); setClassFilter(''); return
+    }
     if (levelFilter && !filterOptions.levels.includes(levelFilter)) {
       setLevelFilter('')
       setClassFilter('')
       return
     }
 
-    if (classFilter && !filterOptions.classes.includes(classFilter)) {
+    if (classFilter && !filterOptions.classes.some(option => option.value === classFilter)) {
       setClassFilter('')
     }
-  }, [filterOptions.levels, filterOptions.classes, levelFilter, classFilter])
+  }, [filterOptions.subjects, filterOptions.levels, filterOptions.classes, subjectFilter, levelFilter, classFilter])
 
 
   const filteredMaterials = useMemo(() => {
@@ -222,9 +248,9 @@ export default function GuruMaterialsPage() {
     return materials.filter((material) => {
       const details = scheduleDetails(material?.jadwal_pelajaran || {})
       if (query && !materialSearchText(material).includes(query)) return false
-      if (subjectFilter && details.mapel !== subjectFilter) return false
+      if (subjectFilter && String(material.jadwal_pelajaran?.mapel_id ?? material.jadwal_pelajaran?.mapel?.id ?? '') !== subjectFilter) return false
       if (levelFilter && details.tingkat !== levelFilter) return false
-      if (classFilter && details.kelas !== classFilter) return false
+      if (classFilter && String(material.jadwal_pelajaran?.kelas_id ?? material.jadwal_pelajaran?.kelas?.id ?? '') !== classFilter) return false
       return true
     }).sort((a, b) => {
       const aTime = new Date(a?.created_at || 0).getTime()
@@ -249,8 +275,7 @@ export default function GuruMaterialsPage() {
 
     async function loadAcademicYears() {
       try {
-        const response = await academicYearApi.getAll()
-        const years = collection(response)
+        const years = await collectPages(page => academicYearApi.getAll({ per_page: 100, page }))
         const activeYear = years.find(
           (year) =>
             year.is_active === true ||
@@ -285,9 +310,11 @@ export default function GuruMaterialsPage() {
   }, [])
 
   const load = useCallback(async () => {
-    if (!selectedYearId) {
+    const version = ++requestVersion.current
+    if (!selectedYearId || guruId == null) {
       setMaterials([])
       setSchedules([])
+      setLoadedContext(null)
       setLoading(false)
       return
     }
@@ -296,29 +323,24 @@ export default function GuruMaterialsPage() {
     setError('')
 
     try {
-      const params = {
-        per_page: 100,
-        academic_year_id: selectedYearId,
-      }
-
-      const [materialResponse, scheduleResponse] = await Promise.all([
-        materialApi.getAll(params),
-        scheduleApi.getAll(params),
-      ])
-
-      setMaterials(collection(materialResponse))
-      setSchedules(collection(scheduleResponse))
+      const data = await loadMaterialWorkspace(scheduleApi, materialApi, guruId, selectedYearId)
+      if (version !== requestVersion.current) return
+      setMaterials(data.materials)
+      setSchedules(data.schedules)
+      setLoadedContext(contextKey)
     } catch (err) {
+      if (version !== requestVersion.current) return
       setError(message(err))
       setMaterials([])
       setSchedules([])
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
-  }, [selectedYearId])
+  }, [selectedYearId, guruId, contextKey])
 
   useEffect(() => {
     load()
+    return () => { requestVersion.current++ }
   }, [load])
 
   const closeModal = useCallback(() => {
@@ -329,21 +351,8 @@ export default function GuruMaterialsPage() {
     setForm({ ...EMPTY_FORM, files: [] })
   }, [saving, attachmentDeleting])
 
-  useEffect(() => {
-    if (!modalOpen) return undefined
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        closeModal()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [modalOpen, closeModal])
-
   function openCreate() {
+    if (!schedules.length || loading) return
     setEditing(null)
     setForm({ ...EMPTY_FORM, files: [] })
     setError('')
@@ -352,6 +361,7 @@ export default function GuruMaterialsPage() {
   }
 
   function openEdit(material) {
+    if (loading || !hasOwnMaterial(material)) return
     setEditing(material.id)
 
     setForm({
@@ -375,36 +385,20 @@ export default function GuruMaterialsPage() {
     }))
   }
 
-  function handleFilesChange(event) {
-    const input = event.currentTarget
-    const selectedFiles = Array.from(input.files || [])
-
-    if (selectedFiles.length === 0) return
-
-    const oversizedFiles = selectedFiles.filter(
-      (file) => file.size > MAX_FILE_SIZE,
-    )
-
-    if (oversizedFiles.length > 0) {
-      setError(
-        `Setiap file maksimal ${MAX_FILE_LABEL}. File terlalu besar: ${oversizedFiles
-          .map((file) => file.name)
-          .join(', ')}`,
-      )
-
-      input.value = ''
+  function handleFilesChange(selectedFiles) {
+    if (saving || attachmentDeleting !== null || !selectedFiles.length) return
+    const unsupported = selectedFiles.filter(file => !supportedFile(file))
+    if (unsupported.length) {
+      setError(`Format file tidak didukung: ${unsupported.map(file => file.name).join(', ')}`)
       return
     }
-
+    const oversizedFiles = selectedFiles.filter(file => file.size > MAX_FILE_SIZE)
+    if (oversizedFiles.length) {
+      setError(`Setiap file maksimal ${MAX_FILE_LABEL}. File terlalu besar: ${oversizedFiles.map(file => file.name).join(', ')}`)
+      return
+    }
     setError('')
-
-    setForm((previous) => ({
-      ...previous,
-      files: [...previous.files, ...selectedFiles],
-    }))
-
-    // File yang dipilih berikutnya akan ditambahkan ke daftar.
-    input.value = ''
+    setForm(previous => ({ ...previous, files: [...previous.files, ...selectedFiles] }))
   }
 
   function removeSelectedFile(indexToRemove) {
@@ -422,13 +416,18 @@ export default function GuruMaterialsPage() {
     setError('')
     setNotice('')
 
-    if (!form.jadwal_pelajaran_id) {
-      setError('Pilih jadwal mengajar terlebih dahulu.')
+    if (loading || !canSelectSchedule(form.jadwal_pelajaran_id) || (editing !== null && !selectedMaterial)) {
+      setError('Pilih jadwal mengajar milik Anda pada periode terpilih.')
       return
     }
 
-    if (!form.judul.trim()) {
-      setError('Judul bahan ajar wajib diisi.')
+    if (!form.judul.trim() || form.judul.trim().length > 255) {
+      setError('Judul bahan ajar wajib diisi, maksimal 255 karakter.')
+      return
+    }
+
+    if (form.files.some(file => !supportedFile(file))) {
+      setError('Terdapat file dengan format yang tidak didukung.')
       return
     }
 
@@ -468,6 +467,7 @@ export default function GuruMaterialsPage() {
 
       await load()
 
+      notify('success', editing !== null ? 'Bahan ajar diperbarui' : 'Bahan ajar ditambahkan')
       setNotice(
         editing !== null
           ? 'Bahan ajar berhasil diperbarui dan lampiran baru ditambahkan.'
@@ -481,6 +481,7 @@ export default function GuruMaterialsPage() {
   }
 
   async function downloadOneAttachment(material, attachment, index) {
+    if (!hasOwnMaterial(material) || loading) return
     const key = `${material.id}-${attachment.id ?? index}`
 
     setError('')
@@ -493,47 +494,46 @@ export default function GuruMaterialsPage() {
           material.id,
           attachment.id,
           attachment.file_name,
+          { scope: 'teaching' },
         )
       } else {
         await materialApi.download(
           material.id,
           attachment.file_name || material.judul,
+          { scope: 'teaching' },
         )
       }
 
+      notify('success', 'Unduhan diproses', attachment.file_name || material.judul)
       setNotice(
         `Permintaan unduhan "${attachment.file_name || material.judul}" berhasil diproses.`,
       )
     } catch (err) {
       setError(message(err))
+      notify('error', 'Unduhan gagal', message(err))
     } finally {
       setDownloading(null)
     }
   }
 
-  async function removeOneAttachment(material, attachment) {
-    if (attachment.id === null || attachment.id === undefined) {
-      setError(
-        'Lampiran lama ini belum memiliki ID lampiran sehingga tidak dapat dihapus satu per satu dari halaman ini.',
-      )
-      return
-    }
-
-    const confirmed = window.confirm(
-      `Hapus lampiran "${attachment.file_name}"? Lampiran lainnya tidak akan dihapus.`,
-    )
-
-    if (!confirmed) return
-
+  function removeOneAttachment(material, attachment) {
+    if (!hasOwnMaterial(material) || loading || attachment.id == null) return
     setError('')
     setNotice('')
-    setAttachmentDeleting(attachment.id)
+    setAttachmentTarget({material, attachment})
+  }
 
+  async function confirmRemoveAttachment() {
+    if (!attachmentTarget || loading || !hasOwnMaterial(attachmentTarget.material)) return
+    const { material, attachment } = attachmentTarget
+    setError('')
+    setAttachmentDeleting(attachment.id)
     try {
       await materialApi.deleteAttachment(material.id, attachment.id)
+      setAttachmentTarget(null)
       await load()
-
       setNotice(`Lampiran "${attachment.file_name}" berhasil dihapus.`)
+      notify('success', 'Lampiran dihapus', attachment.file_name)
     } catch (err) {
       setError(message(err))
     } finally {
@@ -542,13 +542,14 @@ export default function GuruMaterialsPage() {
   }
 
   function confirmRemove(material) {
+    if (!hasOwnMaterial(material) || loading) return
     setError('')
     setNotice('')
     setDeleteTarget(material)
   }
 
   async function handleDeleteMaterial() {
-    if (!deleteTarget) return
+    if (!deleteTarget || !hasOwnMaterial(deleteTarget) || loading) return
 
     setDeleting(true)
     setError('')
@@ -562,6 +563,7 @@ export default function GuruMaterialsPage() {
 
       await load()
 
+      notify('success', 'Bahan ajar dihapus', deletedTitle)
       setNotice(
         `Bahan ajar "${deletedTitle}" beserta lampirannya berhasil dihapus.`,
       )
@@ -572,576 +574,58 @@ export default function GuruMaterialsPage() {
     }
   }
 
-  return (
-    <main className="materials-page">
-      <header className="materials-heading">
-        <div>
-          <p className="materials-eyebrow">PEMBELAJARAN</p>
-          <h1>Bahan Ajar</h1>
-          <p>
-            Kelola materi, tanggal unggah, dan lampiran berdasarkan jadwal mengajar.
-          </p>
-        </div>
+  const busy = saving || attachmentDeleting !== null
+  const options = (items, all, label = value => value) => [{ value: '', label: all }, ...items.map(value => ({ value, label: label(value) }))]
+  const scheduleOptions = schedules.map(schedule => {
+    const d = scheduleDetails(schedule)
+    return { value: String(schedule.id), label: `${d.kelas} · ${d.tingkat ? `Tingkat ${d.tingkat}` : 'Tingkat belum tersedia'}`, description: [d.mapel, d.hari, d.waktu].filter(Boolean).join(' · ') }
+  })
+  const yearOptions = academicYears.map(year => ({ value: String(year.id), label: `${year.tahun_mulai}/${year.tahun_selesai} · ${year.semester === 'GANJIL' ? 'Ganjil' : year.semester === 'GENAP' ? 'Genap' : year.semester}${[true, 1, '1'].includes(year.is_active) ? ' (Aktif)' : ''}` }))
+  const fileCount = materials.reduce((sum, material) => sum + materialAttachments(material).length, 0)
+  const classLabel = d => `${d.kelas} · ${d.tingkat ? `Tingkat ${d.tingkat}` : 'Tingkat belum tersedia'}`
 
-        <div className="materials-heading-actions">
-          <button
-            type="button"
-            className="materials-primary-button"
-            onClick={openCreate}
-          >
-            + Tambah bahan ajar
-          </button>
+  function fileRows(material, allowRemove = false) {
+    const files = materialAttachments(material)
+    if (!files.length) return <p className="gm-empty-files">Belum ada lampiran.</p>
+    return <ul className="gm-files">{files.map((file, index) => <li className="gm-file-row" key={file.id ?? `${file.file_name}-${index}`}>
+      <FileTypeIcon name={file.file_name}/>
+      <div className="gm-file-info"><strong>{file.file_name || 'Lampiran tanpa nama'}</strong><small>{[formatFileSize(file.file_size), formatUploadDate(file.created_at)].filter(Boolean).join(' · ')}</small></div>
+      <div className="gm-row-actions"><button type="button" className="gm-btn gm-secondary" onClick={() => downloadOneAttachment(material, file, index)} disabled={downloading !== null || busy}>{downloading === `${material.id}-${file.id ?? index}` ? 'Mengunduh…' : '↓ Unduh'}</button>
+      {allowRemove && file.id != null && <button type="button" className="gm-btn gm-danger" onClick={() => removeOneAttachment(material, file)} disabled={busy}>{attachmentDeleting === file.id ? 'Menghapus…' : 'Hapus lampiran'}</button>}</div>
+    </li>)}</ul>
+  }
 
-          <button
-            type="button"
-            className="materials-secondary-button"
-            onClick={load}
-            disabled={loading}
-          >
-            {loading ? 'Memuat…' : 'Muat ulang'}
-          </button>
-        </div>
-      </header>
+  return <main className="gm-v2">
+    <header className="gm-heading"><div><p className="gm-eyebrow">KEGIATAN MENGAJAR</p><h1>Bahan Ajar<span>.</span></h1><p>Kelola dan bagikan materi pembelajaran sesuai jadwal mengajar Anda.</p></div><div className="gm-actions"><button className="gm-btn gm-secondary" type="button" onClick={load} disabled={loading}>↻ {loading ? 'Memuat…' : 'Muat ulang'}</button><button className="gm-btn gm-primary" type="button" onClick={openCreate} disabled={loading || !schedules.length || busy || deleting}>＋ Tambah bahan ajar</button></div></header>
+    {!modalOpen && !deleteTarget && error && <div className="gm-alert gm-error" role="alert">{error}</div>}
 
-      {error && (
-        <div className="materials-alert error" role="alert">
-          {error}
-        </div>
-      )}
-
-      {notice && (
-        <div className="materials-alert success" role="status">
-          {notice}
-        </div>
-      )}
-
-      <section className="materials-panel">
-        <div className="materials-panel-heading">
-          <div>
-            <h2>Daftar bahan ajar</h2>
-            <p>Menampilkan {filteredMaterials.length} dari {materials.length} materi</p>
-          </div>
-
-          <label className="materials-filter-field">
-            <span>Tahun akademik</span>
-            <select
-              value={selectedYearId}
-              onChange={(event) => setSelectedYearId(event.target.value)}
-              disabled={loading}
-            >
-              {!selectedYearId && (
-                <option value="">Tidak ada tahun akademik aktif</option>
-              )}
-
-              {academicYears.map((year) => (
-                <option key={year.id} value={String(year.id)}>
-                  {year.tahun_mulai}/{year.tahun_selesai}
-                  {' — '}
-                  {year.semester === 'GANJIL'
-                    ? 'Ganjil'
-                    : year.semester === 'GENAP'
-                      ? 'Genap'
-                      : year.semester}
-                  {year.is_active === true ||
-                  year.is_active === 1 ||
-                  year.is_active === '1'
-                    ? ' (Aktif)'
-                    : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="materials-filters" aria-label="Pencarian dan filter bahan ajar">
-          <label className="materials-search-field">
-            <span>Cari judul atau nama file</span>
-            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Ketik judul atau nama lampiran…" />
-          </label>
-          <label className="materials-filter-field">
-            <span>Mata pelajaran</span>
-            <select
-              value={subjectFilter}
-              onChange={(event) => {
-                setSubjectFilter(event.target.value)
-                setLevelFilter('')
-                setClassFilter('')
-              }}
-            >
-              <option value="">Semua mata pelajaran</option>
-              {filterOptions.subjects.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="materials-filter-field">
-            <span>Tingkat</span>
-            <select
-              value={levelFilter}
-              onChange={(event) => {
-                setLevelFilter(event.target.value)
-                setClassFilter('')
-              }}
-            >
-              <option value="">Semua tingkat</option>
-              {filterOptions.levels.map((item) => <option key={item} value={item}>Tingkat {item}</option>)}
-            </select>
-          </label>
-          <label className="materials-filter-field">
-            <span>Kelas</span>
-            <select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}>
-              <option value="">Semua kelas</option>
-              {filterOptions.classes.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-          <label className="materials-filter-field">
-            <span>Urutkan tanggal</span>
-            <select value={dateSort} onChange={(event) => setDateSort(event.target.value)}>
-              <option value="newest">Terbaru</option><option value="oldest">Terlama</option>
-            </select>
-          </label>
-          <button type="button" className="materials-secondary-button materials-reset-filters" onClick={resetFilters} disabled={!hasActiveFilters}>Reset filter</button>
-        </div>
-
-        {loading ? (
-          <p className="materials-state">Memuat bahan ajar…</p>
-        ) : materials.length === 0 ? (
-          <p className="materials-state">
-            Belum ada bahan ajar. Klik “Tambah bahan ajar” untuk membuat materi baru.
-          </p>
-        ) : filteredMaterials.length === 0 ? (
-          <div className="materials-empty"><p>Tidak ada bahan ajar yang cocok dengan pencarian atau filter.</p><button type="button" className="materials-secondary-button" onClick={resetFilters}>Hapus pencarian dan filter</button></div>
-        ) : (
-          <div className="materials-list">
-            {filteredMaterials.map((material) => {
-              const attachments = materialAttachments(material)
-
-              return (
-                <article className="materials-card" key={material.id}>
-                  <div className="materials-card-icon">
-                    <span>DOC</span>
-                  </div>
-
-                  <div className="materials-card-content">
-                    <h3>{material.judul || 'Bahan ajar tanpa judul'}</h3>
-
-                    <p className="materials-upload-date">
-                      <span>Diunggah:</span>{' '}
-                      {formatUploadDate(material.created_at)}
-                    </p>
-
-                    <div className="materials-card-meta" aria-label="Informasi jadwal">
-                      <span className="materials-meta-subject">{scheduleDetails(material.jadwal_pelajaran || {}).mapel}</span>
-                      <span className="materials-meta-context">
-                        {scheduleDetails(material.jadwal_pelajaran || {}).tingkat ? `Tingkat ${scheduleDetails(material.jadwal_pelajaran || {}).tingkat} · ` : ''}{scheduleDetails(material.jadwal_pelajaran || {}).kelas}
-                        {scheduleDetails(material.jadwal_pelajaran || {}).hari ? ` · ${scheduleDetails(material.jadwal_pelajaran || {}).hari}` : ''}
-                        {scheduleDetails(material.jadwal_pelajaran || {}).waktu ? ` · ${scheduleDetails(material.jadwal_pelajaran || {}).waktu}` : ''}
-                      </span>
-                    </div>
-
-                    {material.deskripsi && (
-                      <p className="materials-card-description">
-                        {material.deskripsi}
-                      </p>
-                    )}
-
-                    <div className="materials-attachments">
-                      <strong>
-                        Lampiran ({attachments.length})
-                      </strong>
-
-                      {attachments.length === 0 ? (
-                        <p className="materials-attachments-empty">
-                          Belum ada lampiran.
-                        </p>
-                      ) : (
-                        <ul className="materials-attachment-list">
-                          {attachments.map((attachment, index) => (
-                            <li
-                              className="materials-attachment-item"
-                              key={
-                                attachment.id ??
-                                `${attachment.file_name}-${index}`
-                              }
-                            >
-                              <span className="materials-attachment-name">
-                                <span className="materials-attachment-filename">
-                                  {attachment.file_name || 'Lampiran tanpa nama'}
-                                </span>
-
-                                <small className="materials-attachment-date">
-                                  Diunggah:{' '}
-                                  {formatUploadDate(attachment.created_at)}
-                                </small>
-
-                                {attachment.file_size !== null &&
-                                  attachment.file_size !== undefined && (
-                                    <small>
-                                      {formatFileSize(attachment.file_size)}
-                                    </small>
-                                  )}
-                              </span>
-
-                              <div className="materials-attachment-actions">
-                                <button
-                                  type="button"
-                                  className="materials-secondary-button"
-                                  onClick={() =>
-                                    downloadOneAttachment(
-                                      material,
-                                      attachment,
-                                      index,
-                                    )
-                                  }
-                                  disabled={downloading !== null}
-                                >
-                                  {downloading ===
-                                  `${material.id}-${attachment.id ?? index}`
-                                    ? 'Mengunduh…'
-                                    : 'Unduh'}
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="materials-card-actions">
-                    <button
-                      type="button"
-                      className="materials-secondary-button"
-                      onClick={() => openEdit(material)}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      className="materials-danger-button"
-                      onClick={() => confirmRemove(material)}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {modalOpen && (
-        <div
-          className="materials-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeModal()
-          }}
-        >
-          <section
-            className="materials-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="materials-modal-title"
-          >
-            <header className="materials-modal-header">
-              <div>
-                <p className="materials-eyebrow">PEMBELAJARAN</p>
-                <h2 id="materials-modal-title">
-                  {editing !== null ? 'Edit bahan ajar' : 'Tambah bahan ajar'}
-                </h2>
-                <p>
-                  Isi informasi materi dan pilih satu atau beberapa lampiran.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="materials-modal-close"
-                onClick={closeModal}
-                disabled={saving || attachmentDeleting !== null}
-                aria-label="Tutup"
-              >
-                ×
-              </button>
-            </header>
-
-            <form onSubmit={handleSubmit}>
-              {error && (
-                <div className="materials-alert error" role="alert">
-                  {error}
-                </div>
-              )}
-
-              <div className="materials-form-grid">
-                <label className="materials-form-field">
-                  <span>Jadwal mengajar</span>
-                  <select
-                    name="jadwal_pelajaran_id"
-                    value={form.jadwal_pelajaran_id}
-                    onChange={handleFieldChange}
-                    required
-                    disabled={saving}
-                  >
-                    <option value="">Pilih mata pelajaran, tingkat, kelas, dan jadwal</option>
-
-                    {schedules.map((schedule) => (
-                      <option key={schedule.id} value={schedule.id}>
-                        {scheduleLabel(schedule)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="materials-form-field">
-                  <span>Judul bahan ajar</span>
-                  <input
-                    type="text"
-                    name="judul"
-                    value={form.judul}
-                    onChange={handleFieldChange}
-                    placeholder="Contoh: Modul Dasar Elektronika"
-                    maxLength={255}
-                    required
-                    disabled={saving}
-                  />
-                </label>
-              </div>
-
-              <label className="materials-form-field">
-                <span>Deskripsi</span>
-                <textarea
-                  name="deskripsi"
-                  value={form.deskripsi}
-                  onChange={handleFieldChange}
-                  placeholder="Ringkasan isi materi (opsional)"
-                  rows={3}
-                  disabled={saving}
-                />
-              </label>
-
-              {editing !== null && (
-                <div className="materials-attachments">
-                  <strong>Lampiran tersimpan</strong>
-
-                  {materialAttachments(selectedMaterial).length === 0 ? (
-                    <p className="materials-attachments-empty">
-                      Belum ada lampiran tersimpan.
-                    </p>
-                  ) : (
-                    <ul className="materials-attachment-list">
-                      {materialAttachments(selectedMaterial).map(
-                        (attachment, index) => (
-                          <li
-                            className="materials-attachment-item"
-                            key={
-                              attachment.id ??
-                              `${attachment.file_name}-${index}`
-                            }
-                          >
-                            <span className="materials-attachment-name">
-                              <span className="materials-attachment-filename">
-                                {attachment.file_name || 'Lampiran tanpa nama'}
-                              </span>
-
-                              <small className="materials-attachment-date">
-                                Diunggah:{' '}
-                                {formatUploadDate(attachment.created_at)}
-                              </small>
-
-                              {attachment.file_size !== null &&
-                                attachment.file_size !== undefined && (
-                                  <small>
-                                    {formatFileSize(attachment.file_size)}
-                                  </small>
-                                )}
-                            </span>
-
-                            <div className="materials-attachment-actions">
-                              <button
-                                type="button"
-                                className="materials-secondary-button"
-                                onClick={() =>
-                                  downloadOneAttachment(
-                                    selectedMaterial,
-                                    attachment,
-                                    index,
-                                  )
-                                }
-                                disabled={
-                                  saving || downloading !== null
-                                }
-                              >
-                                Unduh
-                              </button>
-
-                              {attachment.id !== null &&
-                                attachment.id !== undefined && (
-                                  <button
-                                    type="button"
-                                    className="materials-danger-button"
-                                    onClick={() =>
-                                      removeOneAttachment(
-                                        selectedMaterial,
-                                        attachment,
-                                      )
-                                    }
-                                    disabled={
-                                      saving ||
-                                      attachmentDeleting !== null
-                                    }
-                                  >
-                                    {attachmentDeleting === attachment.id
-                                      ? 'Menghapus…'
-                                      : 'Hapus lampiran'}
-                                  </button>
-                                )}
-                            </div>
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  )}
-
-                  <p className="materials-form-help">
-                    Lampiran yang sudah tersimpan tetap ada ketika kamu
-                    menambahkan file baru. Tanggal unggah setiap lampiran
-                    mengikuti waktu file tersebut dibuat.
-                  </p>
-                </div>
-              )}
-
-              <div className="materials-form-field">
-                <label htmlFor="materials-files">
-                  <span>Lampiran materi</span>
-                </label>
-
-                <input
-                  id="materials-files"
-                  type="file"
-                  multiple
-                  onChange={handleFilesChange}
-                  disabled={saving}
-                  aria-describedby="materials-files-help"
-                />
-
-                <p
-                  className="materials-form-help"
-                  id="materials-files-help"
-                >
-                  Pilih beberapa file sekaligus atau pilih file lagi untuk
-                  menambahkannya ke daftar. Maksimal {MAX_FILE_LABEL} per file.
-                </p>
-              </div>
-
-              {form.files.length > 0 && (
-                <div className="materials-attachments">
-                  <strong>
-                    File baru yang akan diunggah ({form.files.length})
-                  </strong>
-
-                  <ul className="materials-selected-files">
-                    {form.files.map((file, index) => (
-                      <li
-                        key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-                        className="materials-attachment-item"
-                      >
-                        <span className="materials-attachment-name">
-                          <span className="materials-attachment-filename">
-                            {file.name}
-                          </span>
-                          <small>{formatFileSize(file.size)}</small>
-                          <small className="materials-attachment-date">
-                            Tanggal unggah akan ditetapkan saat file disimpan.
-                          </small>
-                        </span>
-
-                        <button
-                          type="button"
-                          className="materials-danger-button"
-                          onClick={() => removeSelectedFile(index)}
-                          disabled={saving}
-                        >
-                          Hapus dari daftar
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <footer className="materials-modal-footer">
-                <button
-                  type="button"
-                  className="materials-secondary-button"
-                  onClick={closeModal}
-                  disabled={saving || attachmentDeleting !== null}
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  className="materials-primary-button"
-                  disabled={saving || attachmentDeleting !== null}
-                >
-                  {saving
-                    ? 'Menyimpan…'
-                    : editing !== null
-                      ? 'Simpan perubahan'
-                      : 'Tambah bahan ajar'}
-                </button>
-              </footer>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {deleteTarget && (
-        <div className="materials-modal-backdrop">
-          <section
-            className="materials-modal materials-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="materials-delete-title"
-          >
-            <header className="materials-modal-header">
-              <div>
-                <h2 id="materials-delete-title">Hapus bahan ajar?</h2>
-                <p>
-                  Bahan ajar “{deleteTarget.judul}” beserta seluruh lampirannya
-                  akan dihapus. Tindakan ini tidak dapat dibatalkan.
-                </p>
-              </div>
-            </header>
-
-            {error && (
-              <div className="materials-alert error" role="alert">
-                {error}
-              </div>
-            )}
-
-            <footer className="materials-modal-footer">
-              <button
-                type="button"
-                className="materials-secondary-button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-              >
-                Batal
-              </button>
-
-              <button
-                type="button"
-                className="materials-danger-button"
-                onClick={handleDeleteMaterial}
-                disabled={deleting}
-              >
-                {deleting ? 'Menghapus…' : 'Ya, hapus'}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
-    </main>
-  )
+    <section className="gm-band" aria-label="Konteks perpustakaan"><div className="gm-band-title"><span className="gm-band-icon"><BookIcon/></span><div><small>RUANG MATERI GURU</small><h2>Perpustakaan pembelajaran</h2><p>Dokumen terorganisasi berdasarkan periode akademik.</p></div></div><div className="gm-metric"><span>Materi</span><strong>{loading ? '—' : materials.length}</strong></div><div className="gm-metric"><span>Lampiran</span><strong>{loading ? '—' : fileCount}</strong></div><div className="gm-year"><SearchableSelect label="Tahun akademik" value={selectedYearId} options={yearOptions} placeholder="Pilih tahun akademik" disabled={loading || busy || deleting || modalOpen || Boolean(deleteTarget)} onChange={value => { if (value === selectedYearId) return; setLoading(true); setMaterials([]); setSchedules([]); setExpanded({}); resetFilters(); setSelectedYearId(value) }}/></div></section>
+    <section className="gm-filter"><div className="gm-section-head"><div><h2>Temukan materi</h2><p>Telusuri judul atau lampiran, lalu persempit hasil pencarian.</p></div><button className="gm-text-btn" type="button" onClick={resetFilters} disabled={!hasActiveFilters}>↻ Reset filter</button></div><div className="gm-filter-grid"><label className="gm-field gm-search"><span>Cari bahan ajar</span><input type="search" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} placeholder="Cari judul atau nama file…"/></label>
+      <SearchableSelect label="Mata pelajaran" value={subjectFilter} options={[{value:'',label:'Semua mapel'},...filterOptions.subjects]} onChange={value => {setSubjectFilter(value);setLevelFilter('');setClassFilter('')}} disabled={loading}/>
+      <SearchableSelect label="Tingkat" value={levelFilter} options={options(filterOptions.levels,'Semua tingkat', value => `Tingkat ${value}`)} onChange={value => {setLevelFilter(value);setClassFilter('')}} disabled={loading}/>
+      <SearchableSelect label="Kelas" value={classFilter} options={[{value:'',label:'Semua kelas'},...filterOptions.classes]} onChange={setClassFilter} disabled={loading}/>
+      <SearchableSelect label="Urutkan tanggal" value={dateSort} options={[{value:'newest',label:'Terbaru'},{value:'oldest',label:'Terlama'}]} onChange={setDateSort}/>
+    </div></section>
+    <div className="gm-section-head gm-results"><div><h2>Daftar bahan ajar</h2><p aria-live="polite">{loading ? 'Memuat materi…' : `Menampilkan ${filteredMaterials.length} dari ${materials.length} materi`}</p></div></div>
+    {loading ? <div className="gm-state" role="status">Memuat bahan ajar…</div> : error && !materials.length ? <div className="gm-state"><h3>Data belum dapat dimuat</h3><button className="gm-btn gm-secondary" type="button" onClick={load}>Coba lagi</button></div> : !materials.length ? <div className="gm-state"><BookIcon/><h3>Belum ada bahan ajar</h3><p>Tambahkan materi dan lampiran untuk kelas yang Anda ajar.</p><button className="gm-btn gm-primary" type="button" onClick={openCreate} disabled={!schedules.length || busy || deleting}>＋ Tambah bahan ajar</button></div> : !filteredMaterials.length ? <div className="gm-state"><h3>Materi tidak ditemukan</h3><p>Coba kata kunci atau filter lainnya.</p><button className="gm-btn gm-secondary" type="button" onClick={resetFilters}>Reset filter</button></div> : <div className="gm-list">{filteredMaterials.map((material,index) => {
+      const d = scheduleDetails(material.jadwal_pelajaran || {})
+      const isOpen = expanded[material.id] ?? (index === 0)
+      const attachments = materialAttachments(material)
+      return <article className="gm-card" key={material.id}><div className="gm-card-top"><span className="gm-book"><BookIcon/></span><div className="gm-card-content"><h3>{material.judul || 'Bahan ajar tanpa judul'}</h3><p className="gm-meta">{d.mapel} · Diunggah {formatUploadDate(material.created_at)}</p><div className="gm-tags"><span>{classLabel(d)}</span>{(d.hari || d.waktu) && <span>{[d.hari,d.waktu].filter(Boolean).join(' · ')}</span>}</div>{material.deskripsi && <p className="gm-description">{material.deskripsi}</p>}</div><div className="gm-row-actions gm-card-actions"><button className="gm-btn gm-secondary" type="button" onClick={() => openEdit(material)}>Edit</button><button className="gm-btn gm-danger" type="button" onClick={() => confirmRemove(material)}>Hapus</button></div></div>
+      <div className="gm-attachment-box"><button type="button" className="gm-attachment-toggle" aria-expanded={isOpen} aria-controls={`gm-files-${material.id}`} onClick={() => setExpanded(old => ({...old,[material.id]:!isOpen}))}><span>▤ &nbsp; Lampiran ({attachments.length})</span><span>{isOpen ? 'Sembunyikan ↑' : 'Tampilkan ↓'}</span></button><div id={`gm-files-${material.id}`} hidden={!isOpen}>{fileRows(material)}</div></div></article>
+    })}</div>}
+    {modalOpen && <WorkspaceModal className="gm-v2" eyebrow="PERPUSTAKAAN PEMBELAJARAN" title={editing !== null ? 'Edit bahan ajar' : 'Tambah bahan ajar'} description="Lengkapi informasi materi dan kelola lampiran pembelajaran." onClose={closeModal} busy={busy} footer={<><button type="button" className="gm-btn gm-secondary" onClick={closeModal} disabled={busy}>Batal</button><button type="submit" form="gm-material-form" className="gm-btn gm-primary" disabled={busy}>{saving ? 'Menyimpan…' : editing !== null ? 'Simpan perubahan' : 'Tambah bahan ajar'}</button></>}>
+      <form id="gm-material-form" noValidate onSubmit={handleSubmit} className="gm-editor">
+        {error && <div className="gm-alert gm-error" role="alert">{error}</div>}{notice && <div className="gm-alert gm-success" role="status">{notice}</div>}
+        <section className="gm-form-section"><p className="gm-eyebrow">01 / INFORMASI MATERI</p><div className="gm-form-grid"><SearchableSelect label="Jadwal mengajar" value={form.jadwal_pelajaran_id} options={scheduleOptions} placeholder="Pilih jadwal mengajar" required disabled={busy} onChange={value => setForm(prev => ({...prev,jadwal_pelajaran_id:value}))}/><label className="gm-field"><span>Judul bahan ajar *</span><input name="judul" value={form.judul} onChange={handleFieldChange} placeholder="Contoh: Modul dasar" maxLength={255} required disabled={busy}/></label></div><label className="gm-field"><span>Deskripsi (opsional)</span><textarea name="deskripsi" value={form.deskripsi} onChange={handleFieldChange} rows={3} placeholder="Ringkasan isi materi" disabled={busy}/></label></section>
+        {editing !== null && <section className="gm-form-section"><p className="gm-eyebrow">02 / LAMPIRAN TERSIMPAN</p><div className="gm-attachment-box">{selectedMaterial ? fileRows(selectedMaterial,true) : <p className="gm-empty-files">Memuat lampiran…</p>}</div><p className="gm-help">Lampiran tersimpan tetap ada saat menambah file baru. Hapus lampiran langsung berlaku setelah dikonfirmasi.</p></section>}
+        <section className="gm-form-section"><p className="gm-eyebrow">{editing !== null ? '03' : '02'} / LAMPIRAN {editing !== null ? 'BARU' : 'MATERI'}</p><p className="gm-help">Format: dokumen Office/PDF, gambar, teks, ZIP, audio MP3/WAV, atau MP4. Maksimal 10 MB per file.</p><FileDropzone onFiles={handleFilesChange} disabled={busy} maxLabel={MAX_FILE_LABEL}/>{form.files.length > 0 && <div className="gm-attachment-box"><h3 className="gm-pending-title">File baru ({form.files.length})</h3><ul className="gm-files">{form.files.map((file,index) => <li className="gm-file-row" key={`${file.name}-${file.lastModified}-${index}`}><FileTypeIcon name={file.name}/><div className="gm-file-info"><strong>{file.name}</strong><small>{formatFileSize(file.size)} · Belum diunggah</small></div><button type="button" className="gm-btn gm-danger" disabled={busy} onClick={() => removeSelectedFile(index)}>Hapus dari daftar</button></li>)}</ul></div>}</section>
+      </form>
+    </WorkspaceModal>}
+    {attachmentTarget && <ConfirmDialog title="Hapus lampiran?" description="Lampiran lainnya tidak akan dihapus." danger confirmLabel="Ya, hapus" busy={attachmentDeleting !== null} error={error} onClose={() => {if (attachmentDeleting === null) {setAttachmentTarget(null);setError('')}}} onConfirm={confirmRemoveAttachment}><p>Hapus lampiran “{attachmentTarget.attachment.file_name}”?</p></ConfirmDialog>}
+    {deleteTarget && <WorkspaceModal className="gm-v2" eyebrow="PERPUSTAKAAN PEMBELAJARAN" title="Hapus bahan ajar?" description="Tindakan ini tidak dapat dibatalkan." onClose={() => {if (!deleting) setDeleteTarget(null)}} busy={deleting} compact footer={<><button className="gm-btn gm-secondary" type="button" disabled={deleting} onClick={() => setDeleteTarget(null)}>Batal</button><button className="gm-btn gm-danger-solid" type="button" disabled={deleting} onClick={handleDeleteMaterial}>{deleting ? 'Menghapus…' : 'Ya, hapus'}</button></>}><p>Bahan ajar “{deleteTarget.judul}” beserta seluruh lampirannya akan dihapus.</p>{error && <div role="alert" className="gm-alert gm-error">{error}</div>}</WorkspaceModal>}
+    <ToastNotification notice={toast} onClose={closeToast}/>
+  </main>
 }
+
+function BookIcon() {return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M12 6c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V5c-3-1-6-1-9 1Zm0 0v15" strokeLinejoin="round"/></svg>}

@@ -1,3 +1,4 @@
+
 import { apiClient, getAuthToken } from './apiClient'
 
 const API_BASE_URL =
@@ -93,14 +94,17 @@ export const materialApi = {
   },
 
   // Unduhan kompatibel dengan endpoint lama bahan ajar.
-  download(id, filename) {
-    return downloadFile(`/materials/${id}/download`, filename)
+  download(id, filename, params = {}) {
+    return downloadFile(
+      `/materials/${id}/download${buildQuery(params)}`,
+      filename,
+    )
   },
 
   // Unduh satu lampiran tertentu.
-  downloadAttachment(materialId, attachmentId, filename) {
+  downloadAttachment(materialId, attachmentId, filename, params = {}) {
     return downloadFile(
-      `/materials/${materialId}/attachments/${attachmentId}/download`,
+      `/materials/${materialId}/attachments/${attachmentId}/download${buildQuery(params)}`,
       filename,
     )
   },

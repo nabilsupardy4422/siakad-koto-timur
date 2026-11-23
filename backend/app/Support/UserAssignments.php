@@ -3,42 +3,21 @@
 namespace App\Support;
 
 use App\Models\User;
-use App\Models\WaliKelas;
 
 class UserAssignments
 {
     public static function forUser(User $user): array
     {
-        if ($user->role?->code !== 'GURU') {
+        if ($user->role?->code !== 'GURU' || $user->guru?->id === null) {
             return [];
         }
-
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return [];
-        }
-
-        $today = now()->toDateString();
-
-        $hasActiveHomeroomAssignment = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->whereDate('tanggal_mulai', '<=', $today)
-            ->where(function ($query) use ($today) {
-                $query->whereNull('tanggal_selesai')
-                    ->orWhereDate('tanggal_selesai', '>=', $today);
-            })
-            ->whereHas('tahunAkademik', function ($query) {
-                $query->where('is_active', true);
-            })
-            ->exists();
-
-        if (! $hasActiveHomeroomAssignment) {
-            return [];
-        }
-
-        return [
-            ['type' => 'WALI_KELAS'],
-        ];
+        $assignments = HomeroomReadAccess::currentAssignments((int) $user->guru->id)->orderBy('id')->get();
+        if ($assignments->isEmpty()) return [];
+        return [[
+            'type' => 'WALI_KELAS',
+            'academic_year_id' => (int) $assignments->first()->tahun_akademik_id,
+            'assignment_ids' => $assignments->map(fn ($row) => (int) $row->id)->values()->all(),
+            'class_ids' => $assignments->map(fn ($row) => (int) $row->kelas_id)->values()->all(),
+        ]];
     }
 }

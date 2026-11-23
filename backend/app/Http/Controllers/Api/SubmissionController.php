@@ -7,9 +7,9 @@ use App\Http\Requests\StoreSubmissionRequest;
 use App\Http\Requests\UpdateSubmissionRequest;
 use App\Http\Resources\SubmissionResource;
 use App\Models\Assignment;
-use App\Models\Guru;
+use App\Models\AnggotaKelas;
 use App\Models\SubmissionTugas;
-use App\Models\TahunAkademik;
+use App\Support\AssignmentTeachingAccess;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -69,15 +69,69 @@ class SubmissionController extends Controller
 
         $submissions = $query->latest('submitted_at')->paginate(15);
 
+        $meta = [
+            'current_page' => $submissions->currentPage(),
+            'last_page' => $submissions->lastPage(),
+            'per_page' => $submissions->perPage(),
+            'total' => $submissions->total(),
+        ];
+
+        // Hanya guru yang sudah lolos otorisasi jadwal mengajar yang
+        // memperoleh rekap seluruh anggota kelas. Ini TIDAK dihitung
+        // dari pagination submission karena dapat menyesatkan.
+        if ($role === 'GURU') {
+            $meta['class_overview'] = $this->classSubmissionOverview($assignment);
+        }
+
         return \App\Support\ApiResponse::collection(
             SubmissionResource::collection($submissions->items()),
-            [
-                'current_page' => $submissions->currentPage(),
-                'last_page' => $submissions->lastPage(),
-                'per_page' => $submissions->perPage(),
-                'total' => $submissions->total(),
-            ]
+            $meta
         );
+    }
+
+    /**
+     * Rekap siswa aktif di kelas dari jadwal tugas ini, bukan semua siswa
+     * di sekolah dan bukan jumlah baris pada halaman submission.
+     *
+     * Keanggotaan memakai tanggal berlaku inklusif (WIB), seperti
+     * workspace kelas; submission dihitung unik per siswa aktif.
+     * Siswa yang sudah keluar tidak dihitung ke denominator maupun
+     * numerator hari ini walaupun submission historisnya masih tersimpan.
+     */
+    private function classSubmissionOverview(Assignment $assignment): array
+    {
+        $assignment->loadMissing(['jadwalPelajaran.kelas', 'jadwalPelajaran.mapel']);
+        $schedule = $assignment->jadwalPelajaran;
+        // Otorisasi pada index sudah menjamin jadwal milik guru aktif.
+        $classId = (int) $schedule->kelas_id;
+        $asOf = now('Asia/Jakarta')->toDateString();
+
+        $activeMembers = AnggotaKelas::query()
+            ->where('kelas_id', $classId)
+            ->whereDate('tanggal_mulai', '<=', $asOf)
+            ->where(function ($query) use ($asOf): void {
+                $query->whereNull('tanggal_selesai')
+                    ->orWhereDate('tanggal_selesai', '>=', $asOf);
+            });
+
+        $totalStudents = (clone $activeMembers)
+            ->distinct()->count('siswa_id');
+
+        $submittedStudents = SubmissionTugas::query()
+            ->where('assignment_id', $assignment->id)
+            ->whereIn('siswa_id', (clone $activeMembers)->select('siswa_id'))
+            ->distinct()->count('siswa_id');
+
+        return [
+            'assignment_id' => (int) $assignment->id,
+            'class_id' => $classId,
+            'class_name' => $schedule->kelas?->nama,
+            'subject_name' => $schedule->mapel?->nama,
+            'as_of' => $asOf,
+            'total_students' => $totalStudents,
+            'submitted_students' => $submittedStudents,
+            'not_submitted_students' => max(0, $totalStudents - $submittedStudents),
+        ];
     }
 
     /**
@@ -435,18 +489,7 @@ class SubmissionController extends Controller
             return false;
         }
 
-        $guru = Guru::query()
-            ->where('user_id', $user->id)
-            ->first();
-
-        if (! $guru) {
-            return false;
-        }
-
-        $assignment->loadMissing(['jadwalPelajaran']);
-
-        return (int) $assignment->jadwalPelajaran?->guru_id
-            === (int) $guru->id;
+        return AssignmentTeachingAccess::teacherCanAccess($user, $assignment->jadwalPelajaran);
     }
 
     /**
@@ -457,29 +500,7 @@ class SubmissionController extends Controller
         $student,
         Assignment $assignment
     ): bool {
-        $assignment->loadMissing(['jadwalPelajaran']);
-
-        $schedule = $assignment->jadwalPelajaran;
-
-        if (! $schedule) {
-            return false;
-        }
-
-        $activeAcademicYearId = TahunAkademik::query()
-            ->where('is_active', true)
-            ->value('id');
-
-        if (
-            $activeAcademicYearId === null ||
-            (int) $schedule->tahun_akademik_id !== (int) $activeAcademicYearId
-        ) {
-            return false;
-        }
-
-        return $student->anggotaKelas()
-            ->where('kelas_id', $schedule->kelas_id)
-            ->whereNull('tanggal_selesai')
-            ->exists();
+        return AssignmentTeachingAccess::studentCanAccess($student, $assignment->jadwalPelajaran);
     }
 
     /**
@@ -514,14 +535,7 @@ class SubmissionController extends Controller
         }
 
         if ($role === 'GURU') {
-            $guru = Guru::query()
-                ->where('user_id', $user->id)
-                ->first();
-
-            return $guru !== null
-                && $submission->assignment !== null
-                && (int) $submission->assignment->jadwalPelajaran?->guru_id
-                    === (int) $guru->id;
+            return AssignmentTeachingAccess::teacherCanAccess($user, $submission->assignment?->jadwalPelajaran);
         }
 
         return false;

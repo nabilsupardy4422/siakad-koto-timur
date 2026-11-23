@@ -571,11 +571,13 @@ class AttendanceTest extends TestCase
         $currentAcademicYear = $this->createAcademicYear([
             'tahun_mulai' => 2026,
             'tahun_selesai' => 2027,
+            'is_active' => true,
         ]);
 
         $previousAcademicYear = $this->createAcademicYear([
             'tahun_mulai' => 2025,
             'tahun_selesai' => 2026,
+            'is_active' => false,
         ]);
 
         $currentClass = $this->createClass($currentAcademicYear);

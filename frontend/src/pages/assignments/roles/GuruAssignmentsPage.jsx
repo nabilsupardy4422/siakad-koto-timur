@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { useAuth } from '../../../context/useAuth'
+import { collectPages, teacherId, sameId } from '../../../utils/teachingScope'
+import { loadAssignmentWorkspace, ownComponents, deadlineToUtc, deadlineToWib } from './assignmentScope'
+import ToastNotification from '../../../components/ui/ToastNotification'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog'
 import { assignmentApi } from '../../../services/assignmentApi'
 import { scheduleApi } from '../../../services/scheduleApi'
 import { academicYearApi } from '../../../services/academicYearApi'
 import '../styles/GuruAssignmentsPage.css'
+import { gradeApi } from '../../../services/gradeApi'
+import SearchableSelect from '../../../components/ui/SearchableSelect'
+import FileDropzone from '../../../components/ui/FileDropzone'
+import FileTypeIcon from '../../../components/ui/FileTypeIcon'
+import WorkspaceModal from '../../../components/ui/WorkspaceModal'
 import GuruAssignmentSubmissions from './GuruAssignmentSubmissions'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -18,13 +28,6 @@ const EMPTY_FORM = {
   files: [],
   remove_attachment_ids: [],
   remove_file: false,
-}
-
-function collection(response) {
-  if (Array.isArray(response?.data?.data)) return response.data.data
-  if (Array.isArray(response?.data)) return response.data
-  if (Array.isArray(response)) return response
-  return []
 }
 
 function getMessage(error) {
@@ -140,20 +143,6 @@ function localDateTime(value) {
   )
 }
 
-function inputDateTime(value) {
-  if (!value) return ''
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) return ''
-
-  const local = new Date(
-    date.getTime() - date.getTimezoneOffset() * 60000,
-  )
-
-  return local.toISOString().slice(0, 16)
-}
-
 function assignmentScheduleLabel(item, schedules) {
   const linked = item?.jadwal_pelajaran
 
@@ -170,15 +159,20 @@ function assignmentScheduleLabel(item, schedules) {
     : `Jadwal #${item?.jadwal_pelajaran_id ?? '—'}`
 }
 
-function isOverdue(item) {
+function isOverdue(item, now = Date.now()) {
   if (!item?.deadline) return false
 
   const deadline = new Date(item.deadline).getTime()
 
-  return !Number.isNaN(deadline) && deadline < Date.now()
+  return !Number.isNaN(deadline) && deadline < now
 }
 
 export default function GuruAssignmentsPage() {
+  const { user } = useAuth()
+  const guruId = teacherId(user)
+  const generation = useRef(0)
+  const [now,setNow] = useState(Date.now)
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[])
   const [assignments, setAssignments] = useState([])
   const [schedules, setSchedules] = useState([])
   const [activeAcademicYear, setActiveAcademicYear] =
@@ -186,9 +180,12 @@ export default function GuruAssignmentsPage() {
 
   const [search, setSearch] = useState('')
   const [scheduleFilter, setScheduleFilter] = useState('')
-  const [expandedSubjects, setExpandedSubjects] = useState(
-    [],
-  )
+  const [statusFilter, setStatusFilter] = useState('')
+  const [view, setView] = useState('grid')
+  const [expandedFiles, setExpandedFiles] = useState([])
+  const [gradeChoices, setGradeChoices] = useState([])
+  const [gradeLoading, setGradeLoading] = useState(false)
+  const [gradeError, setGradeError] = useState('')
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -197,6 +194,8 @@ export default function GuruAssignmentsPage() {
 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const toastNotice=useMemo(()=>notice?{type:'success',title:notice}:null,[notice])
+  const clearNotice = useCallback(()=>setNotice(''),[])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -205,56 +204,55 @@ export default function GuruAssignmentsPage() {
   const [form, setForm] = useState({ ...EMPTY_FORM })
 
   const loadData = useCallback(async () => {
+    const requestId = ++generation.current
     setLoading(true)
     setError('')
+    setAssignments([])
+    setSchedules([])
+    setActiveAcademicYear(null)
 
     try {
-      const academicYearResponse =
-        await academicYearApi.getAll({ is_active: 1 })
+      const academicYears = await collectPages(page => academicYearApi.getAll({is_active:1,per_page:100,page}))
+      if (requestId !== generation.current) return
 
-      const academicYears = collection(academicYearResponse)
-
-      const activeYear = academicYears.find(
+      const activeYears = academicYears.filter(
         (year) =>
           year.is_active === true ||
           year.is_active === 1 ||
           year.is_active === '1',
       )
 
+      if (activeYears.length > 1) throw new Error('Lebih dari satu periode akademik aktif. Hubungi TU.')
+      const activeYear = activeYears[0]
       if (!activeYear) {
         setActiveAcademicYear(null)
         setAssignments([])
         setSchedules([])
         setSearch('')
         setScheduleFilter('')
-        setExpandedSubjects([])
+        setStatusFilter('')
         return
       }
 
+      const data = await loadAssignmentWorkspace(assignmentApi,scheduleApi,guruId,activeYear.id)
+      if (requestId !== generation.current) return
       setActiveAcademicYear(activeYear)
-
-      const params = {
-        academic_year_id: activeYear.id,
-        per_page: 100,
-      }
-
-      const [assignmentResponse, scheduleResponse] =
-        await Promise.all([
-          assignmentApi.getAll(params),
-          scheduleApi.getAll(params),
-        ])
-
-      setAssignments(collection(assignmentResponse))
-      setSchedules(collection(scheduleResponse))
+      setAssignments(data.assignments)
+      setSchedules(data.schedules)
+      setScheduleFilter(old=>data.schedules.some(s=>sameId(s.id,old))?old:'')
     } catch (err) {
-      setError(getMessage(err))
+      if (requestId === generation.current) setError(getMessage(err))
     } finally {
-      setLoading(false)
+      if (requestId === generation.current) setLoading(false)
     }
-  }, [])
+  }, [guruId])
 
   useEffect(() => {
+    setModalOpen(false)
+    setDeleteTarget(null)
+    setSubmissionTarget(null)
     loadData()
+    return ()=>{generation.current++}
   }, [loadData])
 
   const filtered = useMemo(() => {
@@ -286,6 +284,7 @@ export default function GuruAssignmentsPage() {
 
         return (
           matchesSchedule &&
+          (!statusFilter || (statusFilter === 'overdue' ? isOverdue(item, now) : item.deadline && Number.isFinite(new Date(item.deadline).getTime()) && !isOverdue(item, now))) &&
           (!query || text.includes(query))
         )
       })
@@ -294,48 +293,9 @@ export default function GuruAssignmentsPage() {
           new Date(a?.deadline || 0) -
           new Date(b?.deadline || 0),
       )
-  }, [assignments, schedules, search, scheduleFilter])
-
-  const groupedAssignments = useMemo(() => {
-    const groups = new Map()
-
-    filtered.forEach((item) => {
-      const scheduleId = String(
-        item?.jadwal_pelajaran_id ??
-          item?.jadwal_pelajaran?.id ??
-          'jadwal-tidak-diketahui',
-      )
-      const schedule = item?.jadwal_pelajaran ||
-        schedules.find((entry) => String(entry.id) === scheduleId)
-      const subject = getSubjectName(item, schedules)
-      const scheduleLabel = schedule
-        ? scheduleDetails(schedule)
-        : `Jadwal #${scheduleId}`
-      const groupKey = `${scheduleId}::${subject}`
-
-      if (!groups.has(groupKey)) {
-        groups.set(groupKey, {
-          key: groupKey,
-          subject,
-          scheduleLabel,
-          scheduleId,
-          assignments: [],
-        })
-      }
-
-      groups.get(groupKey).assignments.push(item)
-    })
-
-    return Array.from(groups.values()).sort((a, b) =>
-      `${a.subject} ${a.scheduleLabel}`.localeCompare(
-        `${b.subject} ${b.scheduleLabel}`,
-        'id-ID',
-      ),
-    )
-  }, [filtered, schedules])
+  }, [assignments, schedules, search, scheduleFilter, statusFilter, now])
 
   const summary = useMemo(() => {
-    const now = Date.now()
 
     return {
       total: assignments.length,
@@ -344,35 +304,46 @@ export default function GuruAssignmentsPage() {
           item?.deadline &&
           new Date(item.deadline).getTime() >= now,
       ).length,
-      overdue: assignments.filter(isOverdue).length,
+      overdue: assignments.filter(item=>isOverdue(item,now)).length,
       withAttachment: assignments.filter(
         (item) => getAssignmentAttachments(item).length > 0,
       ).length,
     }
-  }, [assignments])
+  }, [assignments, now])
 
-  // Ketika ada pencarian atau filter, buka grup yang
-  // mengandung tugas yang cocok agar hasilnya langsung terlihat.
   useEffect(() => {
-    if (search.trim() || scheduleFilter) {
-      setExpandedSubjects(
-        groupedAssignments.map((group) => group.key),
-      )
-    }
-  }, [search, scheduleFilter, groupedAssignments])
+    let cancelled = false
+    setGradeChoices([])
+    setGradeError('')
+    if (!modalOpen || !form.jadwal_pelajaran_id) { setGradeLoading(false); return }
+    setGradeLoading(true)
+    collectPages(page=>gradeApi.getComponents({ schedule_id: form.jadwal_pelajaran_id, academic_year_id: activeAcademicYear?.id, per_page: 100, page }))
+      .then(rows => { if (!cancelled) setGradeChoices(ownComponents(rows,form.jadwal_pelajaran_id)) })
+      .catch(err => { if (!cancelled) setGradeError(getMessage(err)) })
+      .finally(() => { if (!cancelled) setGradeLoading(false) })
+    return () => { cancelled = true }
+  }, [modalOpen, form.jadwal_pelajaran_id, activeAcademicYear?.id])
 
-  function toggleSubject(subject) {
-    setExpandedSubjects((current) =>
-      current.includes(subject)
-        ? current.filter((item) => item !== subject)
-        : [...current, subject],
-    )
+  function chooseSchedule(value) {
+    setGradeChoices([])
+    setGradeLoading(Boolean(value))
+    setForm(current => ({ ...current, jadwal_pelajaran_id: value, komponen_nilai_id: current.jadwal_pelajaran_id === value ? current.komponen_nilai_id : '' }))
+  }
+
+  function addFiles(files) {
+    const invalid = files.find(file => !ACCEPTED_FILE_TYPES.split(',').includes('.' + file.name.split('.').pop().toLowerCase()) || file.size > MAX_FILE_SIZE)
+    if (invalid) { setError(`File ${invalid.name} tidak didukung atau melebihi 10 MB.`); return }
+    const next = [...form.files]
+    for (const file of files) if (!next.some(f => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)) next.push(file)
+    if (next.length + retainedCount > 10) { setError('Maksimal 10 lampiran termasuk file yang dipertahankan.'); return }
+    setError('')
+    setForm(current => ({ ...current, files: next }))
   }
 
   function resetFilters() {
     setSearch('')
     setScheduleFilter('')
-    setExpandedSubjects([])
+    setStatusFilter('')
   }
 
   function openCreate() {
@@ -388,7 +359,7 @@ export default function GuruAssignmentsPage() {
 
     setForm({
       jadwal_pelajaran_id: String(
-        item?.jadwal_pelajaran_id ?? '',
+        item?.jadwal_pelajaran_id ?? item?.jadwal_pelajaran?.id ?? '',
       ),
       komponen_nilai_id:
         item?.komponen_nilai_id == null
@@ -396,7 +367,7 @@ export default function GuruAssignmentsPage() {
           : String(item.komponen_nilai_id),
       judul: item?.judul || '',
       deskripsi: item?.deskripsi || '',
-      deadline: inputDateTime(item?.deadline),
+      deadline: deadlineToWib(item?.deadline),
       files: [],
       remove_attachment_ids: [],
       remove_file: false,
@@ -408,29 +379,7 @@ export default function GuruAssignmentsPage() {
   }
 
   function updateField(event) {
-    const { name, value, files, checked, type } = event.target
-
-    if (name === 'files') {
-      const selectedFiles = Array.from(files || [])
-      if (selectedFiles.length > 10) {
-        setError('Maksimal 10 file lampiran dalam satu kali pilih.')
-        event.target.value = ''
-        return
-      }
-      const oversized = selectedFiles.find((file) => file.size > MAX_FILE_SIZE)
-      if (oversized) {
-        setError(`Ukuran file "${oversized.name}" melebihi 10 MB.`)
-        event.target.value = ''
-        return
-      }
-      setError('')
-      setForm((current) => ({
-        ...current,
-        files: selectedFiles,
-        remove_file: false,
-      }))
-      return
-    }
+    const { name, value, checked, type } = event.target
 
     if (name === 'remove_attachment_ids') {
       const id = Number(value)
@@ -457,16 +406,17 @@ export default function GuruAssignmentsPage() {
     if (
       !form.jadwal_pelajaran_id ||
       !form.judul.trim() ||
+      form.judul.trim().length > 255 ||
       !form.deadline
     ) {
       setError(
-        'Jadwal, judul tugas, dan deadline wajib diisi.',
+        'Jadwal, judul (maksimal 255 karakter), dan tenggat wajib diisi.',
       )
       return
     }
 
-    if (form.files.length > 10) {
-      setError('Maksimal 10 file lampiran dalam satu kali pilih.')
+    if (form.files.length + retainedCount > 10) {
+      setError('Maksimal 10 lampiran termasuk file yang dipertahankan.')
       return
     }
 
@@ -475,6 +425,14 @@ export default function GuruAssignmentsPage() {
       return
     }
 
+    if (!schedules.some(s=>sameId(s.id,form.jadwal_pelajaran_id)) || (editing && !assignments.some(a=>sameId(a.id,editing.id)))) {
+      setError('Penugasan tidak tersedia dalam konteks mengajar Anda.'); return
+    }
+    const deadline = deadlineToUtc(form.deadline)
+    if (!deadline) {setError('Format tenggat WIB tidak valid.');return}
+    if (gradeLoading || gradeError || (form.komponen_nilai_id && !gradeChoices.some(c=>sameId(c.id,form.komponen_nilai_id)))) {
+      setError('Pilih komponen nilai yang valid dari jadwal yang sama.'); return
+    }
     setSaving(true)
 
     try {
@@ -487,18 +445,15 @@ export default function GuruAssignmentsPage() {
           : null,
         judul: form.judul.trim(),
         deskripsi: form.deskripsi.trim() || null,
-        deadline:
-          form.deadline.replace('T', ' ') +
-          (form.deadline.length === 16 ? ':00' : ''),
+        deadline,
       }
 
-      if (editing || form.files.length || form.remove_file || form.remove_attachment_ids.length) {
+      if (form.files.length || form.remove_file || form.remove_attachment_ids.length) {
         const data = new FormData()
 
         Object.entries(payload).forEach(([key, value]) => {
-          if (value !== null) {
-            data.append(key, String(value))
-          }
+          if (value !== null) data.append(key, String(value))
+          else if (editing) data.append(key, '')
         })
 
         form.files.forEach((file) => data.append('files[]', file))
@@ -519,6 +474,8 @@ export default function GuruAssignmentsPage() {
         } else {
           await assignmentApi.createWithFile(data)
         }
+      } else if (editing) {
+        await assignmentApi.update(editing.id, payload)
       } else {
         await assignmentApi.create(payload)
       }
@@ -539,7 +496,7 @@ export default function GuruAssignmentsPage() {
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return
+    if (!deleteTarget || !assignments.some(a=>sameId(a.id,deleteTarget.id))) return
 
     setDeleting(true)
     setError('')
@@ -559,12 +516,13 @@ export default function GuruAssignmentsPage() {
   }
 
   async function handleDownload(item, attachment = null) {
+    if (!assignments.some(a=>sameId(a.id,item.id))) return
     const downloadKey = attachment?.id ?? `assignment-${item.id}`
     setDownloading(downloadKey)
     setError('')
 
     try {
-      if (attachment?.id && typeof assignmentApi.downloadAssignmentAttachment === 'function') {
+      if (attachment?.id) {
         await assignmentApi.downloadAssignmentAttachment(
           attachment.id,
           attachment.name || 'lampiran-tugas',
@@ -592,668 +550,27 @@ export default function GuruAssignmentsPage() {
       }`
     : 'Belum ada tahun akademik aktif'
 
-  return (
-    <main className="assignments-page">
-      <header className="assignments-heading">
-        <div className="assignments-heading-copy">
-          <p className="assignments-eyebrow">
-            KEGIATAN AKADEMIK
-          </p>
-
-          <h1>Tugas</h1>
-
-          <p className="assignments-subtitle">
-            Kelola instruksi tugas, lampiran, dan batas waktu
-            pengumpulan siswa dalam satu tempat.
-          </p>
-
-          <span className="assignments-period">
-            <span className="assignments-period-dot" />
-            Periode aktif: {academicPeriod}
-          </span>
-        </div>
-
-        <div className="assignments-heading-actions">
-          <button
-            type="button"
-            className="assignments-secondary-button"
-            onClick={loadData}
-            disabled={loading}
-          >
-            {loading ? 'Memuat…' : '↻ Muat ulang'}
-          </button>
-
-          <button
-            type="button"
-            className="assignments-primary-button"
-            onClick={openCreate}
-            disabled={!activeAcademicYear || loading}
-          >
-            + Buat Tugas
-          </button>
-        </div>
-      </header>
-
-      {error && !modalOpen && (
-        <div className="assignments-alert error" role="alert">
-          {error}
-        </div>
-      )}
-
-      {notice && (
-        <div
-          className="assignments-alert success"
-          role="status"
-        >
-          <span>{notice}</span>
-          <button
-            type="button"
-            aria-label="Tutup notifikasi"
-            onClick={() => setNotice('')}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && !activeAcademicYear && (
-        <div className="assignments-alert error" role="alert">
-          Belum ada tahun akademik aktif. Hubungi Tata Usaha
-          untuk mengaktifkan periode akademik sebelum
-          mengelola tugas.
-        </div>
-      )}
-
-      <section className="assignments-summary">
-        <article className="assignments-stat-card total">
-          <span className="assignments-stat-icon">▤</span>
-          <p>Total Tugas</p>
-          <strong>{summary.total}</strong>
-          <small>Seluruh tugas pada periode aktif</small>
-        </article>
-
-        <article className="assignments-stat-card upcoming">
-          <span className="assignments-stat-icon">◷</span>
-          <p>Tenggat Mendatang</p>
-          <strong>{summary.upcoming}</strong>
-          <small>Belum melewati batas waktu</small>
-        </article>
-
-        <article className="assignments-stat-card overdue">
-          <span className="assignments-stat-icon">!</span>
-          <p>Tenggat Terlewati</p>
-          <strong>{summary.overdue}</strong>
-          <small>Tanggal pengumpulan sudah lewat</small>
-        </article>
-
-        <article className="assignments-stat-card attachments">
-          <span className="assignments-stat-icon">↗</span>
-          <p>Dengan Lampiran</p>
-          <strong>{summary.withAttachment}</strong>
-          <small>Tugas yang memiliki file lampiran</small>
-        </article>
-      </section>
-
-      <section className="assignments-panel">
-        <header className="assignments-list-heading">
-          <div>
-            <h2>Daftar Tugas</h2>
-            <p>
-              {filtered.length} tugas ditampilkan dalam{' '}
-              {groupedAssignments.length} kelompok mapel dan tingkat
-            </p>
-          </div>
-        </header>
-
-        <div className="assignments-toolbar">
-          <label className="assignments-search">
-            <span aria-hidden="true">⌕</span>
-            <input
-              value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
-              placeholder="Cari judul, instruksi, atau mapel…"
-              aria-label="Cari tugas"
-            />
-          </label>
-
-          <label className="assignments-filter">
-            <span>Jadwal mengajar</span>
-            <select
-              value={scheduleFilter}
-              onChange={(event) =>
-                setScheduleFilter(event.target.value)
-              }
-              aria-label="Filter jadwal mengajar"
-            >
-              <option value="">Semua jadwal</option>
-              {schedules.map((schedule) => (
-                <option
-                  key={schedule.id}
-                  value={String(schedule.id)}
-                >
-                  {scheduleDetails(schedule)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="button"
-            className="assignments-secondary-button"
-            onClick={resetFilters}
-            disabled={!search && !scheduleFilter}
-          >
-            Reset filter
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="assignments-state">
-            <span className="assignments-spinner" />
-            Memuat data tugas…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="assignments-empty">
-            <div className="assignments-empty-icon">▤</div>
-
-            <h2>
-              {assignments.length
-                ? 'Tugas tidak ditemukan'
-                : 'Belum ada tugas'}
-            </h2>
-
-            <p>
-              {assignments.length
-                ? 'Coba ubah kata pencarian atau reset filter yang dipilih.'
-                : 'Buat tugas pertama untuk salah satu jadwal mengajarmu.'}
-            </p>
-
-            {assignments.length > 0 && (
-              <button
-                type="button"
-                className="assignments-secondary-button"
-                onClick={resetFilters}
-              >
-                Reset filter
-              </button>
-            )}
-
-            {!assignments.length && activeAcademicYear && (
-              <button
-                type="button"
-                className="assignments-primary-button"
-                onClick={openCreate}
-              >
-                + Buat Tugas
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="assignments-subject-grid">
-            {groupedAssignments.map((group) => {
-              const isExpanded = expandedSubjects.includes(
-                group.key,
-              )
-
-              return (
-                <section
-                  className={`assignments-subject-card ${
-                    isExpanded ? 'is-expanded' : ''
-                  }`}
-                  key={group.key}
-                >
-                  <button
-                    type="button"
-                    className="assignments-subject-header"
-                    onClick={() =>
-                      toggleSubject(group.key)
-                    }
-                    aria-expanded={isExpanded}
-                  >
-                    <span className="assignments-subject-avatar">
-                      {group.subject.charAt(0).toUpperCase()}
-                    </span>
-
-                    <span className="assignments-subject-info">
-                      <small>MATA PELAJARAN</small>
-                      <strong>{group.subject}</strong>
-                      <small className="assignments-subject-schedule">{group.scheduleLabel}</small>
-                    </span>
-
-                    <span className="assignments-subject-count">
-                      {group.assignments.length}{' '}
-                      {group.assignments.length === 1
-                        ? 'tugas'
-                        : 'tugas'}
-                    </span>
-
-                    <span
-                      className="assignments-subject-toggle"
-                      aria-hidden="true"
-                    >
-                      {isExpanded ? '−' : '+'}
-                    </span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="assignments-subject-content">
-                      {group.assignments.map((item) => {
-                        const overdue = isOverdue(item)
-
-                        return (
-                          <article
-                            className="assignments-card"
-                            key={item.id}
-                          >
-                            <div className="assignments-card-main">
-                              <div className="assignments-card-title-row">
-                                <h3>{item.judul}</h3>
-
-                                <span
-                                  className={`assignments-badge ${
-                                    overdue ? 'past' : 'upcoming'
-                                  }`}
-                                >
-                                  {overdue
-                                    ? 'Deadline lewat'
-                                    : 'Aktif'}
-                                </span>
-                              </div>
-
-                              <p className="assignments-schedule">
-                                {assignmentScheduleLabel(
-                                  item,
-                                  schedules,
-                                )}
-                              </p>
-
-                              {item.deskripsi && (
-                                <p className="assignments-description">
-                                  {item.deskripsi}
-                                </p>
-                              )}
-
-                              <div className="assignments-meta">
-                                <span>
-                                  <strong>Batas waktu</strong>
-                                  <span>
-                                    {localDateTime(item.deadline)}
-                                  </span>
-                                </span>
-
-                                {getAssignmentAttachments(item).length > 0 && (
-                                  <span className="assignments-file-meta">
-                                    <strong>Lampiran ({getAssignmentAttachments(item).length})</strong>
-                                    <span className="assignments-file-name">
-                                      {getAssignmentAttachments(item).map((attachment) => attachment.name).join(', ')}
-                                    </span>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {getAssignmentAttachments(item).length > 0 && (
-                              <div className="assignments-attachment-list" aria-label="Daftar lampiran tugas">
-                                {getAssignmentAttachments(item).map((attachment, index) => {
-                                  const downloadKey = attachment.id ?? `assignment-${item.id}`
-                                  return (
-                                    <div
-                                      className="assignments-attachment-item"
-                                      key={attachment.id ?? `${item.id}-legacy-${index}`}
-                                    >
-                                      <span
-                                        className="assignments-attachment-name"
-                                        title={attachment.name}
-                                      >
-                                        <span className="assignments-attachment-file-icon" aria-hidden="true">
-                                          ▤
-                                        </span>
-                                        {attachment.name}
-                                      </span>
-
-                                      <button
-                                        type="button"
-                                        className="assignments-secondary-button assignments-attachment-download"
-                                        disabled={downloading === downloadKey}
-                                        onClick={() => handleDownload(item, attachment)}
-                                        title={`Unduh ${attachment.name}`}
-                                      >
-                                        {downloading === downloadKey ? 'Mengunduh…' : '↓ Unduh'}
-                                      </button>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-
-                            <div className="assignments-card-actions">
-                              <button
-                                type="button"
-                                className="assignments-secondary-button"
-                                onClick={() => setSubmissionTarget(item)}
-                              >
-                                Lihat Pengumpulan
-                              </button>
-
-                              <button
-                                type="button"
-                                className="assignments-secondary-button"
-                                onClick={() => openEdit(item)}
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                type="button"
-                                className="assignments-danger-button"
-                                onClick={() => {
-                                  setError('')
-                                  setDeleteTarget(item)
-                                }}
-                              >
-                                Hapus
-                              </button>
-                            </div>
-                          </article>
-                        )
-                      })}
-                    </div>
-                  )}
-                </section>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {modalOpen && (
-        <div
-          className="assignments-modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (
-              event.target === event.currentTarget &&
-              !saving
-            ) {
-              setModalOpen(false)
-            }
-          }}
-        >
-          <section
-            className="assignments-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="assignment-form-title"
-          >
-            <header className="assignments-modal-heading">
-              <div>
-                <p className="assignments-eyebrow">
-                  PENGELOLAAN TUGAS
-                </p>
-
-                <h2 id="assignment-form-title">
-                  {editing ? 'Edit Tugas' : 'Buat Tugas Baru'}
-                </h2>
-
-                <p>
-                  Lengkapi informasi tugas dan batas waktu
-                  pengumpulan.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="assignments-close-button"
-                onClick={() => setModalOpen(false)}
-                disabled={saving}
-                aria-label="Tutup"
-              >
-                ×
-              </button>
-            </header>
-
-            {error && (
-              <div className="assignments-alert error" role="alert">
-                {error}
-              </div>
-            )}
-
-            <form
-              onSubmit={handleSubmit}
-              className="assignments-form"
-            >
-              <label className="assignments-form-field">
-                <span>
-                  Jadwal mengajar <b>*</b>
-                </span>
-
-                <select
-                  name="jadwal_pelajaran_id"
-                  value={form.jadwal_pelajaran_id}
-                  onChange={updateField}
-                  required
-                >
-                  <option value="">
-                    Pilih jadwal mengajar
-                  </option>
-
-                  {schedules.map((schedule) => (
-                    <option
-                      key={schedule.id}
-                      value={schedule.id}
-                    >
-                      {scheduleDetails(schedule)}
-                    </option>
-                  ))}
-                </select>
-
-                {!schedules.length && (
-                  <small>
-                    Jadwal belum tersedia. Pastikan jadwal
-                    mengajar sudah dibuat.
-                  </small>
-                )}
-              </label>
-
-              <label className="assignments-form-field">
-                <span>
-                  Komponen nilai <small>(opsional)</small>
-                </span>
-
-                <input
-                  name="komponen_nilai_id"
-                  type="number"
-                  min="1"
-                  value={form.komponen_nilai_id}
-                  onChange={updateField}
-                  placeholder="ID komponen nilai jika ada"
-                />
-
-                <small>
-                  Komponen nilai harus berasal dari jadwal
-                  yang sama.
-                </small>
-              </label>
-
-              <label className="assignments-form-field">
-                <span>
-                  Judul tugas <b>*</b>
-                </span>
-
-                <input
-                  name="judul"
-                  value={form.judul}
-                  onChange={updateField}
-                  maxLength={255}
-                  required
-                  placeholder="Contoh: Latihan Bab 1"
-                />
-              </label>
-
-              <label className="assignments-form-field">
-                <span>Deskripsi / instruksi</span>
-
-                <textarea
-                  name="deskripsi"
-                  value={form.deskripsi}
-                  onChange={updateField}
-                  rows={4}
-                  placeholder="Tuliskan instruksi pengerjaan tugas…"
-                />
-              </label>
-
-              <label className="assignments-form-field">
-                <span>
-                  Batas waktu pengumpulan <b>*</b>
-                </span>
-
-                <input
-                  name="deadline"
-                  type="datetime-local"
-                  value={form.deadline}
-                  onChange={updateField}
-                  required
-                />
-              </label>
-
-              <label className="assignments-form-field">
-                <span>
-                  Lampiran tugas <small>(opsional, maks. 10 file; 10 MB per file)</small>
-                </span>
-
-                <input
-                  name="files"
-                  type="file"
-                  multiple
-                  accept={ACCEPTED_FILE_TYPES}
-                  onChange={updateField}
-                />
-
-                {form.files.length > 0 && (
-                  <small>
-                    File baru dipilih ({form.files.length}):{' '}
-                    {form.files.map((file) => file.name).join(', ')}
-                  </small>
-                )}
-
-                {editing && getAssignmentAttachments(editing).length > 0 && (
-                  <div className="assignments-existing-attachments">
-                    <strong>Lampiran saat ini</strong>
-                    {getAssignmentAttachments(editing).map((attachment, index) => {
-                      const markedForRemoval = attachment.id
-                        ? form.remove_attachment_ids.includes(Number(attachment.id))
-                        : form.remove_file
-                      return (
-                        <label
-                          className="assignments-remove-file"
-                          key={attachment.id ?? `legacy-${index}`}
-                        >
-                          <input
-                            type="checkbox"
-                            name={attachment.id ? 'remove_attachment_ids' : 'remove_file'}
-                            value={attachment.id ?? 'legacy'}
-                            checked={markedForRemoval}
-                            onChange={updateField}
-                          />
-                          <span>
-                            {attachment.name}
-                            {attachment.size ? ` (${formatFileSize(attachment.size)})` : ''}
-                            {markedForRemoval ? ' — akan dihapus' : ''}
-                          </span>
-                        </label>
-                      )
-                    })}
-                    <small>Centang hanya lampiran yang ingin dihapus. Lampiran lainnya tetap tersimpan.</small>
-                  </div>
-                )}
-              </label>
-
-              <div className="assignments-modal-footer">
-                <button
-                  type="button"
-                  className="assignments-secondary-button"
-                  onClick={() => setModalOpen(false)}
-                  disabled={saving}
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="submit"
-                  className="assignments-primary-button"
-                  disabled={saving || !schedules.length}
-                >
-                  {saving
-                    ? 'Menyimpan…'
-                    : editing
-                      ? 'Simpan Perubahan'
-                      : 'Simpan Tugas'}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {deleteTarget && (
-        <div className="assignments-modal-backdrop">
-          <section
-            className="assignments-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="assignment-delete-title"
-          >
-            <h2 id="assignment-delete-title">
-              Hapus tugas?
-            </h2>
-
-            <p>
-              Tugas <strong>{deleteTarget.judul}</strong> akan
-              dihapus. Jika sudah memiliki submission siswa,
-              server mungkin menolak penghapusan sesuai aturan
-              backend.
-            </p>
-
-            {error && (
-              <div className="assignments-alert error" role="alert">
-                {error}
-              </div>
-            )}
-
-            <div className="assignments-modal-footer">
-              <button
-                type="button"
-                className="assignments-secondary-button"
-                onClick={() => {
-                  setDeleteTarget(null)
-                  setError('')
-                }}
-                disabled={deleting}
-              >
-                Batal
-              </button>
-
-              <button
-                type="button"
-                className="assignments-danger-button"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Menghapus…' : 'Ya, hapus tugas'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {submissionTarget && (
-        <GuruAssignmentSubmissions
-          assignment={submissionTarget}
-          onClose={() => setSubmissionTarget(null)}
-        />
-      )}
-    </main>
-  )
+  const retainedCount = editing ? getAssignmentAttachments(editing).filter(a => a.id ? !form.remove_attachment_ids.includes(Number(a.id)) : !form.remove_file).length : 0
+  const scheduleOptions = schedules.map(schedule => ({ value: String(schedule.id), label: `${schedule.kelas?.nama || schedule.kelas?.nama_kelas || 'Kelas'} · ${schedule.kelas?.tingkat == null ? 'Tingkat belum tersedia' : 'Tingkat ' + schedule.kelas.tingkat}`, description: [schedule.mapel?.nama || schedule.mapel?.nama_mapel, schedule.hari, [schedule.jam_mulai,schedule.jam_selesai].filter(Boolean).map(t=>String(t).slice(0,5)).join('–')].filter(Boolean).join(' · ') }))
+  const gradeOptions = [{value:'',label:'Tanpa komponen nilai'}, ...gradeChoices.map(c=>({value:String(c.id),label:c.nama || `Komponen ${c.id}`,description:c.bobot == null ? '' : `Bobot ${c.bobot}`}))]
+  // Jangan menambahkan komponen yang tidak tercantum dalam daftar jadwal terverifikasi.
+  const upcoming = assignments.filter(a=>a.deadline && Number.isFinite(new Date(a.deadline).getTime()) && !isOverdue(a, now)).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline)).slice(0,4)
+  const dismissForm = () => { if (!saving) {setModalOpen(false);setError('')} }
+  const dismissDelete = () => { if (!deleting) {setDeleteTarget(null);setError('')} }
+  return <main className="ga-page">
+    <header className="ga-page-head"><div><p className="ga-eyebrow">KEGIATAN MENGAJAR</p><h1>Tugas Pembelajaran<span>.</span></h1><p>Kelola instruksi, tenggat, dan pengumpulan tugas siswa.</p></div><div className="ga-actions"><button type="button" className="ga-btn" onClick={loadData} disabled={loading}>↻ Muat ulang</button><button type="button" className="ga-btn primary" onClick={openCreate} disabled={!activeAcademicYear || loading || !schedules.length}>+ Buat tugas</button></div></header>
+    {error && !modalOpen && !deleteTarget && <div className="ga-alert error" role="alert">{error}</div>}
+    <ToastNotification notice={toastNotice} onClose={clearNotice}/>
+    <section className="ga-band" aria-label="Ringkasan tugas"><div className="ga-band-intro"><p className="ga-eyebrow">RUANG KERJA PENUGASAN</p><h2>Kelola aktivitas pembelajaran</h2><p>Periode aktif · {academicPeriod}</p><p>Ringkasan tugas yang dimuat.</p></div><div className="ga-metrics">{[['Total tugas',summary.total],['Tenggat mendatang',summary.upcoming],['Tenggat terlewati',summary.overdue],['Dengan lampiran',summary.withAttachment]].map(([label,n])=><div key={label}><span>{label}</span><strong>{loading?'—':n}</strong></div>)}</div></section>
+    <section className="ga-filter"><div className="ga-section-head"><div><h2>Temukan tugas</h2><p>Telusuri judul atau instruksi, lalu persempit berdasarkan jadwal.</p></div><button className="ga-link" type="button" disabled={!search&&!scheduleFilter&&!statusFilter} onClick={resetFilters}>↻ Reset filter</button></div><div className="ga-filter-grid"><label className="ga-field">Cari tugas<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari judul, instruksi, atau mapel..."/></label><SearchableSelect label="Jadwal mengajar" value={scheduleFilter} options={[{value:'',label:'Semua jadwal'},...scheduleOptions]} onChange={setScheduleFilter} disabled={loading}/><SearchableSelect label="Status tenggat" value={statusFilter} options={[{value:'',label:'Semua status'},{value:'upcoming',label:'Tenggat mendatang'},{value:'overdue',label:'Tenggat terlewati'}]} onChange={setStatusFilter}/></div></section>
+    <div className="ga-layout"><section className="ga-main-list"><div className="ga-section-head"><div><h2>Daftar tugas</h2><p>{loading?'Memuat tugas...':`${filtered.length} dari ${assignments.length} tugas dimuat`}</p></div><div className="ga-toggle" aria-label="Tampilan daftar">{[['grid','Grid'],['list','List']].map(([v,l])=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)}>{l}</button>)}</div></div>
+    {loading ? <div className="ga-empty" role="status">Memuat tugas...</div> : !filtered.length ? <div className="ga-empty"><h3>{assignments.length?'Tidak ada hasil yang cocok':'Belum ada tugas'}</h3><p>{assignments.length?'Coba ubah filter pencarian.':'Tugas yang dibuat akan tampil di sini.'}</p></div> : <div className={`ga-cards ${view==='list'?'ga-list':''}`}>{filtered.map(item=>{const files=getAssignmentAttachments(item); const schedule=schedules.find(s=>String(s.id)===String(item.jadwal_pelajaran_id ?? item.jadwal_pelajaran?.id)) || item.jadwal_pelajaran;const late=isOverdue(item, now);const known=item.deadline && Number.isFinite(new Date(item.deadline).getTime());const expanded=expandedFiles.includes(item.id);return <article className="ga-card" key={item.id}><div className="ga-card-top"><span className="ga-task-icon" aria-hidden="true">▤</span><span className={`ga-state ${!known?'neutral':late?'late':'active'}`}>{!known?'Tanpa tenggat':late?'Terlewati':'Aktif'}</span></div><h3>{item.judul}</h3><p className="ga-subject">{getSubjectName(item,schedules)}</p><div className="ga-class">{schedule?.kelas?.nama || schedule?.kelas?.nama_kelas || 'Kelas belum tersedia'} · {schedule?.kelas?.tingkat == null?'Tingkat belum tersedia':`Tingkat ${schedule.kelas.tingkat}`}</div>{item.deskripsi && <p className="ga-description">{item.deskripsi}</p>}<div className="ga-card-meta"><span>Tenggat pengumpulan</span><strong>{localDateTime(item.deadline)}</strong></div><button type="button" className="ga-attachment-toggle" aria-expanded={expanded} onClick={()=>setExpandedFiles(old=>expanded?old.filter(id=>id!==item.id):[...old,item.id])} disabled={!files.length}>Lampiran ({files.length}) <span>{expanded?'−':'+'}</span></button>{expanded && <div className="ga-file-list">{files.map((file,i)=><div className="ga-file" key={file.id??i}><FileTypeIcon name={file.name}/><div><strong>{file.name}</strong><small>{formatFileSize(file.size)}</small></div><button type="button" className="ga-btn" disabled={downloading!=null} onClick={()=>handleDownload(item,file)}>{downloading===(file.id??`assignment-${item.id}`)?'Memuat…':'Unduh'}</button></div>)}</div>}<button type="button" className="ga-btn review" onClick={()=>setSubmissionTarget(item)}>Lihat pengumpulan <span>→</span></button><div className="ga-card-actions"><button className="ga-link" type="button" onClick={()=>openEdit(item)}>Edit</button><button className="ga-link danger" type="button" onClick={()=>{setError('');setDeleteTarget(item)}}>Hapus</button></div></article>})}</div>}
+    </section><aside className="ga-aside"><section className="ga-deadlines"><p className="ga-eyebrow">AGENDA PENUGASAN</p><h2>Tenggat terdekat</h2><p>Diurutkan dari tugas yang dimuat.</p>{loading?<p>Memuat...</p>:!upcoming.length?<p>Belum ada tenggat mendatang.</p>:upcoming.map(item=><div className="ga-deadline" key={item.id}><div className="ga-date-tile">{new Intl.DateTimeFormat('id-ID',{day:'numeric',timeZone:'Asia/Jakarta'}).format(new Date(item.deadline))}<small>{new Intl.DateTimeFormat('id-ID',{month:'short',timeZone:'Asia/Jakarta'}).format(new Date(item.deadline))}</small></div><div><strong>{item.judul}</strong><small>{localDateTime(item.deadline)}</small></div></div>)}</section><section className="ga-guide"><h3>Ruang kerja tugas</h3><p>Buka pengumpulan pada kartu tugas untuk memeriksa jawaban dan lampiran siswa.</p></section></aside></div>
+    {modalOpen && <WorkspaceModal className="ga-editor" eyebrow="PENGELOLAAN TUGAS" title={editing?'Edit tugas':'Buat tugas baru'} description="Lengkapi informasi tugas dan ketentuan pengumpulan." onClose={dismissForm} busy={saving} footer={<><button className="ga-btn" type="button" onClick={dismissForm} disabled={saving}>Batal</button><button className="ga-btn primary" type="submit" form="ga-editor-form" disabled={saving||gradeLoading||!schedules.length}>{saving?'Menyimpan…':editing?'Simpan perubahan':'Buat tugas'}</button></>}>
+    <form id="ga-editor-form" className="ga-form" onSubmit={handleSubmit} noValidate>{error&&<div className="ga-alert error" role="alert">{error}</div>}<fieldset disabled={saving}><legend>01 / INFORMASI TUGAS</legend><div className="ga-form-grid"><SearchableSelect label="Jadwal mengajar" required value={form.jadwal_pelajaran_id} options={scheduleOptions} onChange={chooseSchedule} placeholder="Pilih jadwal mengajar" disabled={saving}/><label className="ga-field">Judul tugas *<input name="judul" required maxLength={255} value={form.judul} onChange={updateField} placeholder="Contoh: Latihan Bab 1"/></label><label className="ga-field ga-full">Deskripsi / instruksi<textarea name="deskripsi" rows={4} value={form.deskripsi} onChange={updateField} placeholder="Tuliskan instruksi pengerjaan tugas..."/></label></div></fieldset>
+    <fieldset disabled={saving}><legend>02 / KETENTUAN PENGUMPULAN</legend><div className="ga-form-grid"><label className="ga-field">Batas waktu pengumpulan *<input name="deadline" type="datetime-local" required value={form.deadline} onChange={updateField}/><small>Waktu sekolah (WIB / Asia Jakarta).</small></label><div><SearchableSelect label="Komponen nilai (opsional)" value={form.komponen_nilai_id} options={gradeOptions} onChange={v=>setForm(old=>({...old,komponen_nilai_id:v}))} disabled={saving||gradeLoading||!form.jadwal_pelajaran_id} placeholder={gradeLoading?'Memuat komponen...':'Pilih komponen nilai'}/><p className="ga-help">Komponen harus berasal dari jadwal yang dipilih.</p>{gradeError&&<p className="ga-help" role="alert">Daftar komponen gagal dimuat: {gradeError}. Pilih ulang jadwal atau buka kembali editor.</p>}</div></div></fieldset>
+    <fieldset disabled={saving}><legend>03 / LAMPIRAN TUGAS</legend>{editing&&getAssignmentAttachments(editing).length>0&&<><h3>Lampiran tersimpan</h3><div className="ga-file-list">{getAssignmentAttachments(editing).map((file,i)=>{const marked=file.id?form.remove_attachment_ids.includes(Number(file.id)):form.remove_file;return <div className={`ga-file ${marked?'marked':''}`} key={file.id??i}><FileTypeIcon name={file.name}/><div><strong>{file.name}</strong><small>{formatFileSize(file.size)}{marked?' · Akan dihapus saat disimpan':''}</small></div><label className="ga-remove"><input type="checkbox" name={file.id?'remove_attachment_ids':'remove_file'} value={file.id??'legacy'} checked={marked} onChange={updateField}/> Hapus</label></div>})}</div><p className="ga-help">Lampiran ditandai untuk dihapus ketika perubahan disimpan.</p></>}<FileDropzone onFiles={addFiles} disabled={saving}/><p className="ga-help">Maksimal 10 file, 10 MB per file. PDF, JPG, PNG, DOC(X), XLS(X), PPT(X). {retainedCount+form.files.length}/10 lampiran.</p>{form.files.length>0&&<div className="ga-file-list">{form.files.map((file,i)=><div key={`${file.name}-${i}`} className="ga-file"><FileTypeIcon name={file.name}/><div><strong>{file.name}</strong><small>{formatFileSize(file.size)} · File baru</small></div><button className="ga-link danger" type="button" onClick={()=>setForm(old=>({...old,files:old.files.filter((_,j)=>j!==i)}))}>Hapus</button></div>)}</div>}</fieldset></form></WorkspaceModal>}
+    {deleteTarget&&<ConfirmDialog title="Hapus tugas?" description="Tindakan ini tidak dapat dibatalkan." danger confirmLabel="Ya, hapus tugas" busy={deleting} error={error} onClose={dismissDelete} onConfirm={handleDelete}><p>Tugas <strong>{deleteTarget.judul}</strong> akan dihapus. Server dapat menolak penghapusan jika sudah memiliki pengumpulan siswa.</p></ConfirmDialog>}
+    {submissionTarget&&<GuruAssignmentSubmissions assignment={submissionTarget} onClose={()=>setSubmissionTarget(null)}/>}
+  </main>
 }

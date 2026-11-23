@@ -52,7 +52,9 @@ class UpdateGradeComponentRequest extends FormRequest
 
             'bobot' => [
                 'sometimes',
+                'required',
                 'numeric',
+                'between:0,999.99',
             ],
         ];
     }

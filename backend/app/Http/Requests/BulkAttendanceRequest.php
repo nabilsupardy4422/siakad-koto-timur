@@ -3,13 +3,24 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Support\AttendanceTeachingAccess;
+use App\Models\JadwalPelajaran;
 use Illuminate\Validation\Rule;
 
 class BulkAttendanceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role?->code === 'GURU';
+        if ($this->user()?->role?->code !== 'GURU') {
+            return false;
+        }
+        $id = $this->input('jadwal_pelajaran_id');
+        // Unknown or malformed IDs remain normal validation errors.
+        if (!is_scalar($id) || !ctype_digit((string) $id)) {
+            return true;
+        }
+        $schedule = JadwalPelajaran::query()->find((int) $id);
+        return $schedule === null || AttendanceTeachingAccess::canManage($this->user(), $schedule);
     }
 
     public function rules(): array

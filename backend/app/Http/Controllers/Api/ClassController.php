@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\HomeroomReadAccess;
 use App\Http\Requests\StoreClassRequest;
 use App\Http\Requests\UpdateClassRequest;
 use App\Http\Resources\ClassResource;
@@ -180,14 +181,7 @@ class ClassController extends Controller
                         $guruId,
                         $academicYearId
                     ): void {
-                        $waliQuery->where('guru_id', $guruId);
-
-                        if ($academicYearId !== null) {
-                            $waliQuery->where(
-                                'tahun_akademik_id',
-                                $academicYearId
-                            );
-                        }
+                        HomeroomReadAccess::restrictCurrent($waliQuery, (int) $guruId, $academicYearId);
                     }
                 );
             });
@@ -248,16 +242,8 @@ class ClassController extends Controller
                 return true;
             }
 
-            return $class->waliKelas()
-                ->where('guru_id', $guruId)
-                ->when(
-                    $academicYearId !== null,
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-                ->exists();
+            return HomeroomReadAccess::currentAssignments((int) $guruId, $academicYearId)
+                ->where('kelas_id', $class->id)->exists();
         }
 
         return false;

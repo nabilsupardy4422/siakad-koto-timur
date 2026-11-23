@@ -1,3 +1,4 @@
+import HomeroomClassMembers from "./roles/HomeroomClassMembers"
 import {
     useCallback,
     useEffect,
@@ -80,6 +81,12 @@ import {
   }
   
   export default function ClassMembersPage() {
+    const { role } = useAuth()
+    if (getRoleCode(role) === 'GURU') return <HomeroomClassMembers />
+    return <ExistingClassMembersPage />
+  }
+
+  function ExistingClassMembersPage() {
     const { role, assignments = [] } = useAuth()
   
     const roleCode = getRoleCode(role)

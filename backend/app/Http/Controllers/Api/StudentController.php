@@ -9,7 +9,7 @@ use App\Http\Resources\StudentResource;
 use App\Models\JadwalPelajaran;
 use App\Models\Siswa;
 use App\Models\User;
-use App\Models\WaliKelas;
+use App\Support\HomeroomReadAccess;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -216,18 +216,7 @@ class StudentController extends Controller
             )
             ->pluck('kelas_id');
 
-        $waliClasses = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                function (Builder $query) use ($academicYearId): void {
-                    $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    );
-                }
-            )
-            ->pluck('kelas_id');
+        $waliClasses = HomeroomReadAccess::currentAssignments((int) $guruId, $academicYearId)->pluck('kelas_id');
 
         $classIds = $teachingClasses
             ->merge($waliClasses)
@@ -286,18 +275,7 @@ class StudentController extends Controller
             )
             ->pluck('kelas_id');
 
-        $waliClasses = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                function (Builder $query) use ($academicYearId): void {
-                    $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    );
-                }
-            )
-            ->pluck('kelas_id');
+        $waliClasses = HomeroomReadAccess::currentAssignments((int) $guruId, $academicYearId)->pluck('kelas_id');
 
         $classIds = $teachingClasses
             ->merge($waliClasses)

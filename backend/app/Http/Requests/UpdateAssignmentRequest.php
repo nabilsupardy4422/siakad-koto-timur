@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Guru;
 use App\Models\JadwalPelajaran;
 use App\Models\KomponenNilai;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,7 +11,9 @@ class UpdateAssignmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        $assignment = $this->route('assignment');
+        return $assignment instanceof \App\Models\Assignment && $this->user() !== null
+            && \App\Support\AssignmentTeachingAccess::teacherCanAccess($this->user(), $assignment->jadwalPelajaran);
     }
 
     public function rules(): array
@@ -60,6 +61,7 @@ class UpdateAssignmentRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
 
             'remove_attachment_ids' => [
@@ -86,53 +88,19 @@ class UpdateAssignmentRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            $jadwalId = $this->input('jadwal_pelajaran_id');
-
-            if (! $jadwalId) {
-                return;
-            }
-
+            if ($validator->errors()->isNotEmpty()) return;
+            $assignment = $this->route('assignment');
+            if (! $assignment instanceof \App\Models\Assignment) return;
+            $jadwalId = $this->input('jadwal_pelajaran_id', $assignment->jadwal_pelajaran_id);
+            $componentId = $this->has('komponen_nilai_id') ? $this->input('komponen_nilai_id') : $assignment->komponen_nilai_id;
             $jadwal = JadwalPelajaran::find($jadwalId);
-
-            if (! $jadwal) {
+            $guru = $this->user()?->guru;
+            if (! $jadwal || ! $guru || (int) $jadwal->guru_id !== (int) $guru->id) {
+                $validator->errors()->add('jadwal_pelajaran_id', 'Jadwal pelajaran tidak berada dalam kewenangan guru.');
                 return;
             }
-
-            $user = $this->user();
-
-            if (! $user) {
-                return;
-            }
-
-            $guru = Guru::where('user_id', $user->id)->first();
-
-            if (! $guru || (int) $jadwal->guru_id !== (int) $guru->id) {
-                $validator->errors()->add(
-                    'jadwal_pelajaran_id',
-                    'Jadwal pelajaran tidak berada dalam kewenangan guru yang sedang login.'
-                );
-
-                return;
-            }
-
-            if (
-                $this->has('komponen_nilai_id')
-                && $this->filled('komponen_nilai_id')
-            ) {
-                $komponen = KomponenNilai::find(
-                    $this->input('komponen_nilai_id')
-                );
-
-                if (
-                    ! $komponen
-                    || (int) $komponen->jadwal_pelajaran_id
-                        !== (int) $jadwal->id
-                ) {
-                    $validator->errors()->add(
-                        'komponen_nilai_id',
-                        'Komponen nilai harus berasal dari jadwal pelajaran yang sama.'
-                    );
-                }
+            if ($componentId !== null && $componentId !== '' && ! KomponenNilai::query()->whereKey($componentId)->where('jadwal_pelajaran_id', $jadwalId)->exists()) {
+                $validator->errors()->add('komponen_nilai_id', 'Komponen nilai harus berasal dari jadwal pelajaran yang sama.');
             }
         });
     }

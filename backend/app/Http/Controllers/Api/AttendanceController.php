@@ -16,6 +16,12 @@ use App\Models\AnggotaKelas;
 use App\Models\Kelas;
 use App\Models\TahunAkademik;
 use App\Http\Requests\BulkAttendanceRequest;
+use App\Models\Siswa;
+use App\Support\TeachingAssignmentScope;
+use App\Support\HomeroomReadAccess;
+use App\Support\AttendanceTeachingAccess;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class AttendanceController extends Controller
 {
@@ -33,7 +39,8 @@ class AttendanceController extends Controller
             ->latest('tanggal')
             ->latest('id');
 
-        $this->applyViewScope($query, $user);
+        $scope = $request->validate(['scope' => ['sometimes', 'in:teaching,homeroom,combined']])['scope'] ?? TeachingAssignmentScope::LEGACY;
+        $this->applyViewScope($query, $user, $scope);
 
         if ($request->filled('academic_year_id')) {
             $query->whereHas(
@@ -137,19 +144,23 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        $attendance = DB::transaction(
-            function () use ($request): Presensi {
-                return Presensi::create([
-                    'jadwal_pelajaran_id' => $request->integer(
-                        'jadwal_pelajaran_id'
-                    ),
-                    'siswa_id' => $request->integer('siswa_id'),
-                    'tanggal' => $request->input('tanggal'),
-                    'status' => $request->input('status'),
-                    'catatan' => $request->input('catatan'),
-                ]);
-            }
-        );
+        try {
+            $attendance = DB::transaction(
+                function () use ($request): Presensi {
+                    return Presensi::create([
+                        'jadwal_pelajaran_id' => $request->integer(
+                            'jadwal_pelajaran_id'
+                        ),
+                        'siswa_id' => $request->integer('siswa_id'),
+                        'tanggal' => $request->input('tanggal'),
+                        'status' => $request->input('status'),
+                        'catatan' => $request->input('catatan'),
+                    ]);
+                }
+            );
+        } catch (UniqueConstraintViolationException $e) {
+            return response()->json(['message' => 'Presensi sudah tercatat. Muat ulang daftar siswa sebelum menyimpan kembali.'], 409);
+        }
 
         $attendance->load([
             'jadwalPelajaran',
@@ -181,9 +192,11 @@ class AttendanceController extends Controller
             ], 403);
         }
 
-        $attendance->update(
-            $request->validated()
-        );
+        try {
+            $attendance->update($request->validated());
+        } catch (UniqueConstraintViolationException $e) {
+            return response()->json(['message' => 'Presensi pada tanggal tersebut sudah tercatat.'], 409);
+        }
 
         $attendance->load([
             'jadwalPelajaran',
@@ -201,7 +214,9 @@ class AttendanceController extends Controller
 
         $query = Presensi::query();
 
-        $this->applyViewScope($query, $user);
+        $scope = $request->validate(['scope' => ['sometimes', 'in:teaching,homeroom,combined']])['scope'] ?? TeachingAssignmentScope::LEGACY;
+        $this->applyViewScope($query, $user, $scope);
+        HomeroomReadAccess::authorizeRecap($request);
 
         if ($request->filled('academic_year_id')) {
             $query->whereHas(
@@ -277,7 +292,8 @@ class AttendanceController extends Controller
 
     private function applyViewScope(
         $query,
-        $user
+        $user,
+        string $scope = TeachingAssignmentScope::LEGACY
     ): void {
         $role = $user->role?->code;
 
@@ -292,6 +308,20 @@ class AttendanceController extends Controller
         }
 
         if ($role === 'GURU') {
+            // Explicit workspace contexts use the same active-period scope as schedules.
+            // Keep the existing combined read for legacy reports during migration.
+            if ($scope !== TeachingAssignmentScope::LEGACY) {
+                $yearIds = TahunAkademik::query()->where('is_active', true)->pluck('id');
+                if ($yearIds->count() !== 1) {
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+                $query->whereHas('jadwalPelajaran', function (Builder $schedule) use ($user, $yearIds, $scope): void {
+                    TeachingAssignmentScope::apply($schedule, $user->guru?->id, (int) $yearIds->first(), $scope);
+                });
+                return;
+            }
+
             $guru = Guru::query()
                 ->where('user_id', $user->id)
                 ->first();
@@ -315,13 +345,8 @@ class AttendanceController extends Controller
                             $scheduleQuery->whereHas(
                                 'kelas.waliKelas',
                                 function ($waliKelasQuery) use ($guru): void {
-                                    $waliKelasQuery
-                                        ->where('guru_id', $guru->id)
-                                        ->whereNull('tanggal_selesai')
-                                        ->whereColumn(
-                                            'wali_kelas.tahun_akademik_id',
-                                            'jadwal_pelajaran.tahun_akademik_id'
-                                        );
+                                    HomeroomReadAccess::restrictCurrent($waliKelasQuery, (int) $guru->id);
+                                    $waliKelasQuery->whereColumn('wali_kelas.tahun_akademik_id', 'jadwal_pelajaran.tahun_akademik_id');
                                 }
                             );
                         }
@@ -512,23 +537,47 @@ class AttendanceController extends Controller
     }
 
 
-    private function canManageAttendance(
-        $user,
-        JadwalPelajaran $schedule
-    ): bool {
-        if ($user->role?->code !== 'GURU') {
-            return false;
-        }
+    private function canManageAttendance($user, JadwalPelajaran $schedule): bool
+    {
+        return AttendanceTeachingAccess::canManage($user, $schedule);
+    }
 
-        $guru = Guru::query()
-            ->where('user_id', $user->id)
-            ->first();
+    /** Roster for one owned schedule, evaluated on the attendance date. */
+    public function roster(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'schedule_id' => ['required', 'integer', 'min:1'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+        $schedule = JadwalPelajaran::query()->findOrFail($validated['schedule_id']);
+        abort_unless($this->canManageAttendance($request->user(), $schedule), 403);
+        $date = $validated['date'];
+        $students = Siswa::query()
+            ->whereHas('anggotaKelas', function (Builder $membership) use ($schedule, $date): void {
+                $membership->where('kelas_id', $schedule->kelas_id)
+                    ->whereDate('tanggal_mulai', '<=', $date)
+                    ->where(function (Builder $end) use ($date): void {
+                        $end->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $date);
+                    });
+            })
+            ->orderBy('nama_lengkap')->orderBy('id')
+            ->paginate($validated['per_page'] ?? 100, ['id', 'nama_lengkap', 'nis', 'nisn']);
 
-        if (!$guru) {
-            return false;
-        }
-
-        return (int) $schedule->guru_id === (int) $guru->id;
+        return response()->json([
+            'data' => $students->items(),
+            'meta' => [
+                'current_page' => $students->currentPage(),
+                'last_page' => $students->lastPage(),
+                'per_page' => $students->perPage(),
+                'total' => $students->total(),
+                'schedule_id' => $schedule->id,
+                'class_id' => $schedule->kelas_id,
+                'academic_year_id' => $schedule->tahun_akademik_id,
+                'date' => $date,
+            ],
+        ]);
     }
 
     public function bulkStore(
@@ -583,52 +632,56 @@ class AttendanceController extends Controller
         }
 
         // Seluruh perubahan berada dalam satu transaksi.
-        $result = DB::transaction(function () use (
-            $attendanceRows,
-            $schedule,
-            $date
-        ): array {
-            $created = 0;
-            $updated = 0;
+        try {
+            $result = DB::transaction(function () use (
+                $attendanceRows,
+                $schedule,
+                $date
+            ): array {
+                $created = 0;
+                $updated = 0;
 
-            foreach ($attendanceRows as $row) {
-                $attendance = Presensi::query()
-                    ->where(
-                        'jadwal_pelajaran_id',
-                        $schedule->id
-                    )
-                    ->where('siswa_id', $row['siswa_id'])
-                    ->whereDate('tanggal', $date)
-                    ->lockForUpdate()
-                    ->first();
+                foreach ($attendanceRows as $row) {
+                    $attendance = Presensi::query()
+                        ->where(
+                            'jadwal_pelajaran_id',
+                            $schedule->id
+                        )
+                        ->where('siswa_id', $row['siswa_id'])
+                        ->whereDate('tanggal', $date)
+                        ->lockForUpdate()
+                        ->first();
 
-                $attributes = [
-                    'status' => $row['status'],
-                    'catatan' => $row['catatan'] ?? null,
-                ];
+                    $attributes = [
+                        'status' => $row['status'],
+                        'catatan' => $row['catatan'] ?? null,
+                    ];
 
-                if ($attendance) {
-                    $attendance->update($attributes);
-                    $updated++;
+                    if ($attendance) {
+                        $attendance->update($attributes);
+                        $updated++;
 
-                    continue;
+                        continue;
+                    }
+
+                    Presensi::create([
+                        'jadwal_pelajaran_id' => $schedule->id,
+                        'siswa_id' => $row['siswa_id'],
+                        'tanggal' => $date,
+                        ...$attributes,
+                    ]);
+
+                    $created++;
                 }
 
-                Presensi::create([
-                    'jadwal_pelajaran_id' => $schedule->id,
-                    'siswa_id' => $row['siswa_id'],
-                    'tanggal' => $date,
-                    ...$attributes,
-                ]);
-
-                $created++;
-            }
-
-            return [
-                'created' => $created,
-                'updated' => $updated,
-            ];
-        });
+                return [
+                    'created' => $created,
+                    'updated' => $updated,
+                ];
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            return response()->json(['message' => 'Presensi berubah di sesi lain. Muat ulang sebelum menyimpan kembali.'], 409);
+        }
 
         return response()->json([
             'message' => 'Presensi kelas berhasil disimpan.',

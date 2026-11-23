@@ -164,11 +164,6 @@ const navigation = {
       path: "/app/grades",
       permission: "grades.view",
     },
-    {
-      label: "Rapor",
-      path: "/app/report-cards",
-      permission: "report_cards.view",
-    },
 
     {
       label: "Wali Kelas",
@@ -184,6 +179,10 @@ const navigation = {
       label: "Anggota Kelas",
       path: "/app/class-members",
       assignment: "WALI_KELAS",
+    },
+    {
+      label: "Pelaporan",
+      section: true,
     },
     {
       label: "Laporan",
