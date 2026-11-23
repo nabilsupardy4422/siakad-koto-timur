@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { assignmentApi } from "../../../services/assignmentApi";
+import { parseWorkspace, assignmentState, summarizeAssignments } from "./studentAssignmentsView";
+import { appendFilesToSelection } from "./studentAssignmentFiles";
 import "../styles/SiswaAssignmentsPage.css";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -84,38 +86,8 @@ function isDeadlinePassed(assignment) {
 }
 
 function getStatus(assignment, submission) {
-  if (submission?._loadError) {
-    return {
-      label: "Status tidak tersedia",
-      type: "unknown",
-    };
-  }
-
-  if (submission) {
-    if (String(submission.status || "").toLowerCase() === "terlambat") {
-      return {
-        label: "Terlambat dikumpulkan",
-        type: "late",
-      };
-    }
-
-    return {
-      label: "Sudah dikumpulkan",
-      type: "submitted",
-    };
-  }
-
-  if (isDeadlinePassed(assignment)) {
-    return {
-      label: "Tenggat terlewat",
-      type: "late",
-    };
-  }
-
-  return {
-    label: "Belum dikumpulkan",
-    type: "pending",
-  };
+  if (submission?._loadError) return {label: "Status tidak tersedia", type: "unknown"};
+  return assignmentState(assignment, submission);
 }
 
 function validateFile(file) {
@@ -236,56 +208,70 @@ export default function SiswaAssignmentsPage() {
   const [activeAssignment, setActiveAssignment] = useState(null);
   const [answer, setAnswer] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const requestGeneration = useRef(0);
+  const [context, setContext] = useState(null);
   const loadAssignments = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     setLoading(true);
     setPageError("");
-
     try {
-      const response = await assignmentApi.getAll({
-        per_page: 100,
-      });
-
-      const result = unwrap(response);
-      const rows = Array.isArray(result) ? result : [];
-
-      setAssignments(rows);
-
-      const entries = await Promise.all(
-        rows.map(async (assignment) => {
-          try {
-            const submissionResponse = await assignmentApi.getSubmissions(
-              assignment.id
-            );
-
-            const data = unwrap(submissionResponse);
-            const items = Array.isArray(data) ? data : [];
-
-            return [assignment.id, items[0] || null];
-          } catch (error) {
-            return [
-              assignment.id,
-              {
-                _loadError: true,
-                _error: getErrorMessage(error),
-              },
-            ];
-          }
-        })
-      );
-
-      setSubmissions(Object.fromEntries(entries));
+      let page = 1;
+      let lastPage = 1;
+      let expectedTotal = null;
+      let expectedYear = null;
+      let expectedClass = null;
+      let resolvedContext = null;
+      const allAssignments = [];
+      const allSubmissions = {};
+      do {
+        // Workspace returns assignments and only this student's submissions together.
+        const parsed = parseWorkspace(await assignmentApi.getStudentWorkspace({page, per_page: 100}));
+        if (generation !== requestGeneration.current) return;
+        const {data, meta} = parsed;
+        if (expectedTotal === null) {
+          expectedTotal = meta.total;
+          expectedYear = data.academic_year_id;
+          expectedClass = data.class?.id ?? null;
+        } else if (meta.total !== expectedTotal || data.academic_year_id !== expectedYear ||
+                   (data.class?.id ?? null) !== expectedClass || meta.current_page !== page) {
+          throw new Error("Konteks tugas berubah. Perbarui halaman untuk data terbaru.");
+        }
+        allAssignments.push(...data.assignments);
+        Object.assign(allSubmissions, data.submissions);
+        lastPage = meta.last_page;
+        page++;
+        if (page > 501) throw new Error("Terlalu banyak halaman tugas. Hubungi administrator.");
+        if (page > lastPage && allAssignments.length !== expectedTotal) {
+          throw new Error("Jumlah tugas tidak sesuai metadata dari server.");
+        }
+        if (page === 1) resolvedContext = {yearId: expectedYear, className: data.class?.name ?? null};
+      } while (page <= lastPage);
+      if (generation !== requestGeneration.current) return;
+      if (new Set(allAssignments.map(a => a.id)).size !== allAssignments.length) {
+        throw new Error("Tugas duplikat ditemukan pada halaman API berbeda.");
+      }
+      setAssignments(allAssignments);
+      setSubmissions(allSubmissions);
+      setContext(resolvedContext);
     } catch (error) {
-      setPageError(getErrorMessage(error));
+      if (generation === requestGeneration.current) {
+        setPageError(getErrorMessage(error));
+        setAssignments([]);
+        setSubmissions({});
+        setContext(null);
+      }
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadAssignments();
+    return () => { requestGeneration.current += 1; };
   }, [loadAssignments]);
 
   const resetFilters = useCallback(() => {
@@ -344,38 +330,20 @@ export default function SiswaAssignmentsPage() {
 
       const status = getStatus(assignment, submission);
 
-      if (filter === "belum") return status.type === "pending";
+      if (filter === "belum") return status.type === "pending" || status.type === "overdue";
       if (filter === "dikumpulkan") {
-        return status.type === "submitted";
+        return status.type === "submitted" || status.type === "late-submitted";
       }
-      if (filter === "terlambat") return status.type === "late";
+      if (filter === "terlambat") return status.type === "overdue" || status.type === "late-submitted";
 
       return true;
     });
   }, [assignments, submissions, search, filter, selectedSubject]);
 
-  const assignmentSummary = useMemo(() => {
-    const summary = {
-      total: assignments.length,
-      pending: 0,
-      submitted: 0,
-      late: 0,
-    };
-
-    assignments.forEach((assignment) => {
-      const submission = submissions[assignment.id];
-
-      if (submission?._loadError) return;
-
-      const status = getStatus(assignment, submission);
-
-      if (status.type === "pending") summary.pending += 1;
-      if (status.type === "submitted") summary.submitted += 1;
-      if (status.type === "late") summary.late += 1;
-    });
-
-    return summary;
-  }, [assignments, submissions]);
+  const assignmentSummary = useMemo(
+    () => summarizeAssignments(assignments, submissions),
+    [assignments, submissions]
+  );
 
   const groupedAssignments = useMemo(() => {
     const groups = new Map();
@@ -433,29 +401,22 @@ export default function SiswaAssignmentsPage() {
   }
 
   function handleFileSelection(event) {
-    const files = Array.from(event.target.files || []);
+    const incoming = Array.from(event.target.files || []);
+    // Reset native input agar file yang sama dapat dipilih lagi setelah dihapus.
+    event.target.value = "";
+    if (!incoming.length) return;
 
     setFormError("");
-
-    if (files.length > MAX_FILES) {
-      setSelectedFiles([]);
-      setFormError(`Maksimal ${MAX_FILES} file baru dapat dipilih.`);
-      event.target.value = "";
+    const merged = appendFilesToSelection(selectedFiles, incoming, {
+      maxFiles: MAX_FILES,
+      validate: validateFile,
+    });
+    if (merged.error) {
+      // Jangan hapus file yang sudah dipilih apabila tambahan gagal validasi.
+      setFormError(merged.error);
       return;
     }
-
-    for (const file of files) {
-      const error = validateFile(file);
-
-      if (error) {
-        setSelectedFiles([]);
-        setFormError(`${file.name}: ${error}`);
-        event.target.value = "";
-        return;
-      }
-    }
-
-    setSelectedFiles(files);
+    setSelectedFiles(merged.files);
   }
 
   function removeSelectedFile(index) {
@@ -677,11 +638,10 @@ export default function SiswaAssignmentsPage() {
     <main className="siswa-assignments">
       <header className="siswa-assignments__header">
         <div>
-          <p className="siswa-assignments__eyebrow">AKADEMIK SISWA</p>
-          <h1>Tugas Saya</h1>
+          <p className="siswa-assignments__eyebrow">PEMBELAJARAN / TUGAS SISWA</p>
+          <h1>Tugas siswa</h1>
           <p className="siswa-assignments__subtitle">
-            Pantau tugas setiap mata pelajaran, tenggat waktu, dan status
-            pengumpulan.
+            Lihat tugas berdasarkan mata pelajaran, lalu kumpulkan jawabanmu.
           </p>
         </div>
 
@@ -695,9 +655,15 @@ export default function SiswaAssignmentsPage() {
         </button>
       </header>
 
+      {loading && assignments.length > 0 && <p className="siswa-assignments__loading" role="status">Memperbarui data tugas…</p>}
       {notice && (
-        <div className="siswa-assignments__alert siswa-assignments__alert--success">
-          {notice}
+        <div className="siswa-assignment-toast" role="status" aria-live="polite">
+          <span className="siswa-assignment-toast__icon" aria-hidden="true">✓</span>
+          <div className="siswa-assignment-toast__copy">
+            <strong>{notice.includes("Revisi") ? "Perubahan berhasil disimpan" : "Tugas berhasil dikumpulkan"}</strong>
+            <span>{notice}</span>
+          </div>
+          <button type="button" onClick={() => setNotice("")} aria-label="Tutup notifikasi">×</button>
         </div>
       )}
 
@@ -710,7 +676,10 @@ export default function SiswaAssignmentsPage() {
         </div>
       )}
 
-      <section className="siswa-assignment-summary">
+      {context && <p className="siswa-assignments__context">
+        Periode akademik aktif · {context.className ? `Kelas ${context.className}` : 'Belum ada penempatan kelas aktif'}
+      </p>}
+      {!pageError && <section className="siswa-assignment-summary">
         <article className="siswa-assignment-summary__card">
           <span>Total Tugas</span>
           <strong>{assignmentSummary.total}</strong>
@@ -732,11 +701,11 @@ export default function SiswaAssignmentsPage() {
         <article className="siswa-assignment-summary__card siswa-assignment-summary__card--late">
           <span>Terlambat</span>
           <strong>{assignmentSummary.late}</strong>
-          <small>Tenggat terlewati atau terlambat dikirim</small>
+          <small>Belum dikirim lewat tenggat atau terkirim terlambat</small>
         </article>
-      </section>
+      </section>}
 
-      <section className="siswa-assignments__toolbar">
+      {!pageError && <section className="siswa-assignments__toolbar">
         <label className="siswa-assignments__search">
           <span>Cari tugas atau mata pelajaran</span>
           <input
@@ -789,32 +758,33 @@ export default function SiswaAssignmentsPage() {
             Reset Filter
           </button>
         </div>
-      </section>
+      </section>}
 
-      {loading ? (
+      {!pageError && !loading && assignments.length > 0 && (
+        <div className="siswa-assignments__section-head">
+          <div><h2>Mata pelajaran</h2><p>Pilih mata pelajaran untuk melihat dan mengumpulkan tugas.</p></div>
+          <span>{subjectOptions.length} mata pelajaran</span>
+        </div>
+      )}
+
+      {pageError ? null : loading && assignments.length === 0 ? (
         <section className="siswa-assignments__empty">
           <h2>Memuat tugas...</h2>
           <p>Daftar tugas dan status pengumpulan sedang diperiksa.</p>
         </section>
       ) : groupedAssignments.length === 0 ? (
         <section className="siswa-assignments__empty">
-          <h2>Tidak ada tugas ditemukan</h2>
-          <p>Coba ubah kata pencarian atau filter yang dipilih.</p>
-          <button
-            type="button"
-            className="siswa-assignments__reset"
-            onClick={resetFilters}
-          >
-            Reset Filter
-          </button>
+          <h2>{assignments.length === 0 ? "Belum ada tugas untuk kelas ini" : "Tidak ada tugas sesuai filter"}</h2>
+          <p>{assignments.length === 0 ? "Tugas dari guru akan muncul di sini setelah tersedia." : "Coba ubah kata pencarian atau filter yang dipilih."}</p>
+          {assignments.length > 0 && <button type="button" className="siswa-assignments__reset" onClick={resetFilters}>Reset Filter</button>}
         </section>
       ) : (
-        <div className="siswa-assignment-groups">
+        <div className="siswa-assignment-groups" aria-label="Daftar mata pelajaran">
           {groupedAssignments.map((group) => {
-            const isCollapsed = Boolean(collapsedSubjects[group.subject]);
+            const isCollapsed = !Boolean(collapsedSubjects[group.subject]);
 
             return (
-              <section className="siswa-assignment-group" key={group.subject}>
+              <section className={`siswa-assignment-group${isCollapsed ? "" : " is-open"}`} key={group.subject}>
                 <button
                   type="button"
                   className="siswa-assignment-group__header siswa-assignment-group__toggle"
@@ -827,7 +797,7 @@ export default function SiswaAssignmentsPage() {
                   >
                     {group.subject === "Mata Pelajaran Belum Tersedia"
                       ? "?"
-                      : group.subject.charAt(0).toUpperCase()}
+                      : "▤"}
                   </div>
 
                   <div className="siswa-assignment-group__title">
@@ -838,7 +808,7 @@ export default function SiswaAssignmentsPage() {
                   </div>
 
                   <span className="siswa-assignment-group__count">
-                    {group.assignments.length} tugas
+                    {group.assignments.length} tugas · {group.assignments.filter(a => Boolean(submissions[a.id])).length} dikumpulkan
                   </span>
 
                   <span
@@ -875,6 +845,7 @@ export default function SiswaAssignmentsPage() {
                               <h3>{assignment.judul || "Tugas tanpa judul"}</h3>
                               <p className="siswa-assignment-card__deadline">
                                 Tenggat: {formatDate(assignment.deadline)}
+                                {assignment.guru_pengampu ? ` · ${assignment.guru_pengampu}` : ""}
                               </p>
                             </div>
 
@@ -1058,13 +1029,15 @@ export default function SiswaAssignmentsPage() {
               </button>
             </div>
 
-            <p className="siswa-assignment-modal__task">
-              {activeAssignment.judul}
-            </p>
+            <div className="siswa-assignment-modal__task">
+              <span>TUGAS YANG DIKERJAKAN</span>
+              <strong>{activeAssignment.judul}</strong>
+              <small>{getSubjectName(activeAssignment)} · Tenggat {formatDate(activeAssignment.deadline)}</small>
+            </div>
 
             <form onSubmit={handleSubmit}>
               <label className="siswa-assignment-modal__field">
-                <span>Jawaban teks</span>
+                <span>Jawaban teks <small>(opsional jika mengunggah file)</small></span>
                 <textarea
                   rows={6}
                   value={answer}
@@ -1091,46 +1064,65 @@ export default function SiswaAssignmentsPage() {
                 </div>
               )}
 
-              <label className="siswa-assignment-modal__field">
-                <span>File jawaban (opsional, maksimal 10 file baru)</span>
+              <div className="siswa-assignment-upload">
+                <div className="siswa-assignment-upload__heading">
+                  <div>
+                    <strong>Lampiran jawaban</strong>
+                    <p>Tambah file satu per satu, termasuk dari HP. File sebelumnya tetap tersimpan.</p>
+                  </div>
+                  <span>{selectedFiles.length} / {MAX_FILES} file baru</span>
+                </div>
                 <input
+                  ref={fileInputRef}
+                  id="student-assignment-upload"
+                  className="siswa-assignment-upload__input"
                   type="file"
                   multiple
                   accept={ALLOWED_EXTENSIONS.join(",")}
                   onChange={handleFileSelection}
-                  disabled={saving}
+                  disabled={saving || selectedFiles.length >= MAX_FILES}
+                  aria-describedby="student-assignment-upload-hint"
                 />
-                <small>
-                  Maksimal 10 MB per file. Format: JPG, JPEG, PNG, PDF, DOC,
-                  DOCX, XLS, XLSX, PPT, dan PPTX.
-                </small>
-              </label>
-
-              {selectedFiles.length > 0 && (
-                <div className="siswa-assignment-modal__selected-file">
-                  <strong>File baru yang akan dikirim</strong>
-                  <ul>
-                    {selectedFiles.map((file, index) => (
-                      <li key={`${file.name}-${file.lastModified}-${index}`}>
-                        <span>
-                          {file.name} ({formatFileSize(file.size)})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeSelectedFile(index)}
-                          disabled={saving}
-                        >
-                          Hapus pilihan
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                <button
+                  type="button"
+                  className="siswa-assignment-upload__pick"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={saving || selectedFiles.length >= MAX_FILES}
+                >
+                  <span className="siswa-assignment-upload__plus" aria-hidden="true">+</span>
+                  <span>{selectedFiles.length ? "Tambah file lainnya" : "Pilih file jawaban"}</span>
+                </button>
+                <small id="student-assignment-upload-hint">JPG, PNG, PDF, Word, Excel, PowerPoint · maks. 10 MB per file.</small>
+                {selectedFiles.length > 0 && (
+                  <div className="siswa-assignment-upload__queue">
+                    <div className="siswa-assignment-upload__queue-header">
+                      <strong>Siap dikirim</strong>
+                      <span>{selectedFiles.length} file</span>
+                    </div>
+                    <ul>
+                      {selectedFiles.map((file, index) => (
+                        <li key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
+                          <span className="siswa-assignment-upload__file-icon" aria-hidden="true">↥</span>
+                          <span className="siswa-assignment-upload__filename">
+                            <strong>{file.name}</strong>
+                            <small>{formatFileSize(file.size)}</small>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeSelectedFile(index)}
+                            disabled={saving}
+                            aria-label={`Hapus ${file.name} dari pilihan`}
+                          >Hapus</button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
 
               {formError && (
-                <div className="siswa-assignments__alert siswa-assignments__alert--error">
-                  {formError}
+                <div className="siswa-assignment-modal__error" role="alert">
+                  <span aria-hidden="true">!</span> {formError}
                 </div>
               )}
 
@@ -1162,7 +1154,7 @@ export default function SiswaAssignmentsPage() {
                     )
                   }
                 >
-                  {saving ? "Mengirim..." : "Kirim jawaban"}
+                  {saving ? "Mengirim jawaban…" : (submissions[activeAssignment.id] ? "Simpan revisi" : "Kumpulkan tugas")}
                 </button>
               </div>
             </form>

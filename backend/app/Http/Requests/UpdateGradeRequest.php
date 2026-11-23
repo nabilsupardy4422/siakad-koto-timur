@@ -16,7 +16,9 @@ class UpdateGradeRequest extends FormRequest
         return [
             'nilai' => [
                 'sometimes',
+                'required',
                 'numeric',
+                'between:0,100',
             ],
             'catatan' => [
                 'sometimes',

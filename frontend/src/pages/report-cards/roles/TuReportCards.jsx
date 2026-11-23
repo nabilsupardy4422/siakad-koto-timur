@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { reportCardApi } from '../../../services/reportCardApi'
 
 import LoadingState from '../../../components/ui/LoadingState'
 import ErrorState from '../../../components/ui/ErrorState'
 import { apiClient } from '../../../services/apiClient'
+import { studentApi } from '../../../services/studentApi'
+import { parseStudentMatches, studentOptionLabel } from './reportCardStudentLookup'
+import '../styles/TuReportCardsStudentLookup.css'
 const ITEMS_PER_PAGE = 15
 
 export default function TuReportCards() {
@@ -22,6 +25,11 @@ export default function TuReportCards() {
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [studentId, setStudentId] = useState('')
+  const [studentQuery, setStudentQuery] = useState('')
+  const [studentMatches, setStudentMatches] = useState([])
+  const [studentLookupLoading, setStudentLookupLoading] = useState(false)
+  const [studentLookupError, setStudentLookupError] = useState('')
+  const studentLookupGeneration = useRef(0)
   const [academicYearId, setAcademicYearId] = useState('')
   const [academicYears, setAcademicYears] = useState([])
 const [loadingAcademicYears, setLoadingAcademicYears] = useState(true)
@@ -32,6 +40,51 @@ const [academicYearError, setAcademicYearError] = useState('')
   const [actionSuccess, setActionSuccess] = useState('')
 
   const [searchSubmitted, setSearchSubmitted] = useState('')
+
+  // Lookup TU: resolve ID profil siswa melalui nama, NIS, atau NISN.
+  // ID siswa tidak boleh disimpulkan dari NISN ataupun ID akun user.
+  useEffect(() => {
+    const query = studentQuery.trim()
+    const generation = ++studentLookupGeneration.current
+
+    if (studentId || query.length < 2) {
+      setStudentMatches([])
+      setStudentLookupLoading(false)
+      setStudentLookupError('')
+      return
+    }
+
+    const timer = window.setTimeout(async () => {
+      setStudentLookupLoading(true)
+      setStudentLookupError('')
+      try {
+        const result = await studentApi.getAll({ search: query, page_size: 10 })
+        const matches = parseStudentMatches(result)
+        if (generation === studentLookupGeneration.current) {
+          setStudentMatches(matches)
+        }
+      } catch (err) {
+        if (generation === studentLookupGeneration.current) {
+          setStudentMatches([])
+          setStudentLookupError(err.message || 'Pencarian siswa gagal.')
+        }
+      } finally {
+        if (generation === studentLookupGeneration.current) {
+          setStudentLookupLoading(false)
+        }
+      }
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [studentQuery, studentId])
+
+  function chooseStudent(student) {
+    setStudentId(String(student.id))
+    setStudentQuery(studentOptionLabel(student))
+    setStudentMatches([])
+    setStudentLookupError('')
+  }
+
 
   async function loadReportCards({
     currentPage = page,
@@ -156,7 +209,7 @@ useEffect(() => {
 
     if (!studentId.trim() || !academicYearId.trim()) {
       setActionError(
-        'ID siswa dan tahun akademik wajib diisi.'
+        'Pilih siswa dari hasil pencarian dan tentukan tahun akademik.'
       )
       return
     }
@@ -185,6 +238,7 @@ useEffect(() => {
 
       setSelectedFile(null)
       setStudentId('')
+      setStudentQuery('')
       setAcademicYearId('')
 
       event.target.reset()
@@ -343,22 +397,60 @@ useEffect(() => {
         <h2>Upload Rapor</h2>
 
         <form onSubmit={handleUpload}>
-          <div>
-            <label htmlFor="report-student-id">
-              ID Siswa
-            </label>
-
+          <div className="report-student-lookup">
+            <label htmlFor="report-student-search">Cari dan pilih siswa</label>
             <input
-              id="report-student-id"
-              name="siswa_id"
-              type="number"
-              min="1"
-              value={studentId}
-              onChange={(event) =>
-                setStudentId(event.target.value)
-              }
+              id="report-student-search"
+              type="search"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={studentMatches.length > 0}
+              aria-controls="report-student-options"
+              autoComplete="off"
+              placeholder="Nama, NIS, atau NISN siswa..."
+              value={studentQuery}
+              onChange={(event) => {
+                setStudentQuery(event.target.value)
+                setStudentId('')
+              }}
               required
             />
+            {studentId ? (
+              <p className="report-student-selected" role="status">
+                ✓ Siswa terpilih · ID profil #{studentId}
+              </p>
+            ) : (
+              <p className="report-student-hint">
+                Ketik minimal 2 karakter, lalu pilih siswa dari daftar.
+              </p>
+            )}
+            {studentLookupLoading && (
+              <p className="report-student-hint" role="status">Mencari siswa...</p>
+            )}
+            {studentLookupError && (
+              <p className="report-student-error" role="alert">{studentLookupError}</p>
+            )}
+            {!studentId && studentQuery.trim().length >= 2 && !studentLookupLoading &&
+              !studentLookupError && studentMatches.length === 0 && (
+                <p className="report-student-hint">Tidak ada hasil. Periksa nama/NIS/NISN.</p>
+              )}
+            {studentMatches.length > 0 && (
+              <div className="report-student-results" id="report-student-options" role="listbox" aria-label="Hasil pencarian siswa">
+                {studentMatches.map((student) => (
+                  <button
+                    key={student.id}
+                    type="button"
+                    role="option"
+                    aria-selected="false"
+                    onClick={() => chooseStudent(student)}
+                    className="report-student-result"
+                  >
+                    <strong>{student.nama_lengkap}</strong>
+                    <span>NIS: {student.nis || '—'} · NISN: {student.nisn || '—'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

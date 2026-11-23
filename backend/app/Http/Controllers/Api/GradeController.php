@@ -10,6 +10,12 @@ use App\Models\KomponenNilai;
 use App\Models\Nilai;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\HomeroomReadAccess;
+use App\Support\GradeTeachingAccess;
+use App\Support\TeachingAssignmentScope;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +49,7 @@ class GradeController extends Controller
         $this->applyViewScope(
             $query,
             $user,
-            $academicYearId
+            $academicYearId, GradeTeachingAccess::readScope($request)
         );
 
         if ($request->filled('schedule_id')) {
@@ -160,8 +166,10 @@ class GradeController extends Controller
     $this->applyViewScope(
         $query,
         $user,
-        $academicYearId
+        $academicYearId, GradeTeachingAccess::readScope($request)
     );
+
+    HomeroomReadAccess::authorizeRecap($request);
 
     if ($request->filled('class_id')) {
         $query->whereHas(
@@ -219,88 +227,107 @@ class GradeController extends Controller
     public function store(
         StoreGradeRequest $request
     ): JsonResponse {
-        $component = KomponenNilai::query()
-            ->with([
-                'jadwalPelajaran',
-            ])
-            ->findOrFail(
-                $request->integer('komponen_nilai_id')
-            );
-
-        if (
-            ! $this->canManageGrade(
-                $request->user(),
-                $component
-            )
-        ) {
-            return response()->json([
-                'message' =>
-                    'Anda tidak memiliki akses untuk mengelola nilai pada komponen ini.',
-            ], 403);
-        }
-
-        $grade = Nilai::create(
-            $request->validated()
-        );
-
-        return ApiResponse::message(
-            'Nilai berhasil ditambahkan.',
-            new GradeResource(
-                $grade->load([
-                    'komponenNilai.jadwalPelajaran.tahunAkademik',
-                    'komponenNilai.jadwalPelajaran.kelas',
-                    'komponenNilai.jadwalPelajaran.mapel',
-                    'komponenNilai.jadwalPelajaran.guru',
-                    'siswa',
+        return DB::transaction(function () use ($request): JsonResponse {
+            $component = KomponenNilai::query()->lockForUpdate()
+                ->with([
+                    'jadwalPelajaran',
                 ])
-            ),
-            201
-        );
+                ->findOrFail(
+                    $request->integer('komponen_nilai_id')
+                );
+
+            if (
+                ! $this->canManageGrade(
+                    $request->user(),
+                    $component
+                )
+            ) {
+                return response()->json([
+                    'message' =>
+                        'Anda tidak memiliki akses untuk mengelola nilai pada komponen ini.',
+                ], 403);
+            }
+
+            $studentId = $request->integer('siswa_id');
+            if (! GradeTeachingAccess::activeStudent($component->jadwalPelajaran, $studentId)) {
+                throw ValidationException::withMessages(['siswa_id' => 'Siswa bukan anggota aktif kelas pada jadwal ini.']);
+            }
+            if ($component->nilai()->where('siswa_id', $studentId)->exists()) {
+                throw ValidationException::withMessages(['siswa_id' => 'Nilai untuk siswa dan komponen ini sudah ada.']);
+            }
+            try {
+                $grade = Nilai::create($request->validated());
+            } catch (UniqueConstraintViolationException $e) {
+                throw ValidationException::withMessages(['siswa_id' => 'Nilai sudah tercatat. Muat ulang sebelum mengubahnya.']);
+            }
+
+            return ApiResponse::message(
+                'Nilai berhasil ditambahkan.',
+                new GradeResource(
+                    $grade->load([
+                        'komponenNilai.jadwalPelajaran.tahunAkademik',
+                        'komponenNilai.jadwalPelajaran.kelas',
+                        'komponenNilai.jadwalPelajaran.mapel',
+                        'komponenNilai.jadwalPelajaran.guru',
+                        'siswa',
+                    ])
+                ),
+                201
+            );
+        });
     }
 
     public function update(
         UpdateGradeRequest $request,
         Nilai $grade
     ): JsonResponse {
-        $grade->load([
-            'komponenNilai.jadwalPelajaran',
-        ]);
+        return DB::transaction(function () use ($request, $grade): JsonResponse {
+            $component = KomponenNilai::query()->lockForUpdate()->with('jadwalPelajaran')->findOrFail($grade->komponen_nilai_id);
+            $grade = Nilai::query()->lockForUpdate()->findOrFail($grade->id);
+            $grade->setRelation('komponenNilai', $component);
 
-        if (
-            ! $this->canManageGrade(
-                $request->user(),
-                $grade->komponenNilai
-            )
-        ) {
-            return response()->json([
-                'message' =>
-                    'Anda tidak memiliki akses untuk mengubah nilai ini.',
-            ], 403);
-        }
+            if (
+                ! $this->canManageGrade(
+                    $request->user(),
+                    $grade->komponenNilai
+                )
+            ) {
+                return response()->json([
+                    'message' =>
+                        'Anda tidak memiliki akses untuk mengubah nilai ini.',
+                ], 403);
+            }
 
-        $grade->update(
-            $request->validated()
-        );
+            if (! GradeTeachingAccess::activeStudent($component->jadwalPelajaran, (int) $grade->siswa_id)) {
+                throw ValidationException::withMessages(['siswa_id' => 'Siswa bukan anggota aktif kelas pada jadwal ini.']);
+            }
+            $grade->update($request->validated());
 
-        return ApiResponse::message(
-            'Nilai berhasil diperbarui.',
-            new GradeResource(
-                $grade->refresh()->load([
-                    'komponenNilai.jadwalPelajaran.tahunAkademik',
-                    'komponenNilai.jadwalPelajaran.kelas',
-                    'komponenNilai.jadwalPelajaran.mapel',
-                    'komponenNilai.jadwalPelajaran.guru',
-                    'siswa',
-                ])
-            )
-        );
+            return ApiResponse::message(
+                'Nilai berhasil diperbarui.',
+                new GradeResource(
+                    $grade->refresh()->load([
+                        'komponenNilai.jadwalPelajaran.tahunAkademik',
+                        'komponenNilai.jadwalPelajaran.kelas',
+                        'komponenNilai.jadwalPelajaran.mapel',
+                        'komponenNilai.jadwalPelajaran.guru',
+                        'siswa',
+                    ])
+                )
+            );
+        });
     }
 
     private function applyViewScope(
         Builder $query,
         User $user,
-        ?int $academicYearId
+        ?int $academicYearId,
+        string $scope = TeachingAssignmentScope::LEGACY
     ): void {
+        if ($scope !== TeachingAssignmentScope::LEGACY) {
+            $query->whereHas('komponenNilai.jadwalPelajaran', fn (Builder $schedule) => GradeTeachingAccess::apply($schedule, $user, $scope));
+            return;
+        }
         $role = $user->role?->code;
 
         if (
@@ -366,21 +393,8 @@ class GradeController extends Controller
                                 $guruId,
                                 $academicYearId
                             ): void {
-                                $waliQuery
-                                    ->where(
-                                        'guru_id',
-                                        $guruId
-                                    )
-                                    ->whereNull(
-                                        'tanggal_selesai'
-                                    );
-
-                                if ($academicYearId !== null) {
-                                    $waliQuery->where(
-                                        'tahun_akademik_id',
-                                        $academicYearId
-                                    );
-                                }
+                                HomeroomReadAccess::restrictCurrent($waliQuery, (int) $guruId, $academicYearId);
+                                $waliQuery->whereColumn('wali_kelas.tahun_akademik_id', 'kelas.tahun_akademik_id');
                             }
                         );
 
@@ -427,30 +441,8 @@ class GradeController extends Controller
         $query->whereRaw('1 = 0');
     }
 
-    private function canManageGrade(
-        ?User $user,
-        ?KomponenNilai $component
-    ): bool {
-        if ($user === null || $component === null) {
-            return false;
-        }
-
-        if ($user->role?->code !== 'GURU') {
-            return false;
-        }
-
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return false;
-        }
-
-        $schedule = $component->jadwalPelajaran;
-
-        if ($schedule === null) {
-            return false;
-        }
-
-        return $schedule->guru_id === $guruId;
+    private function canManageGrade(?User $user, ?KomponenNilai $component): bool
+    {
+        return GradeTeachingAccess::canManage($user, $component?->jadwalPelajaran);
     }
 }

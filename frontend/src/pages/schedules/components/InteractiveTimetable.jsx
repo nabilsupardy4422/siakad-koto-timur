@@ -118,12 +118,25 @@ function TimetableCard({
   onClick,
   compact = false,
 }) {
+  // Keep event geometry unchanged; adapt text to short teaching slots.
+  const isTeacher = role === 'GURU'
+  const duration = getScheduleMinutes(schedule)?.duration ?? 0
+  const isShortTeacherEvent = isTeacher && duration < 60
+  const isTinyTeacherEvent = isTeacher && duration < 45
+  const teacherEventLabel = `${getScheduleTitle(schedule)} • ${schedule.jam_mulai?.slice(0, 5)}–${schedule.jam_selesai?.slice(0, 5)} • ${getClassTitle(schedule)}`
+
   return (
     <button
       type="button"
-      className={`timetable__event ${compact ? 'timetable__event--compact' : ''}`}
+      className={[
+        'timetable__event',
+        compact && 'timetable__event--compact',
+        isShortTeacherEvent && 'timetable__event--teacher-short',
+        isTinyTeacherEvent && 'timetable__event--teacher-tiny',
+      ].filter(Boolean).join(' ')}
       onClick={() => onClick(schedule)}
-      title={`${getScheduleTitle(schedule)} • ${schedule.jam_mulai}–${schedule.jam_selesai}`}
+      aria-label={isTeacher ? teacherEventLabel : undefined}
+      title={isTeacher ? teacherEventLabel : `${getScheduleTitle(schedule)} • ${schedule.jam_mulai}–${schedule.jam_selesai}`}
     >
       <strong>{getScheduleTitle(schedule)}</strong>
 
@@ -638,7 +651,7 @@ export default function InteractiveTimetable({
                     ? 'MONITORING AKADEMIK'
                     : 'KEGIATAN PEMBELAJARAN'}
               </span>
-              <h2>Timetable</h2>
+              <h2>{role === 'GURU' ? 'Jadwal Mengajar' : 'Timetable'}</h2>
               <p>
                 {academicYear?.tahun_mulai}/{academicYear?.tahun_selesai}
                 {' · '}

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/useAuth'
 import './Breadcrumb.css'
 
 const routeLabels = {
@@ -18,12 +19,17 @@ const routeLabels = {
   '/app/reports': 'Laporan',
   '/app/users': 'Pengguna',
   '/app/homeroom': 'Kelas Saya',
+  '/app/class-members': 'Anggota Kelas',
 }
 
 export default function Breadcrumb() {
   const location = useLocation()
-  const currentLabel =
-    routeLabels[location.pathname] || 'Halaman'
+  const { user } = useAuth()
+  const isTeacherSchedule =
+    location.pathname === '/app/schedules' && user?.role?.code === 'GURU'
+  const currentLabel = isTeacherSchedule
+    ? 'Jadwal Mengajar'
+    : routeLabels[location.pathname] || 'Halaman'
 
   return (
     <nav className="app-breadcrumb" aria-label="Breadcrumb">

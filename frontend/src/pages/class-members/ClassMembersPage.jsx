@@ -1,12 +1,13 @@
+import HomeroomClassMembers from "./roles/HomeroomClassMembers"
 import {
     useCallback,
     useEffect,
     useMemo,
     useState,
   } from 'react'
-  
+
   import { useAuth } from '../../context/useAuth'
-  
+
   import PageHeader from '../../components/ui/PageHeader'
   import Card from '../../components/ui/Card'
   import Table from '../../components/ui/Table'
@@ -18,14 +19,14 @@ import {
   import ErrorState from '../../components/ui/ErrorState'
   import LoadingState from '../../components/ui/LoadingState'
   import Modal from '../../components/ui/Modal'
-  
+
   import { classApi } from '../../services/classApi'
   import { classMemberApi } from '../../services/classMemberApi'
   import { studentApi } from '../../services/studentApi'
   import { academicYearApi } from '../../services/academicYearApi'
-  
+
   import './ClassMembersPage.css'
-  
+
   const columns = [
     { key: 'identity', label: 'Identitas Siswa' },
     { key: 'nisn', label: 'NISN' },
@@ -33,25 +34,25 @@ import {
     { key: 'tanggal_mulai', label: 'Tanggal Mulai' },
     { key: 'actions', label: 'Aksi' },
   ]
-  
+
   function yearLabel(year) {
     return `${year.tahun_mulai}/${year.tahun_selesai} - ${year.semester}`
   }
-  
+
   function formatDate(value) {
     if (!value) return '-'
-  
+
     const parts = String(value).slice(0, 10).split('-')
-  
+
     if (parts.length !== 3) return value
-  
+
     return `${parts[2]}-${parts[1]}-${parts[0]}`
   }
-  
+
   function studentName(student) {
     return student?.nama_lengkap || student?.user?.name || '-'
   }
-  
+
   function errorMessage(error, fallback) {
     return (
       error?.response?.data?.message ||
@@ -61,32 +62,38 @@ import {
       fallback
     )
   }
-  
+
   function getRoleCode(role) {
     return typeof role === 'string'
       ? role
       : role?.code || role?.name || null
   }
-  
+
   function getSelectValue(value) {
     if (value?.target) {
       return String(value.target.value ?? '')
     }
-  
+
     if (value && typeof value === 'object' && 'value' in value) {
       return String(value.value ?? '')
     }
-  
+
     return String(value ?? '')
   }
-  
+
   export default function ClassMembersPage() {
+    const { role } = useAuth()
+    if (getRoleCode(role) === 'GURU') return <HomeroomClassMembers />
+    return <ExistingClassMembersPage />
+  }
+
+  function ExistingClassMembersPage() {
     const { role, assignments = [] } = useAuth()
-  
+
     const roleCode = getRoleCode(role)
     const isTU = roleCode === 'TU'
     const isGuru = roleCode === 'GURU'
-  
+
     const homeroomAssignments = useMemo(
       () =>
         assignments.filter(
@@ -94,7 +101,7 @@ import {
         ),
       [assignments],
     )
-  
+
     const assignedClassIds = useMemo(
       () =>
         homeroomAssignments
@@ -102,7 +109,7 @@ import {
           .filter((id) => id !== 'undefined' && id !== 'null'),
       [homeroomAssignments],
     )
-  
+
     const [years, setYears] = useState([])
     const [classes, setClasses] = useState([])
     const [students, setStudents] = useState([])
@@ -110,14 +117,14 @@ import {
     const [studentSearch, setStudentSearch] = useState('')
     const [searchingStudents, setSearchingStudents] = useState(false)
   const [studentSearchError, setStudentSearchError] = useState('')
-  
+
     const [yearId, setYearId] = useState('')
     const [classId, setClassId] = useState('')
     const [studentId, setStudentId] = useState('')
     const [startDate, setStartDate] = useState(
       () => new Date().toISOString().slice(0, 10),
     )
-  
+
     const [loadingOptions, setLoadingOptions] = useState(true)
     const [loadingMembers, setLoadingMembers] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -136,10 +143,10 @@ const [importPreview, setImportPreview] = useState(null)
 const [importResult, setImportResult] = useState(null)
 const [importLoading, setImportLoading] = useState(false)
 const [importError, setImportError] = useState('')
-  
+
     const canManage =
       isTU || (isGuru && homeroomAssignments.length > 0)
-  
+
     const selectedClass = useMemo(
       () =>
         classes.find(
@@ -147,7 +154,7 @@ const [importError, setImportError] = useState('')
         ) || null,
       [classes, classId],
     )
-  
+
     const selectedYear = useMemo(
       () =>
         years.find(
@@ -157,7 +164,7 @@ const [importError, setImportError] = useState('')
         ) || null,
       [years, selectedClass],
     )
-  
+
     const loadOptions = useCallback(async () => {
   setLoadingOptions(true)
   setListError(null)
@@ -203,22 +210,22 @@ const [importError, setImportError] = useState('')
     setLoadingOptions(false)
   }
 }, [isGuru, assignedClassIds])
-  
+
     const loadMembers = useCallback(async () => {
       if (!classId || !/^\d+$/.test(String(classId))) {
         setMembers([])
         setLoadingMembers(false)
         return
       }
-  
+
       setLoadingMembers(true)
       setListError(null)
-  
+
       try {
         const response = await classMemberApi.getAll(classId, {
           per_page: 100,
         })
-  
+
         setMembers(
           Array.isArray(response?.data) ? response.data : [],
         )
@@ -229,11 +236,11 @@ const [importError, setImportError] = useState('')
         setLoadingMembers(false)
       }
     }, [classId])
-  
+
     useEffect(() => {
       loadOptions()
     }, [loadOptions])
-  
+
     useEffect(() => {
   const keyword = studentSearch.trim()
 
@@ -281,7 +288,7 @@ const [importError, setImportError] = useState('')
     clearTimeout(timer)
   }
 }, [studentSearch, modalOpen, studentId])
-  
+
     const visibleClasses = useMemo(
       () =>
         classes.filter(
@@ -291,12 +298,12 @@ const [importError, setImportError] = useState('')
         ),
       [classes, yearId],
     )
-  
+
     const memberIds = useMemo(
       () => new Set(members.map((member) => String(member.siswa_id))),
       [members],
     )
-  
+
     const availableStudents = useMemo(
       () =>
         students.filter(
@@ -304,7 +311,7 @@ const [importError, setImportError] = useState('')
         ),
       [students, memberIds],
     )
-  
+
     const yearOptions = useMemo(
       () =>
         years.map((year) => ({
@@ -313,7 +320,7 @@ const [importError, setImportError] = useState('')
         })),
       [years],
     )
-  
+
     const classOptions = useMemo(
       () =>
         visibleClasses.map((item) => ({
@@ -322,56 +329,56 @@ const [importError, setImportError] = useState('')
         })),
       [visibleClasses],
     )
-  
-  
+
+
     function handleYearChange(rawValue) {
       const value = getSelectValue(rawValue)
-  
+
       setYearId(value)
   setSuccessMessage('')
   setListError(null)
   setStudentId('')
   setStudentSearch('')
   setStudents([])
-  
+
       const nextClass = classes.find(
         (item) =>
           String(item.tahun_akademik_id) === value &&
           (!isGuru || assignedClassIds.includes(String(item.id))),
       )
-  
+
       setClassId(nextClass ? String(nextClass.id) : '')
     }
-  
+
     function handleClassChange(rawValue) {
       const value = getSelectValue(rawValue)
-  
+
       if (value && !/^\d+$/.test(value)) {
         setListError({
           message: 'Pilihan kelas tidak valid. Pilih kelas dari daftar.',
         })
         return
       }
-  
+
       setClassId(value)
       setSuccessMessage('')
       setListError(null)
-  
+
       const nextClass = classes.find(
         (item) => String(item.id) === value,
       )
-  
+
       if (nextClass) {
         setYearId(String(nextClass.tahun_akademik_id))
       }
     }
-  
+
     async function handleAddMember(event) {
       event.preventDefault()
-  
+
       setFormError(null)
       setSuccessMessage('')
-  
+
       if (
         !classId ||
         !/^\d+$/.test(String(classId)) ||
@@ -384,21 +391,21 @@ const [importError, setImportError] = useState('')
         })
         return
       }
-  
+
       setSaving(true)
-  
+
       try {
         await classMemberApi.create(Number(classId), {
           siswa_id: Number(studentId),
           tanggal_mulai: startDate,
         })
-  
+
         setModalOpen(false)
         setStudentId('')
         setStudentSearch('')
         setStudents([])
         setSuccessMessage('Siswa berhasil ditambahkan ke kelas.')
-  
+
         await loadMembers()
       } catch (error) {
         setFormError(error)
@@ -406,7 +413,7 @@ const [importError, setImportError] = useState('')
         setSaving(false)
       }
     }
-  
+
     function openEndMembershipModal(member) {
       setSuccessMessage('')
       setFormError(null)
@@ -537,12 +544,12 @@ const [importError, setImportError] = useState('')
             title="Anggota Kelas"
             description="Kelola keanggotaan siswa dalam kelas."
           />
-  
+
           <ErrorState message="Kamu tidak memiliki akses ke halaman ini." />
         </section>
       )
     }
-  
+
     return (
       <section className="class-members-page">
         <PageHeader
@@ -585,7 +592,7 @@ const [importError, setImportError] = useState('')
             ) : null
           }
         />
-  
+
         {successMessage && (
           <div
             className="class-members-page__success"
@@ -594,7 +601,7 @@ const [importError, setImportError] = useState('')
             {successMessage}
           </div>
         )}
-  
+
         <Card className="class-members-page__card">
           <div className="class-members-page__filters">
             <Select
@@ -607,7 +614,7 @@ const [importError, setImportError] = useState('')
               disabled={loadingOptions || isGuru}
               onChange={handleYearChange}
             />
-  
+
             <Select
               id="member-class"
               name="class"
@@ -619,11 +626,11 @@ const [importError, setImportError] = useState('')
               onChange={handleClassChange}
             />
           </div>
-  
+
           {loadingOptions && (
             <LoadingState message="Memuat data kelas dan siswa..." />
           )}
-  
+
           {!loadingOptions && listError && (
             <ErrorState
               message={errorMessage(
@@ -632,7 +639,7 @@ const [importError, setImportError] = useState('')
               )}
             />
           )}
-  
+
           {!loadingOptions && !listError && !classId && (
             <EmptyState
               title="Belum ada kelas yang tersedia"
@@ -643,28 +650,28 @@ const [importError, setImportError] = useState('')
                 }
             />
           )}
-  
+
           {!loadingOptions && !listError && classId && (
             <>
               <div className="class-members-page__list-heading">
                 <div>
                   <h2>{selectedClass?.nama || 'Anggota Kelas'}</h2>
-  
+
                   <p>
                     Tingkat {selectedClass?.tingkat || '-'} ·{' '}
                     {selectedYear ? yearLabel(selectedYear) : '-'}
                   </p>
                 </div>
-  
+
                 <Badge variant="neutral">
                   {members.length} anggota aktif
                 </Badge>
               </div>
-  
+
               {loadingMembers && (
                 <LoadingState message="Memuat anggota kelas..." />
               )}
-  
+
               {!loadingMembers &&
                 !listError &&
                 members.length === 0 && (
@@ -673,7 +680,7 @@ const [importError, setImportError] = useState('')
                     description="Tambahkan siswa untuk mulai mengisi kelas ini."
                   />
                 )}
-  
+
               {!loadingMembers &&
                 !listError &&
                 members.length > 0 && (
@@ -690,7 +697,7 @@ const [importError, setImportError] = useState('')
                             username &&
                             username !== member.siswa?.nama_lengkap &&
                             username !== name
-  
+
                           return (
                             <div className="class-members-page__identity">
                               <strong>{name}</strong>
@@ -698,16 +705,16 @@ const [importError, setImportError] = useState('')
                             </div>
                           )
                         }
-  
+
                         case 'nisn':
                           return member.siswa?.nisn || '-'
-  
+
                         case 'nis':
                           return member.siswa?.nis || '-'
-  
+
                         case 'tanggal_mulai':
                           return formatDate(member.tanggal_mulai)
-  
+
                         case 'actions':
                           return (
                             <Button
@@ -724,7 +731,7 @@ const [importError, setImportError] = useState('')
                               Akhiri Keanggotaan
                             </Button>
                           )
-  
+
                         default:
                           return '-'
                       }
@@ -734,7 +741,7 @@ const [importError, setImportError] = useState('')
             </>
           )}
         </Card>
-  
+
         <Modal
           open={modalOpen}
           title="Tambah Anggota Kelas"
@@ -752,7 +759,7 @@ const [importError, setImportError] = useState('')
               >
                 Batal
               </Button>
-  
+
               <Button
                 type="submit"
                 form="class-member-form"
@@ -773,7 +780,7 @@ const [importError, setImportError] = useState('')
               />
             </div>
           )}
-  
+
           <form
             id="class-member-form"
             onSubmit={handleAddMember}
@@ -866,7 +873,7 @@ const [importError, setImportError] = useState('')
       ))}
   </div>
 )}
-  
+
             <Input
               id="member-start-date"
               name="tanggal_mulai"
@@ -879,8 +886,8 @@ const [importError, setImportError] = useState('')
                 setStartDate(getSelectValue(value))
               }}
             />
-  
-            
+
+
           </form>
         </Modal>
 
@@ -1006,7 +1013,7 @@ const [importError, setImportError] = useState('')
   </div>
 </div>
 
-                    
+
                     <h3>Preview Data</h3>
 
 <div className="class-members-page__preview-table-wrapper">
@@ -1154,4 +1161,3 @@ const [importError, setImportError] = useState('')
       </section>
     )
   }
-  

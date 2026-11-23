@@ -1,451 +1,126 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-
-import LoadingState from '../../../components/ui/LoadingState'
-import ErrorState from '../../../components/ui/ErrorState'
-import EmptyState from '../../../components/ui/EmptyState'
-
-import { useAuth } from '../../../context/useAuth'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { academicYearApi } from '../../../services/academicYearApi'
-import { scheduleApi } from '../../../services/scheduleApi'
-import { gradeApi } from '../../../services/gradeApi'
-
+import { studentGradeWorkspaceApi } from '../../../services/studentGradeWorkspaceApi'
+import { formatGrade, formatWeight, uniqueTeacherNames, validateWorkspace } from './studentGradeView'
 import '../styles/SiswaGrades.css'
 
-function getCollection(response) {
-  const payload = response?.data ?? response
-
-  if (Array.isArray(payload)) {
-    return { data: payload, meta: response?.meta ?? {} }
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return { data: payload.data, meta: payload.meta ?? response?.meta ?? {} }
-  }
-
-  return { data: [], meta: {} }
+function unwrap(response) {
+  const p = response?.data ?? response
+  return Array.isArray(p) ? { rows: p, meta: response?.meta ?? {} } :
+    Array.isArray(p?.data) ? { rows: p.data, meta: p.meta ?? response?.meta ?? {} } : { rows: [], meta: {} }
 }
 
-async function getAllPages(fetchPage, perPage = 100) {
-  const result = []
+async function fetchYears() {
+  const years = []
   let page = 1
-  let lastPage = 1
-
-  do {
-    const response = await fetchPage(page, perPage)
-    const collection = getCollection(response)
-
-    result.push(...collection.data)
-    lastPage = Math.max(1, Number(collection.meta.last_page ?? 1))
+  while (true) {
+    const { rows, meta } = unwrap(await academicYearApi.getAll({ page, per_page: 100 }))
+    years.push(...rows)
+    const last = Number(meta.last_page ?? 1)
+    if (!Number.isInteger(last) || last < page || last > 1000) throw new Error('Pagination periode tidak valid.')
+    if (page >= last) return years
     page += 1
-  } while (page <= lastPage && page <= 100)
-
-  return result
-}
-
-function formatAcademicYear(year) {
-  if (!year) return '-'
-
-  return `${year.tahun_mulai ?? '?'} / ${year.tahun_selesai ?? '?'}`
-}
-
-function formatNumber(value) {
-  if (value === null || value === undefined || value === '') return '-'
-
-  return Number(value).toLocaleString('id-ID', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })
-}
-
-function formatWeight(value) {
-  if (value === null || value === undefined || value === '') return '-'
-  return `${formatNumber(value)}%`
-}
-
-function getSubjectName(schedule) {
-  return (
-    schedule?.mapel?.nama ??
-    schedule?.mata_pelajaran?.nama ??
-    (schedule?.mapel_id ? `Mata Pelajaran ${schedule.mapel_id}` : '-')
-  )
-}
-
-function getClassName(schedule) {
-  const className = schedule?.kelas?.nama ?? schedule?.kelas?.nama_kelas
-
-  if (className) return className
-  if (schedule?.kelas_id) return `Kelas ${schedule.kelas_id}`
-
-  return '-'
+  }
 }
 
 export default function SiswaGrades() {
-  const { user } = useAuth()
+  const [years, setYears] = useState([])
+  const [yearId, setYearId] = useState('')
+  const [workspace, setWorkspace] = useState(null)
+  const [subjectKey, setSubjectKey] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
+  const [error, setError] = useState('')
+  const seq = useRef(0)
+  const initialYear = years.find((year) => String(year.id) === yearId)
+  const selected = workspace?.subjects.find((subject) => subject.key === subjectKey) ?? null
 
-  const [academicYears, setAcademicYears] = useState([])
-  const [selectedYearId, setSelectedYearId] = useState('')
-  const [rows, setRows] = useState([])
-  const [loadingYears, setLoadingYears] = useState(true)
-  const [loadingGrades, setLoadingGrades] = useState(false)
-  const [pageError, setPageError] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-
-  const PAGE_SIZE = 15
-
-  const loadAcademicYears = useCallback(async () => {
-    setLoadingYears(true)
-    setPageError('')
-
-    try {
-      const years = await getAllPages((page, perPage) =>
-        academicYearApi.getAll({ page, per_page: perPage }),
-      )
-
-      setAcademicYears(years)
-
-      const activeYear = years.find((year) => year.is_active === true)
-      const initialYear = activeYear ?? years[0]
-
-      if (initialYear) {
-        setSelectedYearId(String(initialYear.id))
-      }
-    } catch (error) {
-      setPageError(error?.message || 'Tahun akademik gagal dimuat.')
-    } finally {
-      setLoadingYears(false)
-    }
+  useEffect(() => {
+    let current = true
+    fetchYears().then((list) => {
+      if (!current) return
+      setYears(list)
+      const active = list.find((year) => year.is_active === true) ?? list[0]
+      if (active) setYearId(String(active.id))
+      else { setLoading(false); setError('Belum ada tahun akademik.') }
+    }).catch((err) => { if (current) { setError(err.message || 'Gagal memuat periode.'); setLoading(false) } })
+    return () => { current = false }
   }, [])
 
-  useEffect(() => {
-    loadAcademicYears()
-  }, [loadAcademicYears])
-
-  const selectedYear = useMemo(
-    () =>
-      academicYears.find((year) => String(year.id) === selectedYearId) ?? null,
-    [academicYears, selectedYearId],
-  )
-
-  const loadGrades = useCallback(async () => {
-    if (!selectedYearId) {
-      setRows([])
-      setLoadingGrades(false)
-      return
-    }
-
-    setLoadingGrades(true)
-    setPageError('')
-
+  const refresh = useCallback(async () => {
+    if (!yearId) return
+    const requestId = ++seq.current
+    setUpdating(true)
+    setError('')
     try {
-      // Scope SISWA diterapkan oleh backend berdasarkan akun yang sedang login.
-      // Frontend tidak mengirim student_id agar tidak dapat dimanipulasi pengguna.
-      const schedules = await getAllPages((page, perPage) =>
-        scheduleApi.getAll({
-          academic_year_id: selectedYearId,
-          semester: selectedYear?.semester || undefined,
-          page,
-          per_page: perPage,
-        }),
-      )
-
-      const scheduleResults = await Promise.all(
-        schedules.map(async (schedule) => {
-          const [components, grades] = await Promise.all([
-            getAllPages((page, perPage) =>
-              gradeApi.getComponents({
-                schedule_id: schedule.id,
-                academic_year_id: selectedYearId,
-                semester: selectedYear?.semester || undefined,
-                page,
-                per_page: perPage,
-              }),
-            ),
-            getAllPages((page, perPage) =>
-              gradeApi.getGrades({
-                schedule_id: schedule.id,
-                academic_year_id: selectedYearId,
-                semester: selectedYear?.semester || undefined,
-                page,
-                per_page: perPage,
-              }),
-            ),
-          ])
-
-          return { schedule, components, grades }
-        }),
-      )
-
-      const nextRows = []
-
-      scheduleResults.forEach(({ schedule, components, grades }) => {
-        const gradesByComponent = new Map(
-          grades.map((grade) => [
-            Number(grade.komponen_nilai_id),
-            grade,
-          ]),
-        )
-
-        components.forEach((component) => {
-          const grade = gradesByComponent.get(Number(component.id))
-
-          nextRows.push({
-            id: `${schedule.id}-${component.id}`,
-            subject: getSubjectName(schedule),
-            className: getClassName(schedule),
-            day: schedule.hari ?? '-',
-            startTime: schedule.jam_mulai?.slice(0, 5) ?? '',
-            endTime: schedule.jam_selesai?.slice(0, 5) ?? '',
-            component: component.nama ?? '-',
-            weight: component.bobot,
-            score: grade?.nilai ?? null,
-            note: grade?.catatan ?? '',
-            assessed: Boolean(grade),
-          })
-        })
-      })
-
-      nextRows.sort((a, b) => {
-        const subjectOrder = a.subject.localeCompare(b.subject, 'id')
-        if (subjectOrder !== 0) return subjectOrder
-        return a.component.localeCompare(b.component, 'id')
-      })
-
-      setRows(nextRows)
-      setCurrentPage(1)
-    } catch (error) {
-      setRows([])
-      setPageError(
-        error?.message ||
-          'Nilai akademik gagal dimuat. Periksa koneksi dan hak akses akun siswa.',
-      )
+      const response = await studentGradeWorkspaceApi.get(yearId)
+      const data = validateWorkspace(response)
+      if (requestId !== seq.current) return
+      setWorkspace(data)
+      setSubjectKey((key) => key && data.subjects.some((s) => s.key === key) ? key : null)
+    } catch (err) {
+      if (requestId !== seq.current) return
+      setWorkspace(null)
+      setError(err.message || 'Data nilai gagal dimuat.')
     } finally {
-      setLoadingGrades(false)
+      if (requestId === seq.current) { setUpdating(false); setLoading(false) }
     }
-  }, [selectedYearId, selectedYear])
+  }, [yearId])
 
   useEffect(() => {
-    if (!loadingYears && selectedYearId) {
-      loadGrades()
-    }
-  }, [loadingYears, selectedYearId, loadGrades])
+    // Old request results are invalidated as soon as academic context changes.
+    seq.current += 1
+    setWorkspace(null)
+    setSubjectKey(null)
+    if (yearId) refresh()
+    return () => { seq.current += 1 }
+  }, [yearId, refresh])
 
-  const summary = useMemo(() => {
-    const subjects = new Set(rows.map((row) => row.subject))
-
-    return {
-      subjects: subjects.size,
-      components: rows.length,
-      assessed: rows.filter((row) => row.assessed).length,
-      pending: rows.filter((row) => !row.assessed).length,
-    }
-  }, [rows])
-
-  const lastPage = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const safePage = Math.min(currentPage, lastPage)
-  const visibleRows = rows.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  )
-
-  const studentName =
-    user?.name ??
-    user?.nama_lengkap ??
-    user?.username ??
-    'Siswa'
-
-  if (loadingYears) {
-    return <LoadingState message="Memuat informasi tahun akademik..." />
-  }
-
-  if (pageError && academicYears.length === 0) {
-    return (
-      <ErrorState
-        title="Halaman nilai tidak dapat dimuat"
-        message={pageError}
-        onRetry={loadAcademicYears}
-      />
-    )
-  }
+  const summary = workspace?.summary
 
   return (
-    <div className="siswa-grades">
-      <header className="siswa-grades__header">
-        <div>
-          <p className="siswa-grades__eyebrow">AKADEMIK SISWA</p>
-          <h1>Nilai Akademik Saya</h1>
-          <p>
-            Halo, <strong>{studentName}</strong>. Berikut ringkasan nilai
-            berdasarkan tahun akademik yang dipilih.
-          </p>
-        </div>
-        <div className="siswa-grades__identity">
-          <span>Akun Siswa</span>
-          <strong>{studentName}</strong>
-        </div>
+    <div className="student-grade-v2" aria-busy={updating}>
+      <header className="sg-head">
+        <div><span className="sg-eyebrow">AKADEMIK / NILAI SISWA</span><h1>Nilai akademik</h1>
+          <p>Pantau komponen penilaian dan catatan guru berdasarkan mata pelajaran.</p></div>
+        <button type="button" className="sg-button" onClick={refresh} disabled={updating || !yearId}>{updating ? 'Memperbarui…' : 'Perbarui data'}</button>
       </header>
 
-      <section className="siswa-grades__panel">
-        <div className="siswa-grades__panel-heading">
-          <div>
-            <h2>Periode Akademik</h2>
-            <p>Pilih tahun akademik untuk melihat nilai pada periode tersebut.</p>
-          </div>
-          <button
-            type="button"
-            className="siswa-grades__button siswa-grades__button--secondary"
-            onClick={loadGrades}
-            disabled={loadingGrades || !selectedYearId}
-          >
-            Muat Ulang
-          </button>
-        </div>
-
-        <div className="siswa-grades__filters">
-          <label>
-            <span>Tahun Akademik</span>
-            <select
-              value={selectedYearId}
-              onChange={(event) => setSelectedYearId(event.target.value)}
-            >
-              {academicYears.map((year) => (
-                <option key={year.id} value={year.id}>
-                  {formatAcademicYear(year)} - {year.semester}
-                  {year.is_active ? ' (Aktif)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="siswa-grades__period-info">
-            <span>Semester</span>
-            <strong>
-              {selectedYear?.semester === 'GANJIL'
-                ? 'Ganjil'
-                : selectedYear?.semester === 'GENAP'
-                  ? 'Genap'
-                  : '-'}
-            </strong>
-          </div>
-        </div>
+      <section className="sg-period" aria-label="Periode akademik">
+        <label><span>PERIODE AKADEMIK</span>
+          <select value={yearId} onChange={(e) => setYearId(e.target.value)} disabled={years.length === 0}>
+            {years.map((year) => <option key={year.id} value={year.id}>{year.tahun_mulai}/{year.tahun_selesai} · {year.semester === 'GANJIL' ? 'Ganjil' : 'Genap'}{year.is_active ? ' (Aktif)' : ''}</option>)}
+          </select>
+        </label>
+        <div><span>KELAS TERKAIT</span><strong>{workspace?.classes.map((c) => c.name).join(', ') || '—'}</strong></div>
+        <div><span>STATUS DATA</span><strong>{workspace?.membership_status === 'active' ? 'Penempatan aktif' : workspace?.membership_status === 'historical' ? 'Riwayat kelas' : workspace?.membership_status === 'ended' ? 'Penempatan berakhir' : 'Belum ditempatkan'}</strong></div>
       </section>
 
-      <section className="siswa-grades__panel">
-        <div className="siswa-grades__panel-heading">
-          <div>
-            <h2>Ringkasan Nilai</h2>
-            <p>
-              Nilai dan catatan hanya berasal dari data akademik akun siswa
-              yang sedang login.
-            </p>
-          </div>
-        </div>
-
-        {loadingGrades ? (
-          <LoadingState message="Memuat nilai akademik..." />
-        ) : pageError ? (
-          <ErrorState
-            title="Nilai gagal dimuat"
-            message={pageError}
-            onRetry={loadGrades}
-          />
-        ) : (
-          <>
-            <div className="siswa-grades__summary">
-              <article>
-                <span>Total Mata Pelajaran</span>
-                <strong>{summary.subjects}</strong>
-              </article>
-              <article>
-                <span>Total Komponen</span>
-                <strong>{summary.components}</strong>
-              </article>
-              <article>
-                <span>Nilai Tersedia</span>
-                <strong className="is-success">{summary.assessed}</strong>
-              </article>
-              <article>
-                <span>Belum Dinilai</span>
-                <strong className="is-warning">{summary.pending}</strong>
-              </article>
-            </div>
-
-            {rows.length === 0 ? (
-              <EmptyState
-                title="Belum ada data penilaian"
-                message="Belum ditemukan komponen penilaian untuk kelas dan periode akademik akun ini."
-              />
-            ) : (
-              <>
-                <div className="siswa-grades__table-wrap">
-                  <table className="siswa-grades__table">
-                    <thead>
-                      <tr>
-                        <th>No.</th>
-                        <th>Mata Pelajaran</th>
-                        <th>Kelas</th>
-                        <th>Komponen Penilaian</th>
-                        <th>Bobot</th>
-                        <th>Nilai</th>
-                        <th>Catatan Guru</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleRows.map((row, index) => (
-                        <tr key={row.id}>
-                          <td>{(safePage - 1) * PAGE_SIZE + index + 1}</td>
-                          <td><strong>{row.subject}</strong></td>
-                          <td>{row.className}</td>
-                          <td>{row.component}</td>
-                          <td>{formatWeight(row.weight)}</td>
-                          <td><strong>{formatNumber(row.score)}</strong></td>
-                          <td>{row.note || '-'}</td>
-                          <td>
-                            <span
-                              className={`siswa-grades__status ${
-                                row.assessed
-                                  ? 'siswa-grades__status--complete'
-                                  : 'siswa-grades__status--pending'
-                              }`}
-                            >
-                              {row.assessed ? 'Sudah Dinilai' : 'Belum Dinilai'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="siswa-grades__pagination">
-                  <span>
-                    Menampilkan {visibleRows.length} dari {rows.length} data.
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="siswa-grades__button siswa-grades__button--secondary"
-                      disabled={safePage <= 1}
-                      onClick={() => setCurrentPage((page) => page - 1)}
-                    >
-                      Sebelumnya
-                    </button>
-                    <span>Halaman {safePage} / {lastPage}</span>
-                    <button
-                      type="button"
-                      className="siswa-grades__button siswa-grades__button--primary"
-                      disabled={safePage >= lastPage}
-                      onClick={() => setCurrentPage((page) => page + 1)}
-                    >
-                      Berikutnya
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </section>
+      {error && <div className="sg-error" role="alert">{error} <button type="button" onClick={refresh}>Coba lagi</button></div>}
+      {loading && <div className="sg-message" role="status">Memuat data nilai siswa…</div>}
+      {workspace && <>
+        <section className="sg-stat-grid" aria-label="Ringkasan nilai">
+          {[['Mata pelajaran', summary.subjects], ['Komponen penilaian', summary.components], ['Sudah dinilai', summary.assessed], ['Belum dinilai', summary.pending]].map(([label, value]) =>
+            <div className="sg-stat" key={label}><span>{label}</span><strong>{value}</strong></div>)}
+        </section>
+        {!selected ? <section className="sg-subject-section">
+          <div className="sg-section-heading"><div><h2>Mata pelajaran</h2><p>Pilih satu mata pelajaran untuk melihat rincian nilai.</p></div><small>{workspace.subjects.length} mapel / kelas</small></div>
+          {workspace.subjects.length === 0 ? <div className="sg-empty">Belum ada komponen nilai pada periode dan penempatan yang dipilih.</div> :
+            <div className="sg-cards">{workspace.subjects.map((subject) => <button key={subject.key} className="sg-subject-card" type="button" onClick={() => setSubjectKey(subject.key)}>
+              <span className="sg-card-icon" aria-hidden="true">▤</span><span className="sg-card-arrow" aria-hidden="true">›</span>
+              <strong>{subject.subject}</strong><span className="sg-muted">{uniqueTeacherNames(subject.teachers) || 'Guru belum tersedia'}</span>
+              <span className="sg-muted">{subject.class_name} · {subject.components.length} komponen</span>
+              <span className="sg-card-bottom">{subject.assessed} dinilai · {subject.pending} belum dinilai <span>Rincian →</span></span>
+            </button>)}</div>}
+        </section> : <section className="sg-detail">
+          <button className="sg-button sg-back" type="button" onClick={() => setSubjectKey(null)}>← Semua mata pelajaran</button>
+          <div className="sg-section-heading"><div><span className="sg-eyebrow">RINCIAN NILAI</span><h2>{selected.subject}</h2><p>{selected.class_name} · {uniqueTeacherNames(selected.teachers)}</p></div><small>{selected.components.length} komponen</small></div>
+          <div className="sg-table-scroll"><table><thead><tr><th>Komponen</th><th>Guru pengampu</th><th>Bobot</th><th>Nilai</th><th>Catatan guru</th><th>Status</th></tr></thead>
+            <tbody>{selected.components.map((component) => <tr key={component.id}><td><strong>{component.name}</strong><small>{component.day} · {component.start}–{component.end}</small></td><td>{component.teacher}</td><td>{formatWeight(component.weight)}</td><td><strong>{formatGrade(component.score)}</strong></td><td>{component.note || '—'}</td><td><span className={component.assessed ? 'sg-chip sg-chip-success' : 'sg-chip'}>{component.assessed ? 'Sudah dinilai' : 'Belum dinilai'}</span></td></tr>)}</tbody></table></div>
+        </section>}
+        <p className="sg-note">Nilai 0 adalah nilai sah. Tanda — berarti belum ada nilai. Bobot hanya informasi; halaman ini tidak menghitung nilai akhir atau rapor otomatis.</p>
+      </>}
+      {!initialYear && !loading && !error && <div className="sg-empty">Pilih periode akademik untuk melihat nilai.</div>}
     </div>
   )
 }

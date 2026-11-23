@@ -15,7 +15,9 @@ use App\Models\Presensi;
 use App\Models\Siswa;
 use App\Models\TahunAkademik;
 use App\Models\User;
-use App\Models\WaliKelas;
+use App\Support\HomeroomReadAccess;
+use App\Support\StudentScheduleAccess;
+use App\Support\StudentMaterialAccess;
 use App\Support\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -223,16 +225,7 @@ class DashboardController extends Controller
                 }
             );
 
-        $waliKelas = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->whereNull('tanggal_selesai')
-            ->when(
-                $academicYear,
-                fn ($query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYear->id
-                )
-            )
+        $waliKelas = HomeroomReadAccess::currentAssignments((int) $guruId)
             ->with([
                 'kelas',
                 'tahunAkademik',
@@ -331,68 +324,54 @@ class DashboardController extends Controller
         ]);
     }
 
+    /**
+     * The legacy /api/dashboard response contract remains in use by existing
+     * clients. Resolve its student scope with the same effective-membership
+     * rules as StudentDashboardWorkspaceController, never with an unscoped query.
+     *
+     * The V2 dashboard continues to use /api/dashboard/student-workspace.
+     */
     private function siswaDashboard(User $user): JsonResponse
     {
         $siswa = $user->siswa;
-        $academicYear = $this->activeAcademicYear();
+        $years = TahunAkademik::query()->where('is_active', true)->get();
 
-        if (! $siswa) {
-            return ApiResponse::success([
-                'role' => 'SISWA',
-                'summary' => [
-                    'attendance_count' => 0,
-                    'grade_count' => 0,
-                    'material_count' => 0,
-                    'assignment_count' => 0,
-                ],
-                'class' => null,
-                'today_schedule' => [],
-                'recent' => [
-                    'materials' => [],
-                    'assignments' => [],
-                ],
-            ]);
+        if ($years->count() !== 1) {
+            return response()->json([
+                'message' => 'Periode akademik aktif tidak tunggal.',
+            ], 409);
         }
 
-        $membership = AnggotaKelas::query()
-            ->where('siswa_id', $siswa->id)
-            ->whereNull('tanggal_selesai')
-            ->whereHas(
-                'kelas',
-                fn ($query) => $query->when(
-                    $academicYear,
-                    fn ($academicQuery) => $academicQuery->where(
-                        'tahun_akademik_id',
-                        $academicYear->id
-                    )
-                )
-            )
-            ->with('kelas.tahunAkademik')
-            ->latest('id')
-            ->first();
+        $academicYear = $years->first();
+        $context = StudentScheduleAccess::resolve($siswa?->id, $academicYear);
 
-        $classId = $membership?->kelas_id;
+        if ($context['status'] === 'ambiguous') {
+            return response()->json([
+                'message' => 'Penempatan kelas aktif ambigu. Hubungi Tata Usaha.',
+            ], 409);
+        }
+
+        // IMPORTANT: use a guaranteed non-matching class id when there is no
+        // effective class. Without this where() clause, schedules from other
+        // classes could leak through the original legacy endpoint.
+        $classId = $context['status'] === 'active'
+            ? (int) $context['class']['id']
+            : 0;
 
         $scheduleQuery = JadwalPelajaran::query()
-            ->when(
-                $classId,
-                fn ($query) => $query->where('kelas_id', $classId)
-            )
-            ->when(
-                $academicYear,
-                fn ($query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYear->id
-                )
-            );
+            ->where('tahun_akademik_id', $academicYear->id)
+            ->where('kelas_id', $classId);
+
+        // The student's academic day follows WIB, without changing the
+        // existing teacher dashboard's day calculation.
+        $wibDay = [
+            1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis',
+            5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu',
+        ][Carbon::now('Asia/Jakarta')->dayOfWeekIso];
 
         $todaySchedule = (clone $scheduleQuery)
-            ->where('hari', $this->todayName())
-            ->with([
-                'guru',
-                'mapel',
-                'kelas',
-            ])
+            ->whereRaw('LOWER(hari) = ?', [strtolower($wibDay)])
+            ->with(['guru', 'mapel'])
             ->orderBy('jam_mulai')
             ->get()
             ->map(fn (JadwalPelajaran $schedule) => [
@@ -412,23 +391,25 @@ class DashboardController extends Controller
             ->values();
 
         $scheduleIds = (clone $scheduleQuery)->pluck('id');
-
+        // In particular, whereIn([], ...) must never turn into an unrestricted
+        // query if the student has no active class or academic profile.
         $attendanceQuery = Presensi::query()
-            ->where('siswa_id', $siswa->id)
+            ->where('siswa_id', $siswa?->id ?? 0)
             ->whereIn('jadwal_pelajaran_id', $scheduleIds);
 
         $gradeQuery = Nilai::query()
-            ->where('siswa_id', $siswa->id)
-            ->whereHas(
-                'komponenNilai',
-                fn ($query) => $query->whereIn(
-                    'jadwal_pelajaran_id',
-                    $scheduleIds
-                )
+            ->where('siswa_id', $siswa?->id ?? 0)
+            ->whereHas('komponenNilai', fn ($query) =>
+                $query->whereIn('jadwal_pelajaran_id', $scheduleIds)
             );
 
         $materialQuery = BahanAjar::query()
             ->whereIn('jadwal_pelajaran_id', $scheduleIds);
+        if ($siswa) {
+            // Keep material eligibility consistent with the protected
+            // list/detail/download endpoints (effective at upload date).
+            StudentMaterialAccess::apply($materialQuery, (int) $siswa->id);
+        }
 
         $assignmentQuery = Assignment::query()
             ->whereIn('jadwal_pelajaran_id', $scheduleIds);
@@ -441,13 +422,9 @@ class DashboardController extends Controller
                 'material_count' => $materialQuery->count(),
                 'assignment_count' => $assignmentQuery->count(),
             ],
-            'class' => $membership?->kelas ? [
-                'id' => $membership->kelas->id,
-                'nama' => $membership->kelas->nama,
-                'tingkat' => $membership->kelas->tingkat,
-                'academic_year' => $this->academicYearData(
-                    $membership->kelas->tahunAkademik
-                ),
+            'class' => $context['status'] === 'active' ? [
+                ...$context['class'],
+                'academic_year' => $this->academicYearData($academicYear),
             ] : null,
             'today_schedule' => $todaySchedule,
             'recent' => [
@@ -467,8 +444,7 @@ class DashboardController extends Controller
                     ->with([
                         'jadwalPelajaran.mapel',
                         'submissionTugas' => fn ($query) => $query->where(
-                            'siswa_id',
-                            $siswa->id
+                            'siswa_id', $siswa?->id ?? 0
                         ),
                     ])
                     ->latest('deadline')
@@ -483,7 +459,7 @@ class DashboardController extends Controller
                     ])
                     ->values(),
             ],
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     private function activeAcademicYear(): ?TahunAkademik

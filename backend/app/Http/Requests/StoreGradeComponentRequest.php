@@ -39,6 +39,7 @@ class StoreGradeComponentRequest extends FormRequest
             'bobot' => [
                 'required',
                 'numeric',
+                'between:0,999.99',
             ],
         ];
     }

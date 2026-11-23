@@ -1,265 +1,181 @@
-/* ========================================
-   PRESENSI GURU — LAYOUT & COMPONENTS
-   CSS ini hanya digunakan oleh halaman presensi Guru.
-======================================== */
-
-.attendance-page {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    min-width: 0;
-    color: var(--text-primary, #0f172a);
-  }
-  
-  .attendance-page h2 {
-    margin: 0;
-    color: var(--text-primary, #0f172a);
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.4;
-  }
-  
-  .attendance-page p {
-    margin: 0.35rem 0 0;
-    color: var(--text-muted, #64748b);
-    font-size: 0.875rem;
-    line-height: 1.55;
-  }
-  
-  .attendance-toolbar,
-  .attendance-table-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.15rem;
-  }
-  
-  .attendance-toolbar > div,
-  .attendance-table-heading > div {
-    min-width: 0;
-  }
-  
-  /* Jadwal dan tanggal */
-  .attendance-guru-filters {
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(230px, 0.8fr);
-    gap: 1rem;
-    align-items: start;
-  }
-  
-  .attendance-class-context {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25rem;
-    margin-top: 1rem !important;
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--border, #dbe5f0);
-    border-radius: 0.65rem;
-    background: var(--surface-muted, #f8fafc);
-    color: var(--text-primary, #0f172a) !important;
-  }
-  
-  .attendance-class-context strong {
-    color: var(--primary, #174a78);
-    font-weight: 700;
-  }
-  
-  /* Pesan sukses setelah penyimpanan */
-  .attendance-notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.7rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid #86efac;
-    border-radius: 0.7rem;
-    background: #f0fdf4;
-    color: #166534;
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-  
-  .attendance-notice::before {
-    content: "✓";
-    display: inline-flex;
-    flex: 0 0 1.35rem;
-    width: 1.35rem;
-    height: 1.35rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: #dcfce7;
-    color: #166534;
-    font-weight: 800;
-  }
-  
-  .attendance-form-error {
-    padding: 0.85rem 1rem;
-    border: 1px solid #fecaca;
-    border-radius: 0.65rem;
-    background: #fef2f2;
-    color: #991b1b !important;
-  }
-  
-  /* Daftar siswa */
-  .attendance-table-heading {
-    align-items: center;
-  }
-  
-  .attendance-bulk-table-wrap {
-    width: 100%;
-    overflow-x: auto;
-    border: 1px solid var(--border, #e2e8f0);
-    border-radius: 0.7rem;
-    background: var(--surface, #fff);
-    scrollbar-width: thin;
-  }
-  
-  .attendance-bulk-table {
-    width: 100%;
-    min-width: 760px;
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-  
-  .attendance-bulk-table th,
-  .attendance-bulk-table td {
-    padding: 0.9rem 0.85rem;
-    border-bottom: 1px solid var(--border, #e2e8f0);
-    text-align: left;
-    vertical-align: middle;
-  }
-  
-  .attendance-bulk-table th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--surface-muted, #f8fafc);
-    color: var(--text-muted, #64748b);
-    font-size: 0.77rem;
-    font-weight: 750;
-    letter-spacing: 0.025em;
-    white-space: nowrap;
-  }
-  
-  .attendance-bulk-table td {
-    color: var(--text-primary, #0f172a);
-    font-size: 0.875rem;
-  }
-  
-  .attendance-bulk-table tbody tr:last-child td {
-    border-bottom: 0;
-  }
-  
-  .attendance-bulk-table tbody tr:hover {
-    background: #f8fbff;
-  }
-  
-  .attendance-bulk-table td:first-child {
-    width: 3.5rem;
-    color: var(--text-muted, #64748b);
-    text-align: center;
-  }
-  
-  .attendance-bulk-table td:nth-child(2) strong {
-    font-weight: 650;
-  }
-  
-  .attendance-bulk-table-status,
-  .attendance-bulk-status,
-  .attendance-bulk-note {
-    display: block;
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 135px;
-    min-height: 2.55rem;
-    padding: 0.6rem 0.75rem;
-    border: 1px solid var(--border, #cbd5e1);
-    border-radius: 0.5rem;
-    background: var(--surface, #fff);
-    color: var(--text-primary, #0f172a);
-    font: inherit;
-    transition: border-color 150ms ease, box-shadow 150ms ease;
-  }
-  
-  .attendance-bulk-note {
-    min-width: 175px;
-  }
-  
-  .attendance-bulk-table-status:hover,
-  .attendance-bulk-status:hover,
-  .attendance-bulk-note:hover {
-    border-color: #94a3b8;
-  }
-  
-  .attendance-bulk-table-status:focus,
-  .attendance-bulk-status:focus,
-  .attendance-bulk-note:focus {
-    border-color: var(--primary, #174a78);
-    outline: none;
-    box-shadow: 0 0 0 3px rgb(23 74 120 / 12%);
-  }
-  
-  .attendance-bulk-table-status:disabled,
-  .attendance-bulk-status:disabled,
-  .attendance-bulk-note:disabled {
-    cursor: not-allowed;
-    background: var(--surface-muted, #f8fafc);
-    opacity: 0.7;
-  }
-  
-  .attendance-modal-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
-  
-  @media (max-width: 900px) {
-    .attendance-guru-filters {
-      grid-template-columns: minmax(0, 1fr) minmax(200px, 0.8fr);
-    }
-  
-    .attendance-bulk-table th,
-    .attendance-bulk-table td {
-      padding: 0.8rem 0.7rem;
-    }
-  }
-  
-  @media (max-width: 600px) {
-    .attendance-page {
-      gap: 1rem;
-    }
-  
-    .attendance-guru-filters {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  
-    .attendance-toolbar,
-    .attendance-table-heading {
-      align-items: stretch;
-      flex-direction: column;
-    }
-  
-    .attendance-table-heading > button {
-      width: 100%;
-    }
-  
-    .attendance-bulk-table {
-      min-width: 700px;
-    }
-  
-    .attendance-bulk-table th,
-    .attendance-bulk-table td {
-      padding: 0.7rem 0.55rem;
-    }
-  }
-  
-  @media (prefers-reduced-motion: reduce) {
-    .attendance-bulk-table-status,
-    .attendance-bulk-status,
-    .attendance-bulk-note {
-      transition: none;
-    }
-  }
-  
+/* Presensi Guru V2 — scoped. Desain mengikuti mockup yang disetujui. */
+.guru-attendance-v2{min-width:0;width:100%;max-width:1600px;margin-inline:auto;color:#10243b;--blue:#2563eb;font-family:Inter,system-ui,sans-serif;font-size:14px;container-type:inline-size}
+.guru-attendance-v2 *{box-sizing:border-box}
+.guru-attendance-v2 button{font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+.guru-attendance-v2 button:disabled{opacity:.55;cursor:not-allowed}
+.guru-attendance-v2 button:focus-visible,.guru-attendance-v2 input:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.guru-attendance-v2 .eyebrow{display:inline-flex;align-items:center;gap:9px;color:#24548a;letter-spacing:1.25px;font-size:11px;font-weight:750}
+.guru-attendance-v2 .eyebrow:before{content:'';height:2px;width:24px;background:#2563eb}
+.guru-attendance-v2 h1,.guru-attendance-v2 h2{font-family:Poppins,Inter,sans-serif;color:#102a43}
+.guru-attendance-v2 .page-intro { display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:0 0 24px }
+.guru-attendance-v2 .page-intro h1 { font-size:34px;font-weight:750;letter-spacing:-1.3px;margin:9px 0 5px;line-height:1.18 }
+.guru-attendance-v2 .page-intro p, .guru-attendance-v2 .section-head p { margin:0;color:#536b83;font-size:13px;line-height:1.6 }
+.guru-attendance-v2 .demo-dot, .guru-attendance-v2 .draft-dot { width:7px;height:7px;background:#c38b25;border-radius:50%;flex-shrink:0 }
+.guru-attendance-v2 .control-panel, .guru-attendance-v2 .roster-panel { background:#fff;border:1px solid #d4e0ed;border-radius:14px;min-width:0 }
+.guru-attendance-v2 .control-panel { padding:22px 24px 20px;margin-bottom:18px }
+.guru-attendance-v2 .section-head { display:flex;align-items:center;justify-content:space-between;gap:14px }
+.guru-attendance-v2 .step-label { color:#24548a;letter-spacing:1.15px;font-size:10px;font-weight:750 }
+.guru-attendance-v2 .section-head h2 { font-size:20px;letter-spacing:-.45px;line-height:1.25;margin:6px 0 0 }
+.guru-attendance-v2 .period { font-size:12px;font-weight:650;color:#4c627a;white-space:nowrap }
+.guru-attendance-v2 .filter-grid { display:grid;grid-template-columns:minmax(0,1.8fr) minmax(180px,1fr);gap:16px;margin-top:19px }
+.guru-attendance-v2 .filter-grid label { display:block;color:#233d54;font-size:12px;font-weight:700;margin-bottom:7px }
+.guru-attendance-v2 .filter-grid label span { color:#a43c34 }
+.guru-attendance-v2 .date-field input { width:100%;height:61px;border:1px solid #c6d6e7;background:#f9fbfe;border-radius:9px;color:#17344e;outline-offset:3px }
+.guru-attendance-v2 .context-icon { width:34px;height:34px;border-radius:8px;background:#e5eefb;color:#2462ae;display:grid;place-items:center;font-size:20px;flex-shrink:0 }
+.guru-attendance-v2 .date-field input { font:inherit;padding:12px 14px;font-size:14px;font-weight:600;min-width:0 }
+.guru-attendance-v2 .context-strip { margin-top:14px;padding:13px 15px;background:#edf4fc;border:1px solid #d6e4f1;border-radius:9px;display:grid;grid-template-columns:34px 1.1fr 1.2fr 1.15fr .7fr;align-items:center;gap:13px }
+.guru-attendance-v2 .context-strip small, .guru-attendance-v2 .context-strip strong { display:block }
+.guru-attendance-v2 .context-strip small { font-size:9px;font-weight:750;letter-spacing:.8px;color:#52718d;margin-bottom:6px }
+.guru-attendance-v2 .context-strip strong { font-size:12.5px;line-height:1.4;color:#163b5c }
+.guru-attendance-v2 .context-strip>div:not(:first-child) { min-width:0 }
+.guru-attendance-v2 .context-strip>div:nth-child(n/**/+3) { border-left:1px solid #d1dfec;padding-left:13px }
+.guru-attendance-v2 .roster-panel { overflow:visible }
+.guru-attendance-v2 .roster-head { padding:21px 24px 15px }
+.guru-attendance-v2 .roster-head p { margin-top:5px }
+.guru-attendance-v2 .secondary-btn, .guru-attendance-v2 .primary-btn { min-height:42px;border-radius:8px;padding:0 15px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap }
+.guru-attendance-v2 .secondary-btn { border:1px solid #c5d8e9;background:#f7faff;color:#244d73 }
+.guru-attendance-v2 .secondary-btn:hover { background:#e9f2fc;border-color:#9dbbda }
+.guru-attendance-v2 .primary-btn { border:1px solid #17344e;background:#17344e;color:white }
+.guru-attendance-v2 .primary-btn:hover { background:#254e71 }
+.guru-attendance-v2 .attendance-summary { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0 24px 19px;border:1px solid #d9e4ef;border-radius:10px;background:#f7faff;overflow:hidden }
+.guru-attendance-v2 .attendance-summary>div { padding:12px 16px 13px;min-width:0 }
+.guru-attendance-v2 .attendance-summary>div+div { border-left:1px solid #d9e4ef }
+.guru-attendance-v2 .attendance-summary span { display:flex;align-items:center;gap:7px;color:#536c85;font-weight:650;font-size:12px }
+.guru-attendance-v2 .attendance-summary strong { display:block;font-size:26px;line-height:1;letter-spacing:-.7px;color:#16344f;margin-top:9px }
+.guru-attendance-v2 .attendance-summary i { width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0 }
+.guru-attendance-v2 .summary-present i, .guru-attendance-v2 .summary-present strong { color:#147853 }
+.guru-attendance-v2 .summary-excused i, .guru-attendance-v2 .summary-excused strong { color:#2563b4 }
+.guru-attendance-v2 .summary-sick i, .guru-attendance-v2 .summary-sick strong { color:#936017 }
+.guru-attendance-v2 .summary-absent i, .guru-attendance-v2 .summary-absent strong { color:#b23e43 }
+.guru-attendance-v2 .roster-caption { display:flex;justify-content:space-between;margin:0 24px 9px;color:#5c7390;font-size:10px;letter-spacing:.7px;font-weight:750 }
+.guru-attendance-v2 .roster-caption span:last-child { letter-spacing:0;font-weight:500;font-size:12px }
+.guru-attendance-v2 .roster-grid { display:grid;grid-template-columns:minmax(150px,1fr) minmax(275px,1.38fr) minmax(140px,.9fr);gap:16px;align-items:center;padding:13px 24px }
+.guru-attendance-v2 .table-head { background:#eef3f9;border-block:1px solid #d9e4ef;color:#4e6983;font-size:11px;font-weight:750;padding-block:12px }
+.guru-attendance-v2 .table-head small { font-size:10px;font-weight:400 }
+.guru-attendance-v2 .student-row { border-bottom:1px solid #e0e8f0;min-height:74px }
+.guru-attendance-v2 .student-row:hover { background:#f8fbff }
+.guru-attendance-v2 .student-id { display:flex;align-items:center;gap:11px;min-width:0 }
+.guru-attendance-v2 .student-no { font-variant-numeric:tabular-nums;color:#71859a;font-size:11px }
+.guru-attendance-v2 .student-avatar { width:37px;height:37px;flex-shrink:0;border:1px solid #d5e4f4;background:#eaf2fc;color:#2c5e88;display:grid;place-items:center;border-radius:9px;font-size:12px;font-weight:750 }
+.guru-attendance-v2 .student-id strong, .guru-attendance-v2 .student-id small { display:block }
+.guru-attendance-v2 .student-id strong { font-size:13px;color:#18334d;overflow-wrap:anywhere }
+.guru-attendance-v2 .student-id small { font-size:11px;color:#5e758d;margin-top:5px }
+.guru-attendance-v2 .status-options { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;min-width:0;border:0;margin:0;padding:0 }
+.guru-attendance-v2 .status-options label { position:relative;cursor:pointer;min-width:0 }
+.guru-attendance-v2 .status-options input { position:absolute;opacity:0;width:1px;height:1px }
+.guru-attendance-v2 .status-options span { height:37px;border:1px solid #d4e1ed;border-radius:7px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;color:#4b637c;background:#fff;font-weight:600 }
+.guru-attendance-v2 .status-options input:focus-visible+span { outline:3px solid #8bb7ff;outline-offset:2px }
+.guru-attendance-v2 .status-options label:hover span { border-color:#7e9bbc }
+.guru-attendance-v2 .status-options input:checked+span { font-weight:750 }
+.guru-attendance-v2 .status-options input:checked+span:before { content:"✓";font-size:11px }
+.guru-attendance-v2 .status-options .HADIR input:checked+span { color:#126b4b;background:#e5f5ee;border-color:#a6d9c1 }
+.guru-attendance-v2 .status-options .IZIN input:checked+span { color:#235ba4;background:#e8f1ff;border-color:#a8c9f9 }
+.guru-attendance-v2 .status-options .SAKIT input:checked+span { color:#845515;background:#fff3d9;border-color:#eacb8c }
+.guru-attendance-v2 .status-options .ALPA input:checked+span { color:#a23338;background:#ffeded;border-color:#f0b8b7 }
+.guru-attendance-v2 .note-input { height:39px;width:100%;min-width:0;padding:0 10px;border:1px solid #cedce9;background:#fff;border-radius:7px;font:inherit;font-size:12px;color:#17344e }
+.guru-attendance-v2 .note-input::placeholder { color:#647c94 }
+.guru-attendance-v2 .mobile-label { display:none }
+.guru-attendance-v2 .action-footer { position:sticky;bottom:0;z-index:5;background:#f8fbfe;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 24px;border-radius:0 0 14px 14px;box-shadow:0 -3px 10px #17344e08 }
+.guru-attendance-v2 .save-message { display:flex;align-items:flex-start;gap:9px }
+.guru-attendance-v2 .save-message .draft-dot { margin-top:5px }
+.guru-attendance-v2 .save-message strong, .guru-attendance-v2 .save-message small { display:block }
+.guru-attendance-v2 .save-message strong { font-size:12px;color:#233f5a }
+.guru-attendance-v2 .save-message small { font-size:11px;color:#58718a;margin-top:4px;line-height:1.4 }
+.guru-attendance-v2 .footer-buttons { display:flex;gap:8px }
+.guru-attendance-v2 input:focus-visible { outline:2px solid #4387e9;outline-offset:2px }
+.guru-attendance-v2 .visually-hidden { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0 }
+@media (max-width:1050px) {
+.guru-attendance-v2 .roster-grid { grid-template-columns:minmax(140px,.9fr) minmax(255px,1.3fr) minmax(120px,.8fr);gap:10px;padding-inline:18px }
+.guru-attendance-v2 .context-strip { grid-template-columns:1fr 1.1fr 1.1fr .7fr;gap:8px }
+.guru-attendance-v2 .context-icon { display:none }
+.guru-attendance-v2 .context-strip>div:nth-child(n/**/+3) { padding-left:8px }
+.guru-attendance-v2 .status-options span { font-size:11px }
+}
+@media (max-width:800px) {
+.guru-attendance-v2 .roster-grid { grid-template-columns:minmax(0,1fr);gap:8px }
+.guru-attendance-v2 .table-head { display:none }
+.guru-attendance-v2 .student-row { padding:15px 20px;gap:10px }
+.guru-attendance-v2 .mobile-label { display:block;margin-bottom:6px;color:#536c85;font-size:11px;font-weight:650 }
+.guru-attendance-v2 .student-row .status-options span { font-size:13px;height:44px }
+.guru-attendance-v2 .note-input { height:42px }
+.guru-attendance-v2 .student-id strong { font-size:14px }
+.guru-attendance-v2 .student-id small { font-size:12px }
+.guru-attendance-v2 .action-footer { position:static }
+.guru-attendance-v2 .footer-buttons { flex-wrap:wrap }
+.guru-attendance-v2 .context-strip { grid-template-columns:1fr 1fr }
+.guru-attendance-v2 .context-strip>div:nth-child(n/**/+3) { padding-left:0;border-left:none }
+.guru-attendance-v2 .context-strip>div:nth-child(2n/**/+1) { padding-left:10px;border-left:1px solid #d1dfec }
+.guru-attendance-v2 .filter-grid { grid-template-columns:1fr }
+.guru-attendance-v2 .period { white-space:normal;text-align:right }
+}
+@media (max-width:640px) {
+.guru-attendance-v2 .page-intro { align-items:flex-start;flex-direction:column;gap:9px;margin-bottom:16px }
+.guru-attendance-v2 .page-intro h1 { font-size:28px }
+.guru-attendance-v2 .page-intro p { font-size:13px }
+.guru-attendance-v2 .control-panel { padding:16px 14px;margin-bottom:14px }
+.guru-attendance-v2 .section-head { align-items:flex-start;flex-wrap:wrap;gap:8px }
+.guru-attendance-v2 .section-head h2 { font-size:19px }
+.guru-attendance-v2 .period { text-align:left;font-size:11px }
+.guru-attendance-v2 .filter-grid { margin-top:15px;gap:12px }
+.guru-attendance-v2 .context-strip { padding:12px 10px;gap:12px 8px }
+.guru-attendance-v2 .context-strip strong { font-size:12px }
+.guru-attendance-v2 .context-strip small { font-size:9px }
+.guru-attendance-v2 .roster-head { padding:16px 14px 13px }
+.guru-attendance-v2 .roster-head p { font-size:12px }
+.guru-attendance-v2 .attendance-summary { margin:0 14px 15px;grid-template-columns:repeat(4,minmax(0,1fr)) }
+.guru-attendance-v2 .attendance-summary>div:first-child { grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #d9e4ef }
+.guru-attendance-v2 .attendance-summary>div:first-child strong { margin:0 }
+.guru-attendance-v2 .attendance-summary>div:nth-child(2) { border-left:none }
+.guru-attendance-v2 .attendance-summary>div { padding:10px 8px }
+.guru-attendance-v2 .attendance-summary span { font-size:11px;gap:4px }
+.guru-attendance-v2 .attendance-summary strong { font-size:22px }
+.guru-attendance-v2 .roster-caption { margin:0 14px 8px }
+.guru-attendance-v2 .student-row { padding:14px;gap:12px }
+.guru-attendance-v2 .student-no { display:none }
+.guru-attendance-v2 .action-footer { padding:14px;flex-direction:column;align-items:stretch;gap:12px }
+.guru-attendance-v2 .footer-buttons { display:grid;grid-template-columns:1fr }
+.guru-attendance-v2 .footer-buttons .primary-btn { grid-row:1;min-height:46px }
+.guru-attendance-v2 .footer-buttons .secondary-btn { min-height:44px }
+.guru-attendance-v2 .save-message small { font-size:12px }
+}
+@media (prefers-reduced-motion:reduce) {
+.guru-attendance-v2 * { scroll-behavior:auto!important;transition:none!important }
+}
+.guru-attendance-v2 .context-icon{width:34px;height:34px;border-radius:8px;background:#dce9fa;color:#2462ae;display:grid;place-items:center;font-size:20px}
+.guru-attendance-v2 .student-list{list-style:none;margin:0;padding:0}
+.guru-attendance-v2 .state-wrap{padding:16px 24px;display:grid;gap:12px;justify-items:start}
+.guru-attendance-v2 .default-note{font-size:12px;color:#526c85;margin:0 24px 12px;line-height:1.5}
+.guru-attendance-v2 .attendance-notice-v2{border:1px solid #a6d9c1;background:#e5f5ee;color:#126b4b;padding:13px 16px;border-radius:9px;margin-bottom:16px;font-weight:650}
+.guru-attendance-v2 .draft-dot.is-saved{background:#147853}
+.guru-attendance-v2 .status-options input:disabled+span,.guru-attendance-v2 .note-input:disabled{opacity:.65;cursor:not-allowed}
+.guru-attendance-v2 .status-options span{min-height:44px}
+.guru-attendance-v2 .context-strip strong,.guru-attendance-v2 .student-id small{overflow-wrap:anywhere}
+.guru-attendance-v2 .date-field{min-width:0}
+.guru-attendance-v2 .date-field input{max-width:100%;min-height:61px}
+@container (max-width:850px){
+ .guru-attendance-v2 .roster-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+ .guru-attendance-v2 .table-head{display:none}
+ .guru-attendance-v2 .mobile-label{display:block;margin-bottom:6px;color:#536c85;font-size:12px;font-weight:650}
+ .guru-attendance-v2 .status-options span{min-height:44px;font-size:13px}
+ .guru-attendance-v2 .note-input{min-height:44px;font-size:14px}
+ .guru-attendance-v2 .context-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .guru-attendance-v2 .context-icon{display:none}
+ .guru-attendance-v2 .context-strip>div:nth-child(n+3){border:0;padding-left:0}
+ .guru-attendance-v2 .filter-grid{grid-template-columns:minmax(0,1fr)}
+ .guru-attendance-v2 .action-footer{position:static;flex-wrap:wrap}
+}
+@container (max-width:480px){
+ .guru-attendance-v2 .section-head{flex-wrap:wrap;align-items:flex-start}
+ .guru-attendance-v2 .attendance-summary{grid-template-columns:repeat(2,minmax(0,1fr));margin-inline:14px}
+ .guru-attendance-v2 .attendance-summary>div:first-child{grid-column:1/-1}
+ .guru-attendance-v2 .attendance-summary>div{border:0;border-bottom:1px solid #d9e4ef;padding:12px}
+ .guru-attendance-v2 .attendance-summary>div:nth-child(odd):not(:first-child){border-left:1px solid #d9e4ef}
+ .guru-attendance-v2 .status-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .guru-attendance-v2 .footer-buttons{width:100%;display:grid;grid-template-columns:minmax(0,1fr)}
+ .guru-attendance-v2 .footer-buttons .primary-btn{grid-row:1}
+ .guru-attendance-v2 .primary-btn,.guru-attendance-v2 .secondary-btn{white-space:normal;min-height:44px}
+ .guru-attendance-v2 .default-note{margin-inline:14px}
+ .guru-attendance-v2 .roster-caption{gap:8px;flex-wrap:wrap}
+ .guru-attendance-v2 .student-row{padding:14px}
+}
+@media(prefers-reduced-motion:reduce){.guru-attendance-v2 *{transition:none!important;animation:none!important}}

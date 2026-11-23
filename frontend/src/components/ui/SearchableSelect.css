@@ -1,0 +1,23 @@
+/* Scoped reusable component; tidak mengganti Select lama. */
+.siakad-search-select{position:relative;min-width:0;color:#17344e;font-family:inherit}
+.siakad-search-select *{box-sizing:border-box}
+.siakad-search-select>label{display:block;font-size:12px;font-weight:700;color:#233d54;margin-bottom:7px}
+.siakad-search-select>label span{color:#a43c34}
+.siakad-search-select .ss-trigger{width:100%;min-height:61px;border:1px solid #c6d6e7;background:#f9fbfe;border-radius:9px;color:#17344e;display:flex;align-items:center;text-align:left;gap:11px;padding:9px 12px;font:inherit;cursor:pointer}
+.siakad-search-select .ss-trigger:hover,.siakad-search-select .ss-trigger[aria-expanded=true]{border-color:#3c7bde;background:#f3f8ff}
+.siakad-search-select .ss-trigger:disabled{opacity:.65;cursor:not-allowed}
+.siakad-search-select .ss-icon{width:34px;height:34px;border-radius:8px;background:#e5eefb;color:#2462ae;display:grid;place-items:center;flex-shrink:0}
+.siakad-search-select .ss-copy{min-width:0;flex:1;overflow-wrap:anywhere}
+.siakad-search-select .ss-copy strong,.siakad-search-select .ss-option strong{display:block;font-size:13px;font-weight:700}
+.siakad-search-select .ss-copy small,.siakad-search-select .ss-option small{display:block;font-size:12px;line-height:1.45;color:#536c85;margin-top:4px}
+.siakad-search-select .ss-chevron{font-size:20px;color:#517095}
+.siakad-search-select .ss-popover{position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:20;border:1px solid #b9cfe6;background:#fff;border-radius:11px;box-shadow:0 12px 30px #17344e26;padding:10px}
+.siakad-search-select .ss-search input{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid #c7d7e9;border-radius:7px;font:inherit;font-size:14px;color:#17344e;background:#fff}
+.siakad-search-select .ss-option-label{font-size:10px;font-weight:700;letter-spacing:.8px;color:#536c85;margin:13px 7px 7px;text-transform:uppercase}
+.siakad-search-select .ss-options{max-height:min(280px,40dvh);overflow:auto;overscroll-behavior:contain}
+.siakad-search-select .ss-option{display:flex;width:100%;min-height:52px;align-items:center;justify-content:space-between;gap:10px;text-align:left;background:#fff;border:0;border-bottom:1px solid #edf1f5;padding:11px 9px;color:#17344e;border-radius:6px;cursor:pointer;font:inherit;overflow-wrap:anywhere}
+.siakad-search-select .ss-option:hover,.siakad-search-select .ss-option[aria-pressed=true]{background:#eaf2ff}
+.siakad-search-select .ss-check{color:#2563eb;font-weight:800}
+.siakad-search-select .ss-empty{font-size:13px;color:#536c85;padding:10px}
+.siakad-search-select :focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.siakad-search-select .ss-option:focus-visible{outline-offset:-2px}

@@ -356,5 +356,5 @@ Pengembangan lanjutan diprioritaskan berdasarkan kebutuhan resmi sekolah dan has
 
 ---
 
-**SIAKAD SMA** — *Sistem Informasi Akademik Sekolah / School Academic Information System*  
+**SIAKAD SMA** — *Sistem Informasi Akademik Sekolah / School Academic Information System*
 **Tahun dokumentasi:** 2026

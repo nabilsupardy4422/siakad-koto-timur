@@ -1,33 +1,10 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink } from "react-router-dom";
 import navigation from "../Config/navigation";
+import { selectVisibleSidebarItems } from "./sidebarNavigation";
 import { useAuth } from "../context/useAuth";
 import "./Sidebar.css";
-
-function hasPermission(item, permissions) {
-  if (!item.permission) return true;
-  return permissions.includes(item.permission);
-}
-
-function hasAssignment(item, assignments) {
-  if (!item.assignment) return true;
-  return assignments.some((assignment) => assignment.type === item.assignment);
-}
-
-function canAccessMenuByRole(item, role) {
-  const roleValue =
-    typeof role === "string"
-      ? role
-      : role?.code || role?.name || role?.nama || "";
-
-  const normalizedRole = String(roleValue).trim().toUpperCase();
-
-  // Bahan Ajar hanya ditampilkan untuk Guru dan Siswa.
-  if (item.label === "Bahan Ajar") {
-    return normalizedRole.includes("GURU") || normalizedRole.includes("SISWA");
-  }
-
-  return true;
-}
 
 function MenuIcon({ label }) {
   const commonProps = {
@@ -182,24 +159,33 @@ function MenuIcon({ label }) {
   }
 }
 
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, collapsed = false, onClose, onToggleCollapse }) {
   const { role, permissions = [], assignments = [] } = useAuth();
+  const [tooltip, setTooltip] = useState(null);
 
-  const roleCode =
-    typeof role === "string"
-      ? role.trim().toUpperCase()
-      : String(role?.code || role?.name || role?.nama || "")
-          .trim()
-          .toUpperCase();
+  useEffect(() => {
+    setTooltip(null);
+  }, [collapsed, open]);
 
-  const items = navigation[roleCode] || [];
+  useEffect(() => {
+    const dismiss = () => setTooltip(null);
+    window.addEventListener('resize', dismiss);
+    return () => window.removeEventListener('resize', dismiss);
+  }, []);
 
-  const visibleItems = items.filter(
-    (item) =>
-      canAccessMenuByRole(item, role) &&
-      hasPermission(item, permissions) &&
-      hasAssignment(item, assignments),
-  );
+  const showTooltip = (event, label) => {
+    if (!collapsed || open || window.innerWidth < 1024) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setTooltip({
+      label,
+      top: Math.max(24, Math.min(window.innerHeight - 24, bounds.top + bounds.height / 2)),
+      left: bounds.right + 12,
+    });
+  };
+
+  const hideTooltip = () => setTooltip(null);
+
+  const visibleItems = selectVisibleSidebarItems(navigation, role, permissions, assignments);
 
   return (
     <>
@@ -209,18 +195,40 @@ export default function Sidebar({ open, onClose }) {
         aria-hidden="true"
       />
 
-      <aside className={`app-sidebar ${open ? "is-open" : ""}`}>
+      <aside
+        id="siakad-workspace-sidebar"
+        className={`app-sidebar ${open ? "is-open" : ""} ${collapsed ? "is-collapsed" : ""}`}
+        aria-label="Navigasi workspace SIAKAD"
+        role={open ? 'dialog' : undefined}
+        aria-modal={open ? true : undefined}
+      >
         <div className="app-sidebar__header">
           <div className="app-sidebar__brand">
             <img
               src="/images/branding/logo-sman1-v-koto-timur-removebg-preview.png"
               alt="Logo SMA Negeri 1 V Koto Timur"
             />
-            <div>
+            <div className="app-sidebar__brand-copy">
               <strong>SIAKAD</strong>
               <span>SMA Negeri 1 V Koto Timur</span>
             </div>
           </div>
+
+          <button
+            type="button"
+            className="app-sidebar__collapse"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+            aria-controls="siakad-workspace-sidebar"
+            aria-expanded={!collapsed}
+            title={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+              <path d="M9.5 4.5v15" />
+              <path d={collapsed ? 'm13 9 3 3-3 3' : 'm16 9-3 3 3 3'} />
+            </svg>
+          </button>
 
           <button
             type="button"
@@ -232,7 +240,7 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        <nav className="app-sidebar__nav" aria-label="Navigasi utama">
+        <nav className="app-sidebar__nav" aria-label="Navigasi utama" onScroll={hideTooltip}>
           {visibleItems.map((item, index) =>
             item.section ? (
               <div
@@ -249,7 +257,15 @@ export default function Sidebar({ open, onClose }) {
                 className={({ isActive }) =>
                   `app-sidebar__link ${isActive ? "is-active" : ""}`
                 }
-                onClick={onClose}
+                onClick={() => { hideTooltip(); onClose(); }}
+                onMouseEnter={(event) => showTooltip(event, item.label)}
+                onMouseLeave={(event) => {
+                  if (document.activeElement !== event.currentTarget) hideTooltip();
+                }}
+                onFocus={(event) => showTooltip(event, item.label)}
+                onBlur={hideTooltip}
+                aria-label={item.label}
+                aria-describedby={tooltip?.label === item.label ? 'siakad-sidebar-tooltip' : undefined}
               >
                 <span className="app-sidebar__link-icon">
                   <MenuIcon label={item.label} />
@@ -260,11 +276,22 @@ export default function Sidebar({ open, onClose }) {
           )}
         </nav>
 
-        <div className="app-sidebar__footer">
-          <strong>SIAKAD Koto Timur</strong>
-          <span>Academic Information System</span>
+        <div className="app-sidebar__footer" aria-hidden="true">
+          <span className="app-sidebar__footer-dot" />
+          <div><strong>Workspace sekolah</strong><span>Sistem Informasi Akademik</span></div>
         </div>
       </aside>
+      {tooltip && createPortal(
+        <div
+          id="siakad-sidebar-tooltip"
+          role="tooltip"
+          className="app-sidebar__tooltip"
+          style={{ top: tooltip.top, left: tooltip.left }}
+        >
+          {tooltip.label}
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

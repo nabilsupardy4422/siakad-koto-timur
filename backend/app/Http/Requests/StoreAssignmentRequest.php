@@ -76,6 +76,7 @@ class StoreAssignmentRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
 
             // Format unggahan beberapa berkas.
@@ -90,6 +91,7 @@ class StoreAssignmentRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
         ];
     }

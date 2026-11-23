@@ -10,6 +10,8 @@ use App\Models\BahanAjar;
 use App\Models\BahanAjarLampiran;
 use App\Models\JadwalPelajaran;
 use App\Models\TahunAkademik;
+use App\Support\TeachingAssignmentScope;
+use App\Support\StudentMaterialAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +35,8 @@ class MaterialController extends Controller
                 'lampiran',
             ]);
 
-        $this->applyViewScope($query, $request->user());
+        $scope = $this->readScope($request);
+        $this->applyViewScope($query, $request->user(), $scope);
 
         // Default to the active academic year unless a specific period is selected.
         $academicYearId = $request->filled('academic_year_id')
@@ -89,6 +92,7 @@ class MaterialController extends Controller
         return MaterialResource::collection(
             $query
                 ->latest()
+                ->orderByDesc('id')
                 ->paginate(
                     $request->integer('per_page', 15)
                 )
@@ -223,7 +227,8 @@ class MaterialController extends Controller
         if (
             !$this->canViewMaterial(
                 $request->user(),
-                $material
+                $material,
+                $this->readScope($request)
             )
         ) {
             return response()->json(
@@ -449,7 +454,8 @@ class MaterialController extends Controller
         if (
             !$this->canViewMaterial(
                 $request->user(),
-                $material
+                $material,
+                $this->readScope($request)
             )
         ) {
             return response()->json(
@@ -507,7 +513,7 @@ class MaterialController extends Controller
     ): BinaryFileResponse|JsonResponse {
         $material->load(['jadwalPelajaran.kelas', 'jadwalPelajaran.mapel', 'jadwalPelajaran.guru']);
 
-        if (!$this->canViewMaterial($request->user(), $material)) {
+        if (!$this->canViewMaterial($request->user(), $material, $this->readScope($request))) {
             return response()->json([
                 'message' => 'Anda tidak memiliki akses untuk mengunduh bahan ajar ini.',
             ], 403);
@@ -584,7 +590,8 @@ class MaterialController extends Controller
      */
     private function applyViewScope(
         $query,
-        $user
+        $user,
+        string $scope
     ): void {
         if ($user === null) {
             $query->whereRaw('1 = 0');
@@ -608,44 +615,17 @@ class MaterialController extends Controller
             return;
         }
 
-        /*
-         * Guru can view:
-         * 1. Materials from their own teaching schedules.
-         * 2. Materials from their assigned Wali Kelas class.
-         */
+        // Teaching workspace and monitoring are separate read contexts.
         if ($this->hasRole($user, 'GURU')) {
             $guruId = $user->guru?->id;
-
             if ($guruId === null) {
                 $query->whereRaw('1 = 0');
-
                 return;
             }
 
-            $query->where(function (
-                $materialQuery
-            ) use ($guruId): void {
-                $materialQuery->whereHas(
-                    'jadwalPelajaran',
-                    fn ($schedule) => $schedule->where(
-                        'guru_id',
-                        $guruId
-                    )
-                );
-
-                $materialQuery->orWhereHas(
-                    'jadwalPelajaran.kelas.waliKelas',
-                    function ($waliKelas) use (
-                        $guruId
-                    ): void {
-                        $waliKelas->where(
-                            'guru_id',
-                            $guruId
-                        );
-                    }
-                );
+            $query->whereHas('jadwalPelajaran', function ($schedule) use ($guruId, $scope): void {
+                $this->applyTeacherMaterialScheduleScope($schedule, (int) $guruId, $scope);
             });
-
             return;
         }
 
@@ -662,21 +642,7 @@ class MaterialController extends Controller
                 return;
             }
 
-            $query->whereHas(
-                'jadwalPelajaran.kelas.anggotaKelas',
-                function ($member) use ($siswaId): void {
-                    $member->where('siswa_id', $siswaId)
-                        ->where(function ($membership): void {
-                            // Keanggotaan aktif: materi kelas saat ini.
-                            $membership->whereNull('tanggal_selesai')
-                                // Keanggotaan lama: hanya materi yang sudah
-                                // dibuat sebelum/tepat pada tanggal pindah.
-                                ->orWhereRaw(
-                                    'DATE(bahan_ajar.created_at) <= anggota_kelas.tanggal_selesai'
-                                );
-                        });
-                }
-            );
+            StudentMaterialAccess::apply($query, (int) $siswaId);
 
             return;
         }
@@ -687,12 +653,47 @@ class MaterialController extends Controller
         $query->whereRaw('1 = 0');
     }
 
+    /** Explicit teacher contexts; legacy callers retain authorized monitoring. */
+    private function readScope(Request $request): string
+    {
+        $validated = $request->validate(['scope' => 'sometimes|required|string|in:teaching,homeroom']);
+        if (isset($validated['scope'])) {
+            $request->user()->loadMissing('role');
+            abort_unless($this->hasRole($request->user(), 'GURU'), 403);
+        }
+        return $validated['scope'] ?? TeachingAssignmentScope::LEGACY;
+    }
+
+    private function applyTeacherMaterialScheduleScope($query, int $guruId, string $scope): void
+    {
+        if ($scope === TeachingAssignmentScope::TEACHING) {
+            // Own materials may be accessed in the explicitly selected historical period.
+            $query->where('guru_id', $guruId);
+            return;
+        }
+        $activeYearId = TahunAkademik::query()->where('is_active', true)->value('id');
+        $query->where(function ($builder) use ($guruId, $scope, $activeYearId): void {
+            if ($scope === TeachingAssignmentScope::LEGACY) {
+                $builder->where('guru_id', $guruId);
+            }
+            if ($activeYearId !== null) {
+                $method = $scope === TeachingAssignmentScope::LEGACY ? 'orWhere' : 'where';
+                $builder->{$method}(function ($homeroom) use ($guruId, $activeYearId): void {
+                    TeachingAssignmentScope::apply($homeroom, $guruId, (int) $activeYearId, TeachingAssignmentScope::HOMEROOM);
+                });
+            } elseif ($scope !== TeachingAssignmentScope::LEGACY) {
+                $builder->whereRaw('1 = 0');
+            }
+        });
+    }
+
     /**
      * Determine whether a user can view a material.
      */
     private function canViewMaterial(
         $user,
-        BahanAjar $material
+        BahanAjar $material,
+        string $scope
     ): bool {
         if ($user === null) {
             return false;
@@ -718,32 +719,14 @@ class MaterialController extends Controller
             return false;
         }
 
-        /*
-         * Guru.
-         */
         if ($this->hasRole($user, 'GURU')) {
             $guruId = $user->guru?->id;
-
             if ($guruId === null) {
                 return false;
             }
-
-            if ($schedule->guru_id === $guruId) {
-                return true;
-            }
-
-            if ($schedule->kelas === null) {
-                return false;
-            }
-
-            return $schedule->kelas
-                ->waliKelas()
-                ->where('guru_id', $guruId)
-                ->where(
-                    'tahun_akademik_id',
-                    $schedule->tahun_akademik_id
-                )
-                ->exists();
+            $query = JadwalPelajaran::query()->whereKey($schedule->id);
+            $this->applyTeacherMaterialScheduleScope($query, (int) $guruId, $scope);
+            return $query->exists();
         }
 
         /*
@@ -759,18 +742,7 @@ class MaterialController extends Controller
                 return false;
             }
 
-            return $schedule->kelas
-                ->anggotaKelas()
-                ->where('siswa_id', $siswaId)
-                ->where(function ($membership) use ($material): void {
-                    $membership->whereNull('tanggal_selesai')
-                        ->orWhereDate(
-                            'tanggal_selesai',
-                            '>=',
-                            $material->created_at
-                        );
-                })
-                ->exists();
+            return StudentMaterialAccess::allows((int) $siswaId, $material);
         }
 
         return false;
@@ -803,7 +775,7 @@ class MaterialController extends Controller
             return false;
         }
 
-        return $schedule->guru_id === $guruId;
+        return (int) $schedule->guru_id === (int) $guruId;
     }
 
     /**
@@ -838,6 +810,10 @@ class MaterialController extends Controller
             $filename,
             'local'
         );
+
+        if (!is_string($path) || $path === '') {
+            throw new \RuntimeException('File bahan ajar gagal disimpan.');
+        }
 
         return [
             'path' => $path,

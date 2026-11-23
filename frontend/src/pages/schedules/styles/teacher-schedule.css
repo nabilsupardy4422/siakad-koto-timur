@@ -681,3 +681,352 @@
     grid-template-columns: 100px minmax(0, 1fr);
   }
 }
+
+/* ==========================================================
+   TEACHER TIMETABLE V2 — Visual polishing only.
+   Keep the shared baseline above intact for StudentSchedule.
+   The time grid uses 68px/hour in InteractiveTimetable.jsx.
+   Do not change hour height or event positioning here.
+   ========================================================== */
+.teacher-schedule {
+  --tt-ink: #102a43;
+  --tt-muted: #475569;
+  --tt-blue: #2563eb;
+  --tt-line: #d5e0ec;
+  --tt-soft: #f1f6fc;
+  container-type: inline-size;
+}
+.teacher-schedule .timetable.timetable--guru {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  gap: 16px;
+  color: var(--tt-ink);
+}
+.teacher-schedule .timetable--guru .timetable__panel,
+.teacher-schedule .timetable--guru .timetable__side-card {
+  padding: 20px;
+  border-color: var(--tt-line);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(16 42 67 / 4%);
+}
+.teacher-schedule .timetable--guru .timetable__toolbar {
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.teacher-schedule .timetable--guru .timetable__eyebrow {
+  color: #245681;
+  font-size: 11px;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+.teacher-schedule .timetable--guru .timetable__toolbar h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: -.035em;
+  color: var(--tt-ink);
+  font-weight: 700;
+}
+.teacher-schedule .timetable--guru .timetable__toolbar p {
+  color: var(--tt-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.teacher-schedule .timetable--guru .timetable__view-switch {
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 4px;
+  background: #eaf0f7;
+  border: 1px solid #e0e8f1;
+  border-radius: 10px;
+}
+.teacher-schedule .timetable--guru .timetable__view-switch button {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 7px;
+}
+.teacher-schedule .timetable--guru .timetable__view-switch button.is-active {
+  color: #fff;
+  background: #17344e;
+  box-shadow: none;
+}
+.teacher-schedule .timetable--guru .timetable__navigation {
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--tt-line);
+}
+.teacher-schedule .timetable--guru .timetable__navigation strong {
+  color: var(--tt-ink);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.teacher-schedule .timetable--guru .timetable__navigation button {
+  min-width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border-color: var(--tt-line);
+  color: #245681;
+}
+.teacher-schedule .timetable--guru .timetable__navigation .timetable__today-button {
+  font-size: 12px;
+  font-weight: 600;
+  padding-inline: 12px;
+  background: var(--tt-soft);
+  white-space: nowrap;
+}
+/* Horizontal scrolling is limited to the calendar, not the page. */
+.teacher-schedule .timetable--guru .timetable__grid-scroll,
+.teacher-schedule .timetable--guru .timetable__month-view {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #9badc2 #edf2f7;
+  border-radius: 10px;
+}
+.teacher-schedule .timetable--guru .timetable__time-grid {
+  grid-template-columns: 62px repeat(7, minmax(112px, 1fr));
+  border-color: var(--tt-line);
+  border-radius: 10px;
+}
+/* The shared component supplies an inline 520px minimum for day view.
+   Override only this presentation constraint so a single day fits a phone. */
+.teacher-schedule .timetable--guru .timetable__time-grid--day {
+  min-width: 0 !important;
+  grid-template-columns: 62px minmax(0, 1fr);
+}
+.teacher-schedule .timetable--guru .timetable__axis-heading,
+.teacher-schedule .timetable--guru .timetable__day-heading {
+  height: 64px;
+  border-color: var(--tt-line);
+  background: #edf3f9;
+}
+.teacher-schedule .timetable--guru .timetable__axis-heading,
+.teacher-schedule .timetable--guru .timetable__day-heading span {
+  color: var(--tt-muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.teacher-schedule .timetable--guru .timetable__day-heading strong {
+  font-size: 19px;
+  color: var(--tt-ink);
+  line-height: 1.1;
+}
+.teacher-schedule .timetable--guru .timetable__day-heading.is-today {
+  background: #dceaff;
+}
+.teacher-schedule .timetable--guru .timetable__day-heading.is-today strong {
+  width: 29px;
+  height: 29px;
+  color: white;
+  background: var(--tt-blue);
+}
+.teacher-schedule .timetable--guru .timetable__day-heading.is-today + .timetable__day-body {
+  background-color: #f2f7ff;
+}
+.teacher-schedule .timetable--guru .timetable__day-column {
+  border-color: var(--tt-line);
+}
+/* First/last time labels remain inside the clipped grid. */
+.teacher-schedule .timetable--guru .timetable__axis-body > span {
+  right: 7px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--tt-muted);
+}
+.teacher-schedule .timetable--guru .timetable__axis-body > span:first-child { transform: translateY(2px); }
+.teacher-schedule .timetable--guru .timetable__axis-body > span:last-child { transform: translateY(-100%); }
+.teacher-schedule .timetable--guru .timetable__event-position {
+  left: 3px;
+  right: 3px;
+}
+.teacher-schedule .timetable--guru .timetable__event-position:hover,
+.teacher-schedule .timetable--guru .timetable__event-position:focus-within { z-index: 3; }
+.teacher-schedule .timetable--guru .timetable__event {
+  padding: 4px 6px;
+  border: 1px solid #c6d9f5;
+  border-left: 3px solid var(--tt-blue);
+  border-radius: 6px;
+  background: #e4edfc;
+  color: var(--tt-ink);
+  gap: 2px;
+  line-height: 1.2;
+}
+.teacher-schedule .timetable--guru .timetable__event strong {
+  display: block;
+  max-width: 100%;
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.teacher-schedule .timetable--guru .timetable__event span,
+.teacher-schedule .timetable--guru .timetable__event small {
+  display: block;
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #344b68;
+  font-variant-numeric: tabular-nums;
+}
+.teacher-schedule .timetable--guru .timetable__event:hover {
+  background: #d9e7ff;
+  border-color: #8db4f5;
+  border-left-color: #1d4ed8;
+  box-shadow: none;
+}
+.teacher-schedule .timetable--guru .timetable__legend {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--tt-muted);
+}
+.teacher-schedule .timetable--guru .timetable__sidebar { gap: 16px; }
+.teacher-schedule .timetable--guru .timetable__side-card h3 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--tt-ink);
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+.teacher-schedule .timetable--guru .timetable__side-heading { flex-wrap: wrap; margin-bottom: 14px; }
+.teacher-schedule .timetable--guru .timetable__icon-actions button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--tt-soft);
+  border: 1px solid var(--tt-line);
+  color: #245681;
+}
+.teacher-schedule .timetable--guru .timetable__mini-grid { gap: 3px; }
+.teacher-schedule .timetable--guru .timetable__mini-grid > span { font-size: 11px; color: var(--tt-muted); }
+.teacher-schedule .timetable--guru .timetable__mini-day {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  border-radius: 8px;
+}
+.teacher-schedule .timetable--guru .timetable__mini-day.is-outside { color: #64748b; background: #f8fafc; }
+.teacher-schedule .timetable--guru .timetable__mini-day.is-today { outline: 1px solid var(--tt-blue); }
+.teacher-schedule .timetable--guru .timetable__mini-day.is-selected { color: white; background: var(--tt-blue); font-weight: 700; }
+.teacher-schedule .timetable--guru .timetable__next {
+  align-items: center;
+  border: 1px solid var(--tt-line);
+  border-radius: 10px;
+  background: var(--tt-soft);
+  padding: 12px;
+  margin-top: 16px;
+  gap: 12px;
+  color: var(--tt-ink);
+}
+.teacher-schedule .timetable--guru .timetable__next-day { background: #17344e; color: white; }
+.teacher-schedule .timetable--guru .timetable__next-content { gap: 4px; }
+.teacher-schedule .timetable--guru .timetable__next-content strong { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.teacher-schedule .timetable--guru .timetable__next-content small,
+.teacher-schedule .timetable--guru .timetable__muted { font-size: 12px; color: var(--tt-muted); }
+.teacher-schedule .timetable--guru .timetable__month-grid { min-width: 700px; }
+.teacher-schedule .timetable--guru .timetable__month-cell { min-height: 112px; padding: 8px; }
+.teacher-schedule .timetable--guru .timetable__month-grid > strong,
+.teacher-schedule .timetable--guru .timetable__month-cell > span:first-child { font-size: 12px; }
+.teacher-schedule .timetable--guru .timetable__month-cell.is-outside { color: #64748b; }
+.teacher-schedule .timetable--guru .timetable__month-event { background: #e4edfc; color: #193d75; font-size: 11px; padding: 4px; }
+.teacher-schedule .timetable--guru .timetable__month-cell small { font-size: 11px; }
+.teacher-schedule .timetable--guru .timetable__month-cell.is-today > span:first-child { background: var(--tt-blue); color: white; border-radius: 6px; padding: 2px 6px; }
+.teacher-schedule .timetable--guru .timetable__detail {
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid var(--tt-line);
+  border-radius: 16px;
+  padding: 24px;
+}
+.teacher-schedule .timetable--guru .timetable__detail-heading h3 { font-family: Poppins, Inter, sans-serif; font-size: 22px; line-height: 1.35; overflow-wrap: anywhere; }
+.teacher-schedule .timetable--guru .timetable__detail-heading > button { flex-shrink: 0; width: 44px; height: 44px; }
+.teacher-schedule .timetable--guru .timetable__detail-list dt,
+.teacher-schedule .timetable--guru .timetable__detail-list dd { font-size: 14px; overflow-wrap: anywhere; }
+.teacher-schedule .timetable--guru .timetable__detail-close { min-height: 44px; font-size: 14px; background: #17344e; }
+.teacher-schedule .timetable.timetable--guru button:focus-visible { outline: 2px solid var(--tt-blue); outline-offset: 2px; }
+.teacher-schedule .timetable--guru .timetable__event:focus-visible { outline-offset: -2px; }
+.teacher-schedule .timetable--guru .timetable__view-switch button:not(.is-active):hover,
+.teacher-schedule .timetable--guru .timetable__navigation button:hover,
+.teacher-schedule .timetable--guru .timetable__icon-actions button:hover,
+.teacher-schedule .timetable--guru .timetable__mini-day:not(.is-selected):hover,
+.teacher-schedule .timetable--guru .timetable__next:hover,
+.teacher-schedule .timetable--guru .timetable__month-cell:hover { background: #e2edfc; }
+@media (prefers-reduced-motion: no-preference) {
+  .teacher-schedule .timetable.timetable--guru button { transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease; }
+}
+/* Respond to available workspace width, including collapsed sidebar. */
+@container (max-width: 1050px) {
+  .teacher-schedule .timetable.timetable--guru { grid-template-columns: minmax(0, 1fr); }
+  .teacher-schedule .timetable--guru .timetable__sidebar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 620px) {
+  .teacher-schedule .timetable--guru .timetable__panel,
+  .teacher-schedule .timetable--guru .timetable__side-card { padding: 16px; }
+  .teacher-schedule .timetable--guru .timetable__toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .teacher-schedule .timetable--guru .timetable__toolbar h2 { font-size: 23px; }
+  .teacher-schedule .timetable--guru .timetable__view-switch button { flex: 1; min-width: 0; min-height: 44px; padding-inline: 8px; }
+  .teacher-schedule .timetable--guru .timetable__navigation { flex-wrap: wrap; }
+  .teacher-schedule .timetable--guru .timetable__navigation strong { flex-basis: 0; font-size: 13px; }
+  .teacher-schedule .timetable--guru .timetable__navigation button { min-width: 40px; height: 44px; }
+  .teacher-schedule .timetable--guru .timetable__navigation .timetable__today-button { flex: 1 0 100%; }
+  .teacher-schedule .timetable--guru .timetable__sidebar { grid-template-columns: minmax(0, 1fr); }
+  .teacher-schedule .timetable--guru .timetable__time-grid--day { grid-template-columns: 52px minmax(0, 1fr); }
+  .teacher-schedule .timetable--guru .timetable__detail { padding: 18px; }
+}
+
+
+/* ==========================================================
+   TEACHER TIMETABLE V2.1 — readable subject names
+   Teacher-only; preserve time geometry, palette and other roles.
+   ========================================================== */
+.teacher-schedule .timetable--guru .timetable__event {
+  padding: 3px 5px;
+  gap: 1px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.teacher-schedule .timetable--guru .timetable__event strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-height: 28px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 14px;
+}
+.teacher-schedule .timetable--guru .timetable__event span,
+.teacher-schedule .timetable--guru .timetable__event small {
+  font-size: 11px;
+  line-height: 12px;
+}
+/* Short events show the title and time first; full detail is always clickable. */
+.teacher-schedule .timetable--guru .timetable__event--teacher-short strong {
+  -webkit-line-clamp: 1;
+  max-height: 14px;
+}
+.teacher-schedule .timetable--guru .timetable__event--teacher-tiny small {
+  display: none;
+}
+.teacher-schedule .timetable--guru .timetable__month-event {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

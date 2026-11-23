@@ -83,6 +83,37 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Refresh only assignment metadata for Guru. API remains authoritative on every request.
+  const isGuru = auth.status === 'authenticated' && (typeof auth.role === 'string' ? auth.role : auth.role?.code) === 'GURU'
+  const sessionUserId = auth.user?.id
+  useEffect(() => {
+    if (!isGuru) return
+    const token = getAuthToken()
+    let active = true, pending = false
+    async function refreshAssignments() {
+      if (!active || pending || !token || token !== getAuthToken()) return
+      pending = true
+      let next = []
+      try {
+        const response = await authApi.me()
+        if (String(response?.data?.user?.id) === String(sessionUserId)) {
+          next = Array.isArray(response.data.assignments) ? response.data.assignments : []
+        }
+      } catch {
+        // Fail closed for additional menu privileges; do not change core login state.
+      } finally {
+        pending = false
+      }
+      if (!active || token !== getAuthToken()) return
+      setAuth(old => old.status === 'authenticated' && old.user?.id === sessionUserId && JSON.stringify(old.assignments) !== JSON.stringify(next) ? {...old, assignments: next} : old)
+    }
+    const onVisible = () => { if (!document.hidden) refreshAssignments() }
+    window.addEventListener('focus', refreshAssignments)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(onVisible, 30000)
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refreshAssignments); document.removeEventListener('visibilitychange', onVisible) }
+  }, [isGuru, sessionUserId])
+
   async function login(username, password) {
     const response = await authApi.login({
       username,

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\SubmissionTugasLampiran;
-use App\Models\TahunAkademik;
+use App\Support\AssignmentTeachingAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -134,29 +134,10 @@ class SubmissionAttachmentController extends Controller
                 return false;
             }
 
-            $activeAcademicYearId = TahunAkademik::query()
-                ->where('is_active', true)
-                ->value('id');
-
-            if (
-                $activeAcademicYearId === null ||
-                (int) $schedule->tahun_akademik_id !==
-                    (int) $activeAcademicYearId
-            ) {
-                return false;
-            }
-
-            return $student->anggotaKelas()
-                ->where('kelas_id', $schedule->kelas_id)
-                ->whereNull('tanggal_selesai')
-                ->exists();
+            return AssignmentTeachingAccess::studentCanAccess($student, $schedule);
         }
-
         if ($role === 'GURU') {
-            $guru = $user->guru;
-
-            return $guru !== null
-                && (int) $schedule->guru_id === (int) $guru->id;
+            return AssignmentTeachingAccess::teacherCanAccess($user, $schedule);
         }
 
         return false;

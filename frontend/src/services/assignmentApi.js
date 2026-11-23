@@ -132,6 +132,10 @@ async function fetchAssignmentAttachment(attachmentId) {
 }
 
 export const assignmentApi = {
+  // Tugas dan submission milik siswa login, hanya periode aktif (read-only).
+  getStudentWorkspace(params = {}) {
+    return apiClient.get(`/assignments/student-workspace${buildQuery(params)}`)
+  },
   // Mengambil daftar tugas.
   getAll(params = {}) {
     return apiClient.get(`/assignments${buildQuery(params)}`)

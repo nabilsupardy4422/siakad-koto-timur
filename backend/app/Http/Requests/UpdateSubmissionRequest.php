@@ -49,6 +49,7 @@ class UpdateSubmissionRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
 
             // Maksimal 10 file tambahan per request.
@@ -62,6 +63,7 @@ class UpdateSubmissionRequest extends FormRequest
                 'file',
                 'max:10240',
                 'mimes:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
+                'extensions:jpg,jpeg,png,pdf,doc,docx,xls,xlsx,ppt,pptx',
             ],
         ];
     }

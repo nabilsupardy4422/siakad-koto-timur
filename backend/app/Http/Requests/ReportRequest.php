@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Reporting\ReportAccess;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -12,6 +13,8 @@ class ReportRequest extends FormRequest
         'students' => [
             'academic_year_id',
             'class_id',
+            'subject_id',
+            'schedule_id',
             'search',
         ],
         'teachers' => [
@@ -27,12 +30,15 @@ class ReportRequest extends FormRequest
             'class_id',
             'subject_id',
             'teacher_id',
+            'schedule_id',
         ],
         'attendance' => [
             'academic_year_id',
             'semester',
             'class_id',
             'student_id',
+            'subject_id',
+            'schedule_id',
             'date_from',
             'date_to',
         ],
@@ -41,6 +47,7 @@ class ReportRequest extends FormRequest
             'semester',
             'class_id',
             'subject_id',
+            'schedule_id',
             'student_id',
         ],
         'semester-recap' => [
@@ -53,17 +60,19 @@ class ReportRequest extends FormRequest
 
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        return $this->user() !== null
+            && (! array_key_exists($this->route('reportType'), self::REPORT_FILTERS)
+                || ReportAccess::allowsType($this->user(), $this->route('reportType')));
     }
 
     public function rules(): array
     {
         return [
-            'format' => [
-                'required',
-                'string',
-                Rule::in(['pdf', 'excel']),
-            ],
+            'scope' => ['nullable', 'string', Rule::in(['school', 'teaching', 'homeroom', 'own'])],
+            'schedule_id' => ['nullable', 'integer', 'exists:jadwal_pelajaran,id'],
+            'format' => $this->routeIs('reports.preview') ? ['prohibited'] : ['required', 'string', Rule::in(['pdf', 'excel'])],
+            'page' => $this->routeIs('reports.preview') ? ['nullable', 'integer', 'min:1', 'max:1000000'] : ['prohibited'],
+            'preview_hash' => $this->routeIs('reports.preview') ? ['prohibited'] : ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'academic_year_id' => [
                 'nullable',
                 'integer',
@@ -131,11 +140,11 @@ class ReportRequest extends FormRequest
             }
 
             $allowed = array_merge(
-                ['format'],
+                [$this->routeIs('reports.preview') ? 'page' : 'format', 'scope', ...($this->routeIs('reports.preview') ? [] : ['preview_hash'])],
                 self::REPORT_FILTERS[$reportType]
             );
 
-            foreach ($this->query() as $key => $value) {
+            foreach ($this->all() as $key => $value) {
                 if (! in_array($key, $allowed, true)) {
                     $validator->errors()->add(
                         $key,

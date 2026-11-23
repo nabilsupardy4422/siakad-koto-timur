@@ -9,9 +9,7 @@ use App\Models\Kelas;
 use App\Models\Nilai;
 use App\Models\Presensi;
 use App\Models\Siswa;
-use App\Models\WaliKelas;
 use App\Models\User;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -22,7 +20,9 @@ class ReportService
         User $user,
         array $filters
     ): array {
-        return match ($reportType) {
+        $filters = ReportAccess::normalize($user, $reportType, $filters);
+
+        $report = match ($reportType) {
             'students' => $this->students($user, $filters),
             'teachers' => $this->teachers($user, $filters),
             'classes' => $this->classes($user, $filters),
@@ -34,46 +34,20 @@ class ReportService
                 'Jenis laporan tidak didukung.'
             ),
         };
+
+        // Internal export metadata: only filters already normalized by ReportAccess.
+        return $report + ['effective_filters' => $filters];
     }
 
     private function students(User $user, array $filters): array
     {
-        $this->authorizeReportFilters($user, 'students', $filters);
-
-        $academicYearId = $filters['academic_year_id'] ?? null;
-
         $query = Siswa::query()
             ->with([
-                'anggotaKelas.kelas.tahunAkademik',
+                'anggotaKelas' => function ($relation) use ($user, $filters): void {
+                    ReportAccess::membership($relation->getQuery(), $user, $filters, in_array($filters['scope'], ['teaching', 'homeroom'], true));
+                    $relation->with('kelas.tahunAkademik');
+                },
             ])
-            ->when(
-                isset($filters['class_id']),
-                function (Builder $query) use ($filters, $academicYearId): void {
-                    $query->whereHas(
-                        'anggotaKelas.kelas',
-                        function (Builder $query) use ($filters, $academicYearId): void {
-                            $query->where('id', $filters['class_id'])
-                                ->when(
-                                    $academicYearId !== null,
-                                    fn (Builder $query) => $query->where(
-                                        'tahun_akademik_id',
-                                        $academicYearId
-                                    )
-                                );
-                        }
-                    );
-                }
-            )
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->whereHas(
-                    'anggotaKelas.kelas',
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-            )
             ->when(
                 isset($filters['search']),
                 function (Builder $query) use ($filters): void {
@@ -92,52 +66,46 @@ class ReportService
                 }
             );
 
+        if (in_array($filters['scope'], ['teaching', 'homeroom'], true) || isset($filters['class_id']) || isset($filters['academic_year_id']) || isset($filters['subject_id']) || isset($filters['schedule_id'])) {
+            $query->whereHas('anggotaKelas', fn (Builder $q) => ReportAccess::membership($q, $user, $filters, in_array($filters['scope'], ['teaching', 'homeroom'], true)));
+        }
+
         $this->applyStudentScope(
             $query,
             $user,
-            $academicYearId
+            $filters
         );
 
-        $rows = $query
-            ->latest('id')
-            ->get()
-            ->map(function (Siswa $student) use ($academicYearId): array {
-                $membership = $student->anggotaKelas
-                    ->filter(
-                        fn ($member) => $academicYearId === null
-                            || $member->kelas?->tahun_akademik_id === $academicYearId
-                    )
-                    ->sortByDesc(
-                        fn ($member) => $member->kelas?->tahun_akademik_id
-                    )
-                    ->first();
+        $rows = $query->orderBy('nama_lengkap')->orderBy('id')->get()
+            ->flatMap(function (Siswa $student): array {
+                $memberships = $student->anggotaKelas->sortByDesc('tanggal_mulai')->unique('kelas_id');
+                if ($memberships->isEmpty()) $memberships = collect([null]);
 
-                return [
-                    'id' => $student->id,
+                return $memberships->map(fn ($membership) => [
                     'nis' => $student->nis,
                     'nisn' => $student->nisn,
                     'nama_siswa' => $student->nama_lengkap,
                     'kelas' => $membership?->kelas?->nama,
                     'tingkat' => $membership?->kelas?->tingkat,
-                    'tahun_akademik' => $membership?->kelas?->tahunAkademik
-                        ? $membership->kelas->tahunAkademik->tahun_mulai
-                            . '/'
-                            . $membership->kelas->tahunAkademik->tahun_selesai
-                        : null,
-                ];
+                    ...$this->period($membership?->kelas?->tahunAkademik),
+                    'tanggal_mulai' => $membership?->tanggal_mulai?->format('Y-m-d'),
+                    'tanggal_selesai' => $membership?->tanggal_selesai?->format('Y-m-d'),
+                    'status_keanggotaan' => $membership === null ? 'Belum ditempatkan' : (
+                        $membership->tanggal_mulai->gt(today()) ? 'Terjadwal' : (
+                            $membership->tanggal_selesai !== null && $membership->tanggal_selesai->lt(today()) ? 'Berakhir' : 'Aktif'
+                        )
+                    ),
+                ])->values()->all();
             });
 
         return $this->result(
-            'Laporan Data Siswa',
-            [
-                'ID',
-                'NIS',
-                'NISN',
-                'Nama Siswa',
-                'Kelas',
-                'Tingkat',
-                'Tahun Akademik',
-            ],
+            match ($filters['scope']) {
+                'teaching' => 'Daftar Siswa Aktif yang Diajar',
+                'homeroom' => 'Daftar Anggota Aktif Kelas Binaan',
+                'own' => 'Data Akademik Pribadi',
+                default => 'Laporan Data Siswa',
+            },
+            ['NIS', 'NISN', 'Nama Siswa', 'Kelas', 'Tingkat', 'Tahun Akademik', 'Semester', 'Tanggal Mulai', 'Tanggal Selesai', 'Status Keanggotaan'],
             $rows
         );
     }
@@ -145,13 +113,13 @@ class ReportService
     private function teachers(User $user, array $filters): array
     {
         $query = Guru::query()
-            ->with('user')
+            ->when($user->role?->code === 'TU', fn (Builder $q) => $q->with('user'))
             ->when(
                 isset($filters['search']),
-                function (Builder $query) use ($filters): void {
+                function (Builder $query) use ($filters, $user): void {
                     $search = $filters['search'];
 
-                    $query->where(function (Builder $query) use ($search): void {
+                    $query->where(function (Builder $query) use ($search, $user): void {
                         $query
                             ->where('nip', 'like', "%{$search}%")
                             ->orWhere(
@@ -159,7 +127,7 @@ class ReportService
                                 'like',
                                 "%{$search}%"
                             )
-                            ->orWhereHas(
+                            ->when($user->role?->code === 'TU', fn (Builder $q) => $q->orWhereHas(
                                 'user',
                                 function (Builder $query) use ($search): void {
                                     $query
@@ -179,12 +147,12 @@ class ReportService
                                             "%{$search}%"
                                         );
                                 }
-                            );
+                            ));
                     });
                 }
             )
             ->when(
-                isset($filters['status']),
+                isset($filters['status']) && $user->role?->code === 'TU',
                 fn (Builder $query) => $query->whereHas(
                     'user',
                     fn (Builder $query) => $query->where(
@@ -193,6 +161,13 @@ class ReportService
                     )
                 )
             );
+
+        if ($user->role?->code === 'KEPALA_SEKOLAH') {
+            return $this->result('Laporan Data Guru', ['NIP', 'Nama Guru'],
+                $query->latest('id')->get(['nip', 'nama_lengkap'])->map(fn (Guru $teacher) => [
+                    'nip' => $teacher->nip, 'nama_guru' => $teacher->nama_lengkap,
+                ]));
+        }
 
         $rows = $query
             ->latest('id')
@@ -232,12 +207,6 @@ class ReportService
                 )
             );
 
-        $this->applyClassScope(
-            $query,
-            $user,
-            $filters['academic_year_id'] ?? null
-        );
-
         $rows = $query
             ->orderBy('tingkat')
             ->orderBy('nama')
@@ -269,8 +238,6 @@ class ReportService
 
     private function schedules(User $user, array $filters): array
     {
-        $this->authorizeReportFilters($user, 'schedules', $filters);
-
         $query = JadwalPelajaran::query()
             ->with([
                 'tahunAkademik',
@@ -317,22 +284,26 @@ class ReportService
                 )
             );
 
+        if (isset($filters['schedule_id'])) {
+            $query->where('id', $filters['schedule_id']);
+        }
+
         $this->applyScheduleScope(
             $query,
             $user,
-            $filters['academic_year_id'] ?? null
+            $filters
         );
 
         $rows = $query
-            ->orderBy('hari')
-            ->orderBy('jam_mulai')
+            ->orderByRaw("CASE LOWER(hari) WHEN 'senin' THEN 1 WHEN 'selasa' THEN 2 WHEN 'rabu' THEN 3 WHEN 'kamis' THEN 4 WHEN 'jumat' THEN 5 WHEN 'sabtu' THEN 6 WHEN 'minggu' THEN 7 ELSE 8 END")
+            ->orderBy('jam_mulai')->orderBy('id')
             ->get()
             ->map(fn (JadwalPelajaran $schedule): array => [
-                'id' => $schedule->id,
                 'hari' => $schedule->hari,
                 'jam_mulai' => $schedule->jam_mulai,
                 'jam_selesai' => $schedule->jam_selesai,
                 'kelas' => $schedule->kelas?->nama,
+                'tingkat' => $schedule->kelas?->tingkat,
                 'mata_pelajaran' => $schedule->mapel?->nama,
                 'guru' => $schedule->guru?->nama_lengkap,
                 'tahun_akademik' => $schedule->tahunAkademik
@@ -346,11 +317,11 @@ class ReportService
         return $this->result(
             'Laporan Jadwal Pelajaran',
             [
-                'ID',
                 'Hari',
                 'Jam Mulai',
                 'Jam Selesai',
                 'Kelas',
+                'Tingkat',
                 'Mata Pelajaran',
                 'Guru',
                 'Tahun Akademik',
@@ -362,8 +333,6 @@ class ReportService
 
     private function attendance(User $user, array $filters): array
     {
-        $this->authorizeReportFilters($user, 'attendance', $filters);
-
         $query = Presensi::query()
             ->with([
                 'siswa',
@@ -426,46 +395,47 @@ class ReportService
                 )
             );
 
+        if (isset($filters['schedule_id'])) {
+            $query->whereHas('jadwalPelajaran', fn (Builder $q) => $q->where('id', $filters['schedule_id']));
+        }
+        if (isset($filters['subject_id'])) {
+            $query->whereHas('jadwalPelajaran', fn (Builder $q) => $q->where('mapel_id', $filters['subject_id']));
+        }
+
         $this->applyAttendanceScope(
             $query,
             $user,
-            $filters['academic_year_id'] ?? null
+            $filters
         );
 
-        $rows = $query
-            ->orderByDesc('tanggal')
-            ->get()
-            ->map(fn (Presensi $attendance): array => [
-                'id' => $attendance->id,
-                'tanggal' => $attendance->tanggal?->format('Y-m-d'),
-                'siswa' => $attendance->siswa?->nama_lengkap,
-                'kelas' => $attendance->jadwalPelajaran?->kelas?->nama,
-                'mata_pelajaran' => $attendance->jadwalPelajaran?->mapel?->nama,
-                'guru' => $attendance->jadwalPelajaran?->guru?->nama_lengkap,
-                'status' => $attendance->status,
-                'catatan' => $attendance->catatan,
-            ]);
+        $rows = $query->orderByDesc('tanggal')->orderBy('jadwal_pelajaran_id')->orderBy('siswa_id')->get()
+            ->map(function (Presensi $attendance): array {
+                $schedule = $attendance->jadwalPelajaran;
+                return [
+                    'tanggal' => $attendance->tanggal?->format('Y-m-d'),
+                    'nis' => $attendance->siswa?->nis,
+                    'nisn' => $attendance->siswa?->nisn,
+                    'siswa' => $attendance->siswa?->nama_lengkap,
+                    'kelas' => $schedule?->kelas?->nama,
+                    'tingkat' => $schedule?->kelas?->tingkat,
+                    'mata_pelajaran' => $schedule?->mapel?->nama,
+                    'guru' => $schedule?->guru?->nama_lengkap,
+                    'jam_mulai' => $schedule?->jam_mulai,
+                    'jam_selesai' => $schedule?->jam_selesai,
+                    'status' => $attendance->status,
+                    'catatan' => $attendance->catatan,
+                    ...$this->period($schedule?->tahunAkademik),
+                ];
+            });
 
-        return $this->result(
-            'Laporan Presensi',
-            [
-                'ID',
-                'Tanggal',
-                'Siswa',
-                'Kelas',
-                'Mata Pelajaran',
-                'Guru',
-                'Status',
-                'Catatan',
-            ],
-            $rows
-        );
+        return $this->result('Laporan Presensi per Pertemuan', [
+            'Tanggal', 'NIS', 'NISN', 'Siswa', 'Kelas', 'Tingkat', 'Mata Pelajaran', 'Guru',
+            'Jam Mulai', 'Jam Selesai', 'Status', 'Catatan', 'Tahun Akademik', 'Semester',
+        ], $rows);
     }
 
     private function grades(User $user, array $filters): array
     {
-        $this->authorizeReportFilters($user, 'grades', $filters);
-
         $query = Nilai::query()
             ->with([
                 'siswa',
@@ -522,873 +492,182 @@ class ReportService
                 )
             );
 
+        if (isset($filters['schedule_id'])) {
+            $query->whereHas('komponenNilai.jadwalPelajaran', fn (Builder $q) => $q->where('id', $filters['schedule_id']));
+        }
+
         $this->applyGradeScope(
             $query,
             $user,
-            $filters['academic_year_id'] ?? null
+            $filters
         );
 
-        $rows = $query
-            ->orderBy('siswa_id')
-            ->get()
-            ->map(fn (Nilai $grade): array => [
-                'id' => $grade->id,
-                'siswa' => $grade->siswa?->nama_lengkap,
-                'kelas' => $grade->komponenNilai
-                    ?->jadwalPelajaran?->kelas?->nama,
-                'mata_pelajaran' => $grade->komponenNilai
-                    ?->jadwalPelajaran?->mapel?->nama,
-                'guru' => $grade->komponenNilai
-                    ?->jadwalPelajaran?->guru?->nama_lengkap,
-                'nilai' => $grade->nilai,
-                'catatan' => $grade->catatan,
-            ]);
+        $rows = $query->orderBy('siswa_id')->orderBy('komponen_nilai_id')->get()
+            ->map(function (Nilai $grade): array {
+                $component = $grade->komponenNilai;
+                $schedule = $component?->jadwalPelajaran;
+                return [
+                    'nis' => $grade->siswa?->nis,
+                    'nisn' => $grade->siswa?->nisn,
+                    'siswa' => $grade->siswa?->nama_lengkap,
+                    'kelas' => $schedule?->kelas?->nama,
+                    'tingkat' => $schedule?->kelas?->tingkat,
+                    'mata_pelajaran' => $schedule?->mapel?->nama,
+                    'guru' => $schedule?->guru?->nama_lengkap,
+                    'hari' => $schedule?->hari,
+                    'jam_mulai' => $schedule?->jam_mulai,
+                    'jam_selesai' => $schedule?->jam_selesai,
+                    'komponen' => $component?->nama,
+                    'bobot' => $component?->bobot === null ? null : (float) $component->bobot,
+                    'nilai' => $grade->nilai === null ? null : (float) $grade->nilai,
+                    'catatan' => $grade->catatan,
+                    ...$this->period($schedule?->tahunAkademik),
+                ];
+            });
 
-        return $this->result(
-            'Laporan Nilai',
-            [
-                'ID',
-                'Siswa',
-                'Kelas',
-                'Mata Pelajaran',
-                'Guru',
-                'Nilai',
-                'Catatan',
-            ],
-            $rows
-        );
+        return $this->result('Laporan Nilai Komponen', [
+            'NIS', 'NISN', 'Siswa', 'Kelas', 'Tingkat', 'Mata Pelajaran', 'Guru', 'Hari Jadwal',
+            'Jam Mulai', 'Jam Selesai', 'Komponen', 'Bobot', 'Nilai Tercatat', 'Catatan', 'Tahun Akademik', 'Semester',
+        ], $rows);
     }
 
     private function semesterRecap(User $user, array $filters): array
     {
-        $this->authorizeReportFilters($user, 'semester-recap', $filters);
+        // A row represents one student in one class (which belongs to exactly one period).
+        // Started historical memberships remain reportable. Future memberships do not.
+        $membershipQuery = AnggotaKelas::query()->with(['siswa', 'kelas.tahunAkademik'])
+            ->whereDate('tanggal_mulai', '<=', today());
+        ReportAccess::membership($membershipQuery, $user, $filters, false);
+        if ($filters['scope'] === 'own') $membershipQuery->where('siswa_id', $user->siswa->id);
+        if (isset($filters['student_id'])) $membershipQuery->where('siswa_id', $filters['student_id']);
+        if (isset($filters['semester'])) {
+            $membershipQuery->whereHas('kelas.tahunAkademik', fn (Builder $q) => $q->where('semester', $filters['semester']));
+        }
+        $memberships = $membershipQuery->orderBy('kelas_id')->orderBy('siswa_id')->get()
+            ->unique(fn (AnggotaKelas $m) => $m->kelas_id . ':' . $m->siswa_id);
 
-        $academicYearId = $filters['academic_year_id'] ?? null;
+        // Batch aggregate; no per-student query. Apply the same scope and integrity rules as detail reports.
+        $attendance = Presensi::query()->join('jadwal_pelajaran as r_schedule', 'r_schedule.id', '=', 'presensi.jadwal_pelajaran_id')
+            ->selectRaw('presensi.siswa_id, r_schedule.kelas_id, presensi.status, COUNT(*) as jumlah');
+        $grades = Nilai::query()->join('komponen_nilai as r_component', 'r_component.id', '=', 'nilai.komponen_nilai_id')
+            ->join('jadwal_pelajaran as r_schedule', 'r_schedule.id', '=', 'r_component.jadwal_pelajaran_id')
+            ->selectRaw('nilai.siswa_id, r_schedule.kelas_id, COUNT(nilai.nilai) as jumlah, AVG(nilai.nilai) as rata');
 
-        $studentQuery = Siswa::query()
-            ->with([
-                'anggotaKelas.kelas.tahunAkademik',
-            ])
-            ->when(
-                isset($filters['class_id']),
-                function (Builder $query) use ($filters, $academicYearId): void {
-                    $query->whereHas(
-                        'anggotaKelas.kelas',
-                        function (Builder $query) use ($filters, $academicYearId): void {
-                            $query->where('id', $filters['class_id'])
-                                ->when(
-                                    $academicYearId !== null,
-                                    fn (Builder $query) => $query->where(
-                                        'tahun_akademik_id',
-                                        $academicYearId
-                                    )
-                                );
-                        }
-                    );
-                }
-            )
-            ->when(
-                isset($filters['student_id']),
-                fn (Builder $query) => $query->whereKey(
-                    $filters['student_id']
-                )
-            )
-            ->when(
-                isset($filters['academic_year_id']),
-                fn (Builder $query) => $query->whereHas(
-                    'anggotaKelas.kelas',
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $filters['academic_year_id']
-                    )
-                )
-            );
+        foreach ([$attendance, $grades] as $query) {
+            $query->whereIn('r_schedule.kelas_id', $memberships->pluck('kelas_id')->unique()->values())
+                ->whereIn($query === $attendance ? 'presensi.siswa_id' : 'nilai.siswa_id', $memberships->pluck('siswa_id')->unique()->values());
+            if (isset($filters['academic_year_id'])) $query->where('r_schedule.tahun_akademik_id', $filters['academic_year_id']);
+            if (isset($filters['semester'])) $query->whereExists(fn ($q) => $q->selectRaw('1')->from('tahun_akademik as r_year')
+                ->whereColumn('r_year.id', 'r_schedule.tahun_akademik_id')->where('r_year.semester', $filters['semester']));
+        }
+        // Use the base model queries for authorization; joined columns must be qualified.
+        $attendanceIds = Presensi::query()->select('presensi.id');
+        $this->applyAttendanceScope($attendanceIds, $user, $filters);
+        $gradeIds = Nilai::query()->select('nilai.id');
+        $this->applyGradeScope($gradeIds, $user, $filters);
+        $attendance = $attendance->whereIn('presensi.id', $attendanceIds)->groupBy('presensi.siswa_id', 'r_schedule.kelas_id', 'presensi.status')->get()
+            ->groupBy(fn ($r) => $r->kelas_id . ':' . $r->siswa_id);
+        $grades = $grades->whereIn('nilai.id', $gradeIds)->groupBy('nilai.siswa_id', 'r_schedule.kelas_id')->get()
+            ->keyBy(fn ($r) => $r->kelas_id . ':' . $r->siswa_id);
 
-        $this->applyStudentScope(
-            $studentQuery,
-            $user,
-            $filters['academic_year_id'] ?? null
-        );
-
-        $students = $studentQuery->get();
-
-        $rows = $students->map(function (Siswa $student) use ($filters, $user, $academicYearId): array {
-            $attendance = Presensi::query()
-                ->where('siswa_id', $student->id)
-                ->when(
-                    isset($filters['academic_year_id']),
-                    fn (Builder $query) => $query->whereHas(
-                        'jadwalPelajaran',
-                        fn (Builder $query) => $query->where(
-                            'tahun_akademik_id',
-                            $filters['academic_year_id']
-                        )
-                    )
-                )
-                ->when(
-                    isset($filters['semester']),
-                    fn (Builder $query) => $query->whereHas(
-                        'jadwalPelajaran.tahunAkademik',
-                        fn (Builder $query) => $query->where(
-                            'semester',
-                            $filters['semester']
-                        )
-                    )
-                )
-                ->when(
-                    isset($filters['class_id']),
-                    fn (Builder $query) => $query->whereHas(
-                        'jadwalPelajaran',
-                        fn (Builder $query) => $query->where(
-                            'kelas_id',
-                            $filters['class_id']
-                        )
-                    )
-                );
-
-            $this->applyAttendanceScope(
-                $attendance,
-                $user,
-                $academicYearId
-            );
-
-            $attendance = $attendance
-                ->get()
-                ->groupBy('status');
-
-            $grades = Nilai::query()
-                ->where('siswa_id', $student->id)
-                ->when(
-                    isset($filters['academic_year_id']),
-                    fn (Builder $query) => $query->whereHas(
-                        'komponenNilai.jadwalPelajaran',
-                        fn (Builder $query) => $query->where(
-                            'tahun_akademik_id',
-                            $filters['academic_year_id']
-                        )
-                    )
-                )
-                ->when(
-                    isset($filters['semester']),
-                    fn (Builder $query) => $query->whereHas(
-                        'komponenNilai.jadwalPelajaran.tahunAkademik',
-                        fn (Builder $query) => $query->where(
-                            'semester',
-                            $filters['semester']
-                        )
-                    )
-                )
-                ->when(
-                    isset($filters['class_id']),
-                    fn (Builder $query) => $query->whereHas(
-                        'komponenNilai.jadwalPelajaran',
-                        fn (Builder $query) => $query->where(
-                            'kelas_id',
-                            $filters['class_id']
-                        )
-                    )
-                );
-
-            $this->applyGradeScope(
-                $grades,
-                $user,
-                $academicYearId
-            );
-
-            $grades = $grades->avg('nilai');
-
-            $membership = $student->anggotaKelas
-                ->filter(
-                    fn ($member) => $academicYearId === null
-                        || $member->kelas?->tahun_akademik_id === $academicYearId
-                )
-                ->sortByDesc(
-                    fn ($member) => $member->kelas?->tahun_akademik_id
-                )
-                ->first();
-
+        $rows = $memberships->map(function (AnggotaKelas $membership) use ($attendance, $grades): array {
+            $key = $membership->kelas_id . ':' . $membership->siswa_id;
+            $counts = $attendance->get($key, collect())->pluck('jumlah', 'status');
+            $grade = $grades->get($key);
+            $hadir = (int) $counts->get('hadir', 0);
+            $izin = (int) $counts->get('izin', 0);
+            $sakit = (int) $counts->get('sakit', 0);
+            $alpa = (int) $counts->get('alpa', 0);
+            $total = $hadir + $izin + $sakit + $alpa;
             return [
-                'student_id' => $student->id,
-                'nis' => $student->nis,
-                'nama_siswa' => $student->nama_lengkap,
-                'kelas' => $membership?->kelas?->nama,
-                'hadir' => $attendance->get('hadir', collect())->count(),
-                'izin' => $attendance->get('izin', collect())->count(),
-                'sakit' => $attendance->get('sakit', collect())->count(),
-                'alpa' => $attendance->get('alpa', collect())->count(),
-                'rata_rata_nilai' => $grades !== null
-                    ? round((float) $grades, 2)
-                    : null,
+                'nis' => $membership->siswa?->nis,
+                'nisn' => $membership->siswa?->nisn,
+                'nama_siswa' => $membership->siswa?->nama_lengkap,
+                'kelas' => $membership->kelas?->nama,
+                'tingkat' => $membership->kelas?->tingkat,
+                ...$this->period($membership->kelas?->tahunAkademik),
+                'hadir' => $hadir, 'izin' => $izin, 'sakit' => $sakit, 'alpa' => $alpa,
+                'total_presensi' => $total,
+                'persentase_hadir' => $total > 0 ? round($hadir * 100 / $total, 2) : null,
+                'jumlah_nilai' => (int) ($grade?->jumlah ?? 0),
+                'rata_rata_nilai' => $grade?->rata === null ? null : round((float) $grade->rata, 2),
             ];
         });
 
-        return $this->result(
-            'Rekap Akademik Semester',
-            [
-                'ID Siswa',
-                'NIS',
-                'Nama Siswa',
-                'Kelas',
-                'Hadir',
-                'Izin',
-                'Sakit',
-                'Alpa',
-                'Rata-rata Nilai',
-            ],
-            $rows
-        );
+        return $this->result('Rekap Catatan Akademik Semester (Bukan Rapor)', [
+            'NIS', 'NISN', 'Nama Siswa', 'Kelas', 'Tingkat', 'Tahun Akademik', 'Semester',
+            'Hadir', 'Izin', 'Sakit', 'Alpa', 'Total Catatan Presensi', 'Hadir dari Catatan (%)',
+            'Jumlah Nilai Tercatat', 'Rata-rata Komponen (Tanpa Bobot)',
+        ], $rows);
     }
 
-    private function applyStudentScope(
-        Builder $query,
-        User $user,
-        ?int $academicYearId
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
-        }
-
-        if ($role === 'SISWA') {
-            $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->whereKey($studentId);
-
-            return;
-        }
-
-        if ($role !== 'GURU') {
-            $query->whereRaw('1 = 0');
-
-            return;
-        }
-
-        $classIds = $this->teacherClassIds(
-            $user,
-            $academicYearId
-        );
-
-        if ($classIds->isEmpty()) {
-            $query->whereRaw('1 = 0');
-
-            return;
-        }
-
-        $query->whereHas(
-            'anggotaKelas',
-            fn (Builder $query) => $query->whereIn(
-                'kelas_id',
-                $classIds
-            )
-        );
+    private function period($year): array
+    {
+        return [
+            'tahun_akademik' => $year ? $year->tahun_mulai . '/' . $year->tahun_selesai : null,
+            'semester' => $year?->semester,
+        ];
     }
 
-    private function applyClassScope(
-        Builder $query,
-        User $user,
-        ?int $academicYearId = null
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
-        }
-
-        if ($role === 'SISWA') {
-            $classIds = $this->studentClassIds($user, $academicYearId);
-
-            if ($classIds->isEmpty()) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->whereIn('id', $classIds);
-
-            return;
-        }
-
-        if ($role === 'GURU') {
-            $classIds = $this->teacherClassIds($user, $academicYearId);
-
-            if ($classIds->isEmpty()) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->whereIn('id', $classIds);
-
-            return;
-        }
-
-        $query->whereRaw('1 = 0');
+    private function applyStudentScope(Builder $query, User $user, array $filters): void
+    {
+        if ($filters['scope'] === 'own') $query->whereKey($user->siswa->id);
+        // Roster membership is constrained in students() and semesterRecap().
     }
 
-    private function applyScheduleScope(
-        Builder $query,
-        User $user,
-        ?int $academicYearId = null
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
+    private function applyScheduleScope(Builder $query, User $user, array $filters): void
+    {
+        $this->consistentSchedule($query);
+        if ($filters['scope'] === 'school') return;
+        $scheduleScope = ReportAccess::schedules($user, $filters);
+        if ($filters['scope'] === 'own' && \App\Models\TahunAkademik::query()->whereKey($filters['academic_year_id'])->where('is_active', true)->exists()) {
+            $scheduleScope->whereIn('kelas_id', \App\Models\AnggotaKelas::query()->where('siswa_id', $user->siswa->id)
+                ->whereDate('tanggal_mulai', '<=', today())->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today()))->select('kelas_id'));
         }
-
-        if ($role === 'GURU') {
-            $guruId = $user->guru?->id;
-
-            if ($guruId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $waliClassIds = WaliKelas::query()
-                ->where('guru_id', $guruId)
-                ->when(
-                    $academicYearId !== null,
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-                ->pluck('kelas_id');
-
-            $query->where(function (Builder $query) use (
-                $guruId,
-                $waliClassIds
-            ): void {
-                $query->where('guru_id', $guruId)
-                    ->orWhereIn('kelas_id', $waliClassIds);
-            });
-
-            return;
-        }
-
-        if ($role === 'SISWA') {
-            $classIds = $this->studentClassIds($user, $academicYearId);
-
-            if ($classIds->isEmpty()) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->whereIn('kelas_id', $classIds);
-
-            return;
-        }
-
-        $query->whereRaw('1 = 0');
+        $query->whereIn('id', $scheduleScope->select('id'));
     }
 
-    private function applyAttendanceScope(
-        Builder $query,
-        User $user,
-        ?int $academicYearId = null
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
+    private function applyAttendanceScope(Builder $query, User $user, array $filters): void
+    {
+        $query->whereIn('presensi.status', ['hadir', 'izin', 'sakit', 'alpa']);
+        $query->whereHas('jadwalPelajaran', fn (Builder $q) => $this->consistentSchedule($q));
+        if ($filters['scope'] === 'own') $query->where('siswa_id', $user->siswa->id);
+        if ($filters['scope'] !== 'school') {
+            $query->whereHas('jadwalPelajaran', fn (Builder $q) => $q->whereIn('id', ReportAccess::schedules($user, $filters)->select('id')));
         }
-
-        if ($role === 'SISWA') {
-            $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->where('siswa_id', $studentId);
-
-            return;
-        }
-
-        if ($role === 'GURU') {
-            $guruId = $user->guru?->id;
-
-            if ($guruId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $waliClassIds = WaliKelas::query()
-                ->where('guru_id', $guruId)
-                ->when(
-                    $academicYearId !== null,
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-                ->pluck('kelas_id');
-
-            $query->whereHas(
-                'jadwalPelajaran',
-                function (Builder $query) use (
-                    $guruId,
-                    $waliClassIds
-                ): void {
-                    $query->where('guru_id', $guruId)
-                        ->orWhereIn('kelas_id', $waliClassIds);
-                }
-            );
-
-            return;
-        }
-
-        $query->whereRaw('1 = 0');
-    }
-
-    private function applyGradeScope(
-        Builder $query,
-        User $user,
-        ?int $academicYearId = null
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
-        }
-
-        if ($role === 'SISWA') {
-            $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $query->where('siswa_id', $studentId);
-
-            return;
-        }
-
-        if ($role === 'GURU') {
-            $guruId = $user->guru?->id;
-
-            if ($guruId === null) {
-                $query->whereRaw('1 = 0');
-
-                return;
-            }
-
-            $waliClassIds = WaliKelas::query()
-                ->where('guru_id', $guruId)
-                ->when(
-                    $academicYearId !== null,
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-                ->pluck('kelas_id');
-
-            $query->whereHas(
-                'komponenNilai.jadwalPelajaran',
-                function (Builder $query) use (
-                    $guruId,
-                    $waliClassIds
-                ): void {
-                    $query->where('guru_id', $guruId)
-                        ->orWhereIn('kelas_id', $waliClassIds);
-                }
-            );
-
-            return;
-        }
-
-        $query->whereRaw('1 = 0');
-    }
-
-
-    private function authorizeReportFilters(
-        User $user,
-        string $reportType,
-        array $filters
-    ): void {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return;
-        }
-
-        if (! in_array($role, ['GURU', 'SISWA'], true)) {
-            throw new AuthorizationException(
-                'Anda tidak memiliki akses untuk mengekspor laporan.'
-            );
-        }
-
-        $academicYearId = $filters['academic_year_id'] ?? null;
-
-        if ($role === 'SISWA') {
-            $studentId = $user->siswa?->id;
-
-            if ($studentId === null) {
-                throw new AuthorizationException(
-                    'Akun siswa tidak terhubung dengan data siswa.'
-                );
-            }
-
-            if (
-                isset($filters['student_id'])
-                && (int) $filters['student_id'] !== (int) $studentId
-            ) {
-                throw new AuthorizationException(
-                    'Siswa hanya dapat mengakses laporan miliknya sendiri.'
-                );
-            }
-
-            if (isset($filters['class_id'])) {
-                $classIds = $this->studentClassIds(
-                    $user,
-                    $academicYearId
-                );
-
-                if (! $classIds->contains((int) $filters['class_id'])) {
-                    throw new AuthorizationException(
-                        'Siswa tidak memiliki akses ke kelas tersebut.'
-                    );
-                }
-            }
-
-            return;
-        }
-
-        if (isset($filters['class_id'])) {
-            $this->authorizeTeacherClass(
-                $user,
-                (int) $filters['class_id'],
-                $academicYearId
-            );
-        }
-
-        if (isset($filters['student_id'])) {
-            $this->authorizeTeacherStudent(
-                $user,
-                (int) $filters['student_id'],
-                $academicYearId
-            );
-        }
-
-        if ($reportType === 'schedules') {
-            $this->authorizeTeacherScheduleFilters($user, $filters);
-        }
-
-        if ($reportType === 'grades' && isset($filters['subject_id'])) {
-            $this->authorizeTeacherSubject(
-                $user,
-                (int) $filters['subject_id'],
-                $academicYearId,
-                $filters['class_id'] ?? null,
-                $filters['teacher_id'] ?? null,
-                $filters['semester'] ?? null
-            );
-        }
-    }
-
-    private function authorizeTeacherClass(
-        User $user,
-        int $classId,
-        ?int $academicYearId
-    ): void {
-        $class = Kelas::query()->find($classId);
-
-        if ($class === null) {
-            return;
-        }
-
-        $resolvedAcademicYearId = $academicYearId
-            ?? $class->tahun_akademik_id;
-
-        $allowedClassIds = $this->teacherClassIds(
-            $user,
-            $resolvedAcademicYearId
-        );
-
-        if (! $allowedClassIds->contains($classId)) {
-            throw new AuthorizationException(
-                'Guru tidak memiliki akses ke kelas tersebut.'
-            );
-        }
-    }
-
-    private function authorizeTeacherStudent(
-        User $user,
-        int $studentId,
-        ?int $academicYearId
-    ): void {
-        $student = Siswa::query()->find($studentId);
-
-        if ($student === null) {
-            return;
-        }
-
-        $classIds = $this->teacherClassIds(
-            $user,
-            $academicYearId
-        );
-
-        if ($classIds->isEmpty()) {
-            throw new AuthorizationException(
-                'Guru tidak memiliki teaching context yang sah.'
-            );
-        }
-
-        $belongsToAuthorizedClass = AnggotaKelas::query()
-            ->where('siswa_id', $studentId)
-            ->whereIn('kelas_id', $classIds)
-            ->exists();
-
-        if (! $belongsToAuthorizedClass) {
-            throw new AuthorizationException(
-                'Guru tidak memiliki akses ke data siswa tersebut.'
-            );
-        }
-    }
-
-    private function authorizeTeacherScheduleFilters(
-        User $user,
-        array $filters
-    ): void {
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            throw new AuthorizationException(
-                'Akun Guru tidak terhubung dengan data Guru.'
-            );
-        }
-
-        $academicYearId = $filters['academic_year_id'] ?? null;
-        $classId = $filters['class_id'] ?? null;
-        $subjectId = $filters['subject_id'] ?? null;
-        $teacherId = $filters['teacher_id'] ?? null;
-        $semester = $filters['semester'] ?? null;
-
-        $query = JadwalPelajaran::query()
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->when(
-                $classId !== null,
-                fn (Builder $query) => $query->where(
-                    'kelas_id',
-                    $classId
-                )
-            )
-            ->when(
-                $subjectId !== null,
-                fn (Builder $query) => $query->where(
-                    'mapel_id',
-                    $subjectId
-                )
-            )
-            ->when(
-                $teacherId !== null,
-                fn (Builder $query) => $query->where(
-                    'guru_id',
-                    $teacherId
-                )
-            )
-            ->when(
-                $semester !== null,
-                fn (Builder $query) => $query->whereHas(
-                    'tahunAkademik',
-                    fn (Builder $query) => $query->where(
-                        'semester',
-                        $semester
-                    )
-                )
-            );
-
-        $waliClassIds = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->pluck('kelas_id');
-
-        $query->where(function (Builder $query) use (
-            $guruId,
-            $waliClassIds
-        ): void {
-            $query->where('guru_id', $guruId)
-                ->orWhereIn('kelas_id', $waliClassIds);
+        // Correlate the record to the student's actual class at the meeting date.
+        $query->whereExists(function ($q): void {
+            $q->selectRaw('1')->from('anggota_kelas as member')
+                ->join('jadwal_pelajaran as schedule', 'schedule.kelas_id', '=', 'member.kelas_id')
+                ->whereColumn('schedule.id', 'presensi.jadwal_pelajaran_id')
+                ->whereColumn('member.siswa_id', 'presensi.siswa_id')
+                ->whereColumn('member.tanggal_mulai', '<=', 'presensi.tanggal')
+                ->whereDate('member.tanggal_mulai', '<=', today())
+                ->where(fn ($q) => $q->whereNull('member.tanggal_selesai')->orWhereColumn('member.tanggal_selesai', '>=', 'presensi.tanggal'));
         });
-
-        if (! $query->exists()) {
-            throw new AuthorizationException(
-                'Guru tidak memiliki akses ke scope jadwal tersebut.'
-            );
-        }
     }
 
-    private function authorizeTeacherSubject(
-        User $user,
-        int $subjectId,
-        ?int $academicYearId,
-        ?int $classId,
-        ?int $teacherId,
-        ?string $semester
-    ): void {
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            throw new AuthorizationException(
-                'Akun Guru tidak terhubung dengan data Guru.'
-            );
+    private function applyGradeScope(Builder $query, User $user, array $filters): void
+    {
+        $query->whereHas('komponenNilai.jadwalPelajaran', fn (Builder $q) => $this->consistentSchedule($q));
+        if ($filters['scope'] === 'own') $query->where('siswa_id', $user->siswa->id);
+        if ($filters['scope'] !== 'school') {
+            $query->whereHas('komponenNilai.jadwalPelajaran', fn (Builder $q) => $q->whereIn('id', ReportAccess::schedules($user, $filters)->select('id')));
         }
-
-        $query = JadwalPelajaran::query()
-            ->where('mapel_id', $subjectId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->when(
-                $classId !== null,
-                fn (Builder $query) => $query->where(
-                    'kelas_id',
-                    $classId
-                )
-            )
-            ->when(
-                $teacherId !== null,
-                fn (Builder $query) => $query->where(
-                    'guru_id',
-                    $teacherId
-                )
-            )
-            ->when(
-                $semester !== null,
-                fn (Builder $query) => $query->whereHas(
-                    'tahunAkademik',
-                    fn (Builder $query) => $query->where(
-                        'semester',
-                        $semester
-                    )
-                )
-            );
-
-        $ownedScheduleExists = (clone $query)
-            ->where('guru_id', $guruId)
-            ->exists();
-
-        if ($ownedScheduleExists) {
-            return;
-        }
-
-        $waliClassIds = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->pluck('kelas_id');
-
-        if (
-            $waliClassIds->isEmpty()
-            || ! (clone $query)
-                ->whereIn('kelas_id', $waliClassIds)
-                ->exists()
-        ) {
-            throw new AuthorizationException(
-                'Guru tidak memiliki akses ke mata pelajaran tersebut.'
-            );
-        }
+        // Grade records have no assessment date; include started memberships in this class only.
+        $query->whereExists(function ($q): void {
+            $q->selectRaw('1')->from('anggota_kelas as member')
+                ->join('jadwal_pelajaran as schedule', 'schedule.kelas_id', '=', 'member.kelas_id')
+                ->join('komponen_nilai as component', 'component.jadwal_pelajaran_id', '=', 'schedule.id')
+                ->whereColumn('component.id', 'nilai.komponen_nilai_id')
+                ->whereColumn('member.siswa_id', 'nilai.siswa_id')
+                ->whereDate('member.tanggal_mulai', '<=', today());
+        });
     }
 
-    private function teacherClassIds(
-        User $user,
-        ?int $academicYearId = null
-    ): Collection {
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return collect();
-        }
-
-        $teaching = JadwalPelajaran::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->pluck('kelas_id');
-
-        $homeroom = WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYearId
-                )
-            )
-            ->pluck('kelas_id');
-
-        return $teaching
-            ->merge($homeroom)
-            ->unique()
-            ->values();
-    }
-
-    private function studentClassIds(
-        User $user,
-        ?int $academicYearId = null
-    ): Collection {
-        $studentId = $user->siswa?->id;
-
-        if ($studentId === null) {
-            return collect();
-        }
-
-        return AnggotaKelas::query()
-            ->where('siswa_id', $studentId)
-            ->when(
-                $academicYearId !== null,
-                fn (Builder $query) => $query->whereHas(
-                    'kelas',
-                    fn (Builder $query) => $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    )
-                )
-            )
-            ->pluck('kelas_id')
-            ->unique()
-            ->values();
+    private function consistentSchedule(Builder $query): void
+    {
+        $query->whereHas('kelas', fn (Builder $q) => $q->whereColumn('kelas.tahun_akademik_id', 'jadwal_pelajaran.tahun_akademik_id'));
     }
 
     private function result(

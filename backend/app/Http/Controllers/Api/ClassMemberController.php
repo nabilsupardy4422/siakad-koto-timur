@@ -9,8 +9,8 @@ use App\Models\AnggotaKelas;
 use App\Models\Kelas;
 use App\Models\Siswa;
 use App\Models\User;
-use App\Models\WaliKelas;
 use App\Support\ApiResponse;
+use App\Support\HomeroomReadAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,6 +28,13 @@ class ClassMemberController extends Controller
 
         $user->loadMissing(['role', 'siswa', 'guru']);
 
+        if ($request->input('scope') === 'homeroom') {
+            HomeroomReadAccess::authorizeClass($user, $class);
+            if ($request->filled('academic_year_id')) {
+                abort_unless($request->integer('academic_year_id') === (int) $class->tahun_akademik_id, 403);
+            }
+        }
+
         if (! $this->canViewClass($class, $user)) {
             return response()->json([
                 'message' => 'Anda tidak memiliki akses ke resource ini.',
@@ -35,16 +42,20 @@ class ClassMemberController extends Controller
         }
 
         $today = Carbon::today();
+        $allMemberships = $request->input('membership_status') === 'all';
+        if ($allMemberships) {
+            abort_unless($request->input('scope') === 'homeroom', 403);
+        }
 
         $query = AnggotaKelas::query()
-            ->with('siswa')
-            ->where('kelas_id', $class->id)
-            ->whereDate('tanggal_mulai', '<=', $today)
-            ->where(function (Builder $query) use ($today): void {
-                $query
-                    ->whereNull('tanggal_selesai')
-                    ->orWhereDate('tanggal_selesai', '>=', $today);
-            });
+            ->with('siswa.user')
+            ->where('kelas_id', $class->id);
+        if (! $allMemberships) {
+            $query->whereDate('tanggal_mulai', '<=', $today)
+                ->where(function (Builder $query) use ($today): void {
+                    $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today);
+                });
+        }
 
         /*
          * Siswa hanya dapat melihat keanggotaan dirinya sendiri.
@@ -73,6 +84,7 @@ class ClassMemberController extends Controller
                 'last_page' => $members->lastPage(),
                 'per_page' => $members->perPage(),
                 'total' => $members->total(),
+                ...($allMemberships ? ['as_of' => $today->toDateString()] : []),
             ]
         );
     }
@@ -308,72 +320,12 @@ class ClassMemberController extends Controller
          * Wali kelas hanya mendapat akses melalui assignment
          * yang berlaku pada tanggal hari ini.
          */
-        return $this->hasEffectiveHomeroomAssignment(
-            $class,
-            $guruId,
-            $today
-        );
+        return HomeroomReadAccess::currentAssignments((int) $guruId, (int) $class->tahun_akademik_id)
+            ->where('kelas_id', $class->id)->exists();
     }
 
-    private function canManageClassMembers(
-        Kelas $class,
-        User $user
-    ): bool {
-        $role = $user->role?->code;
-
-        if ($role === 'TU') {
-            return true;
-        }
-
-        /*
-         * Kepala sekolah dan siswa tidak dapat mengelola
-         * anggota kelas melalui endpoint ini.
-         */
-        if ($role !== 'GURU') {
-            return false;
-        }
-
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return false;
-        }
-
-        /*
-         * Guru hanya dapat mengelola anggota jika assignment
-         * wali kelasnya berlaku hari ini.
-         */
-        return $this->hasEffectiveHomeroomAssignment(
-            $class,
-            $guruId,
-            Carbon::today()
-        );
-    }
-
-    private function hasEffectiveHomeroomAssignment(
-        Kelas $class,
-        int $guruId,
-        Carbon $date
-    ): bool {
-        return WaliKelas::query()
-            ->where('guru_id', $guruId)
-            ->where('kelas_id', $class->id)
-            ->where(
-                'tahun_akademik_id',
-                $class->tahun_akademik_id
-            )
-            ->whereDate('tanggal_mulai', '<=', $date)
-            ->where(function (
-                Builder $query
-            ) use ($date): void {
-                $query
-                    ->whereNull('tanggal_selesai')
-                    ->orWhereDate(
-                        'tanggal_selesai',
-                        '>=',
-                        $date
-                    );
-            })
-            ->exists();
+    private function canManageClassMembers(Kelas $class, User $user): bool
+    {
+        return $user->role?->code === 'TU';
     }
 }

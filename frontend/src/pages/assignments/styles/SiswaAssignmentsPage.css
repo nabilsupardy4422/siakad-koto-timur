@@ -5,14 +5,14 @@
    ========================================================= */
 
 .siswa-assignments {
-  --assignment-primary: #4f46e5;
-  --assignment-primary-dark: #4338ca;
-  --assignment-primary-soft: #eef2ff;
+  --assignment-primary: #2563eb;
+  --assignment-primary-dark: #1d4ed8;
+  --assignment-primary-soft: #eff6ff;
   --assignment-text: #172033;
   --assignment-muted: #667085;
   --assignment-border: #e2e8f0;
   --assignment-surface: #ffffff;
-  --assignment-background: #f5f7fb;
+  --assignment-background: #eaf2fa;
 
   width: 100%;
   min-width: 0;
@@ -53,7 +53,7 @@
 .siswa-assignments input:focus-visible,
 .siswa-assignments select:focus-visible,
 .siswa-assignments textarea:focus-visible {
-  outline: 3px solid rgb(79 70 229 / 20%);
+  outline: 3px solid rgb(37 99 235 / 20%);
   outline-offset: 2px;
 }
 
@@ -114,7 +114,7 @@
   padding: 10px 16px;
   color: var(--assignment-primary);
   background: #fff;
-  border: 1px solid #d9ddff;
+  border: 1px solid #cbdff9;
   border-radius: 10px;
   font-size: 12px;
   font-weight: 700;
@@ -445,7 +445,7 @@
 }
 
 .siswa-assignment-group__toggle:focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #2563eb;
   outline-offset: 4px;
 }
 
@@ -456,8 +456,8 @@
   flex: 0 0 42px;
   width: 42px;
   height: 42px;
-  color: #4f46e5;
-  background: #eef2ff;
+  color: #2563eb;
+  background: #eff6ff;
   border: 1px solid #dce3ff;
   border-radius: 11px;
   font-size: 16px;
@@ -514,8 +514,8 @@
 }
 
 .siswa-assignment-group__toggle:hover .siswa-assignment-group__chevron {
-  color: #4f46e5;
-  background: #eef2ff;
+  color: #2563eb;
+  background: #eff6ff;
   border-color: #c7d2fe;
 }
 
@@ -796,7 +796,7 @@
 }
 
 .siswa-assignment-card__attachment button:hover {
-  background: #eef2ff;
+  background: #eff6ff;
   border-color: #a5b4fc;
 }
 
@@ -935,7 +935,7 @@
 
 .siswa-assignment-files__actions button:hover {
   color: var(--assignment-primary);
-  background: #eef2ff;
+  background: #eff6ff;
   border-color: #c7d2fe;
 }
 
@@ -1121,7 +1121,7 @@
   margin-right: 10px;
   padding: 8px 10px;
   color: var(--assignment-primary);
-  background: #eef2ff;
+  background: #eff6ff;
   border: 0;
   border-radius: 7px;
   font-size: 10px;
@@ -1516,3 +1516,115 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* V2: visual mengikuti workspace Jadwal, Presensi, Nilai & Bahan Ajar */
+.siswa-assignments{border-radius:0;padding:24px;background:transparent;max-width:1250px;margin-inline:auto}
+.siswa-assignments__header h1{font-size:24px;font-weight:700;letter-spacing:-.5px}
+.siswa-assignments__header{margin-bottom:18px}
+.siswa-assignments__context{margin:0 0 16px;padding:15px 18px;border:1px solid #d6e2f0;border-radius:10px;background:#fff;color:#27466b;font-size:13px;font-weight:600}
+.siswa-assignments__loading{margin:8px 0;padding:9px 12px;color:#2563eb;background:#eff6ff;border-radius:8px;font-size:12px}
+.siswa-assignment-summary__card{box-shadow:none!important;border-radius:10px!important}
+@media(max-width:640px){.siswa-assignments{padding:16px}.siswa-assignments__header{gap:12px;flex-wrap:wrap}}
+
+.siswa-assignment-card__status--late-submitted,.siswa-assignment-card__status--overdue{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+.siswa-assignment-card__status--overdue{background:#fff1f2;color:#be123c;border-color:#fecdd3}
+
+/* ==================================================================
+   V2.1 — Clean academic cards, aligned with Jadwal/Presensi/Nilai
+   No large rounded hero, accent strips or decorative gradients.
+   ================================================================== */
+.siswa-assignments {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 22px 48px;
+  background: transparent;
+  border-radius: 0;
+}
+.siswa-assignments__header { margin-bottom: 18px; align-items: center; }
+.siswa-assignments__eyebrow { font-size: 10px; letter-spacing: .09em; margin-bottom: 4px; font-weight: 750; }
+.siswa-assignments__header h1 { font-size: clamp(22px,2vw,26px); letter-spacing: -.035em; font-weight: 750; }
+.siswa-assignments__subtitle { margin-top: 3px; font-size: 12px; line-height: 1.6; }
+.siswa-assignments__refresh { min-height: 37px; border-radius: 7px; box-shadow: none; font-size: 12px; }
+.siswa-assignments__context { margin: 0 0 12px; padding: 14px 16px; background: white; border: 1px solid #cfdbeb; border-radius: 9px; font-weight: 600; color: #1b3555; }
+.siswa-assignment-summary { gap: 10px; margin-bottom: 17px; }
+.siswa-assignment-summary__card { min-height: 83px; border: 1px solid #d3e0ed; border-radius: 9px; padding: 13px 15px; box-shadow: none; }
+.siswa-assignment-summary__card::before { display:none; }
+.siswa-assignment-summary__card > span { font-size: 10px; color: #5b7492; }
+.siswa-assignment-summary__card > strong { font-size: 23px; margin-top: 3px; }
+.siswa-assignment-summary__card > small { margin-top: 3px; color: #7b91a9; font-size: 10px; }
+.siswa-assignments__toolbar { border: 1px solid #d3e0ed; border-radius: 9px; box-shadow: none; margin-bottom: 22px; }
+.siswa-assignments__section-head {display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:6px 0 12px;}
+.siswa-assignments__section-head h2 { margin: 0; font-size: 16px; color: #112b48; font-weight: 750; }
+.siswa-assignments__section-head p { margin: 3px 0 0; font-size: 11px; color: #6a85a5; }
+.siswa-assignments__section-head > span { color:#607a99;font-size:11px;white-space:nowrap; }
+.siswa-assignment-groups { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; align-items:start; }
+.siswa-assignment-group { padding: 15px 17px; border: 1px solid #d3e0ed; border-radius: 9px; box-shadow:none; }
+.siswa-assignment-group:hover { border-color: #a6c5f6; box-shadow: 0 2px 9px rgba(24,55,99,.045); }
+.siswa-assignment-group.is-open { grid-column: 1 / -1; }
+.siswa-assignment-group__icon { flex-basis:34px; width:34px;height:34px;font-size:18px; border:0;border-radius:8px; }
+.siswa-assignment-group__eyebrow { display:none; }
+.siswa-assignment-group__header h2 {font-size:14px;font-weight:750;color:#0f2741;}
+.siswa-assignment-group__count {background:transparent;border:0;padding:0;color:#6a85a5;font-size:11px;font-weight:500;}
+.siswa-assignment-group__chevron {width:auto;flex-basis:auto;min-width:89px;background:transparent;border:0;font-size:11px;color:#2563eb;font-weight:700;white-space:nowrap;}
+.siswa-assignments__list { padding-top:14px;margin-top:16px; border-top:1px solid #e1eaf4; }
+.siswa-assignment-card { border-radius:9px;box-shadow:none;padding:17px; }
+.siswa-assignments__empty { background:#fff; border:1px solid #d3e0ed;border-radius:9px; }
+@media (max-width: 800px) {
+  .siswa-assignment-groups {grid-template-columns:1fr;}
+  .siswa-assignments {padding:20px 12px 30px;}
+  .siswa-assignment-summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .siswa-assignment-group.is-open {grid-column:auto;}
+}
+@media (max-width: 520px) {
+  .siswa-assignment-group__header { flex-wrap: wrap; }
+  .siswa-assignment-group__count {order:3;}
+  .siswa-assignment-group__chevron { margin-left:auto; }
+  .siswa-assignments__section-head {align-items:flex-start;}
+}
+
+/* V2.2 - Focused upload & submission UX, no impact on page layout */
+.siswa-assignment-modal { background: rgba(15, 35, 60, .55); backdrop-filter: blur(3px); }
+.siswa-assignment-modal__panel { max-width: 590px; padding: 0; border-radius: 14px; box-shadow: 0 22px 65px rgba(18,41,70,.22); }
+.siswa-assignment-modal__header { padding: 22px 24px 17px; }
+.siswa-assignment-modal__header h2 { font-size: 21px; letter-spacing: -.025em; }
+.siswa-assignment-modal form { padding: 0 24px 24px; gap: 18px; }
+.siswa-assignment-modal__task { margin: 18px 24px; display:flex; flex-direction:column; gap:5px; padding:12px 14px; background:#f4f8fd; border-color:#dce7f4; }
+.siswa-assignment-modal__task > span { font-size: 9px; font-weight:750; letter-spacing:.07em; color:#617d9d; }
+.siswa-assignment-modal__task > strong { font-size:13px; color:#183553; }
+.siswa-assignment-modal__task > small { font-weight:500; color:#597493; font-size:11px; }
+.siswa-assignment-modal__field > span small { color:#7890aa; font-weight:500; }
+.siswa-assignment-modal__field textarea { min-height: 112px; border-color:#d3e0ed; line-height:1.6; }
+.siswa-assignment-upload { border:1px solid #d6e2ef; padding:15px; border-radius:11px; background:#fbfdff; display:grid; gap:12px; min-width:0; }
+.siswa-assignment-upload__heading { display:flex; justify-content:space-between; align-items:start; gap:12px; }
+.siswa-assignment-upload__heading strong { font-size:12px; color:#1a3553; }
+.siswa-assignment-upload__heading p { margin:5px 0 0; font-size:11px; color:#647f9f; line-height:1.55; }
+.siswa-assignment-upload__heading > span { font-size:10px; color:#587493; white-space:nowrap; padding:5px 8px; border-radius:6px; background:#edf3fa; }
+.siswa-assignment-upload__input { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; pointer-events:none; }
+.siswa-assignment-upload__pick { min-height:68px; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; border:1px dashed #9db9df; border-radius:9px; background:#f1f6fe; color:#245fba; font-size:12px; font-weight:750; cursor:pointer; }
+.siswa-assignment-upload__pick:hover:not(:disabled) { background:#eaf2ff; border-color:#487fd0; }
+.siswa-assignment-upload__pick:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+.siswa-assignment-upload__pick:disabled {opacity:.55;cursor:not-allowed;}
+.siswa-assignment-upload__plus { width:26px; height:26px; display:grid; place-items:center; background:#fff; border:1px solid #d6e5fa; border-radius:7px; font-size:19px; }
+.siswa-assignment-upload > small { color:#7389a3; font-size:10px; line-height:1.6; }
+.siswa-assignment-upload__queue { border-top:1px solid #e3eaf3; padding-top:12px; }
+.siswa-assignment-upload__queue-header { display:flex; justify-content:space-between; color:#344e6a; font-size:11px; padding-bottom:10px; }
+.siswa-assignment-upload__queue-header span { color:#6785a5; }
+.siswa-assignment-upload__queue ul {list-style:none;margin:0;padding:0;display:grid;gap:7px;}
+.siswa-assignment-upload__queue li {display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border:1px solid #e1eaf4;border-radius:8px;background:#fff;}
+.siswa-assignment-upload__file-icon { flex:none;width:29px;height:29px;border-radius:7px;background:#eaf2ff;color:#2563eb;display:grid;place-items:center;font-weight:800;}
+.siswa-assignment-upload__filename { flex:1;min-width:0;display:grid;gap:3px; }
+.siswa-assignment-upload__filename strong { color:#23415f;font-weight:650;font-size:11px;overflow-wrap:anywhere; }
+.siswa-assignment-upload__filename small {color:#7990a8;font-size:10px;}
+.siswa-assignment-upload__queue li button {flex:none;border:1px solid #e6edf5;border-radius:6px;background:#fff;color:#647f9e;padding:7px 9px;font-size:10px;cursor:pointer;}
+.siswa-assignment-upload__queue li button:hover:not(:disabled) {background:#fff3f3;color:#bb3143;border-color:#ffd4d9;}
+.siswa-assignment-modal__error {display:flex;align-items:center;gap:8px;padding:12px 13px;border:1px solid #fecdd3;background:#fff4f5;color:#9f2033;border-radius:9px;font-size:12px;line-height:1.6;}
+.siswa-assignment-modal__error > span { flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#ffe1e5;font-weight:800; }
+.siswa-assignment-modal__actions {padding-top:15px;border-top:1px solid #e7edf5;}
+.siswa-assignment-modal__actions button {min-height:42px;font-size:12px;}
+.siswa-assignment-toast {position:fixed;z-index:11000;right:22px;top:90px;max-width:min(390px,calc(100vw - 32px));width:100%;display:flex;align-items:start;gap:12px;padding:14px;background:#fff;border:1px solid #cfe6dc;border-left:4px solid #18a06c;border-radius:10px;box-shadow:0 12px 35px rgba(21,53,84,.15);}
+.siswa-assignment-toast__icon {width:28px;height:28px;border-radius:50%;background:#e8f7ef;color:#117a4c;display:grid;place-items:center;flex:none;font-weight:800;}
+.siswa-assignment-toast__copy {display:grid;gap:3px;flex:1;min-width:0;}
+.siswa-assignment-toast__copy strong {color:#123f32;font-size:12px;}
+.siswa-assignment-toast__copy span {color:#516f65;font-size:11px;line-height:1.5;}
+.siswa-assignment-toast > button {border:0;background:transparent;color:#657d75;font-size:21px;line-height:1;cursor:pointer;padding:2px 5px;}
+@media(max-width:640px){.siswa-assignment-modal{padding:10px;align-items:center}.siswa-assignment-modal__panel{max-height:calc(100dvh - 20px);border-radius:12px}.siswa-assignment-modal__header{padding:18px 16px 14px}.siswa-assignment-modal__task{margin:13px 16px}.siswa-assignment-modal form{padding:0 16px 18px}.siswa-assignment-upload__heading{flex-wrap:wrap}.siswa-assignment-toast{left:12px;right:12px;top:72px;width:auto;max-width:none}}

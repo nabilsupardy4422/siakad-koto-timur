@@ -18,9 +18,20 @@ function buildQuery(params = {}) {
 }
 
 export const attendanceApi = {
+  // Presensi Siswa V2: server-scoped, read-only.
+  getStudentWorkspace(params = {}) {
+    return apiClient.get(`/attendance/student-workspace${buildQuery(params)}`)
+  },
+
   // Mengambil daftar presensi dengan filter dan pagination.
   getAll(params = {}) {
     return apiClient.get(`/attendance${buildQuery(params)}`)
+  },
+
+  // Daftar anggota kelas pada tanggal presensi,
+  // khusus jadwal mengajar sendiri.
+  getRoster(params = {}) {
+    return apiClient.get(`/attendance/roster${buildQuery(params)}`)
   },
 
   // Mengambil rekap presensi.

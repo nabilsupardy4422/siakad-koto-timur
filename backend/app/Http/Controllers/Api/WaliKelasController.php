@@ -9,6 +9,7 @@ use App\Http\Resources\WaliKelasResource;
 use App\Models\User;
 use App\Models\WaliKelas;
 use App\Support\ApiResponse;
+use App\Support\HomeroomReadAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,16 @@ class WaliKelasController extends Controller
             $query,
             $user
         );
+
+        if ($request->input('scope') === 'homeroom') {
+            $year = HomeroomReadAccess::activeYear($user);
+            if ($year === null) {
+                $query->whereRaw('1 = 0');
+            } else {
+                HomeroomReadAccess::effective($query, (int) $user->guru->id, $year);
+                $query->whereHas('kelas', fn (Builder $class) => $class->where('tahun_akademik_id', $year));
+            }
+        }
 
         if ($request->filled('academic_year_id')) {
             $query->where(
