@@ -1,4 +1,3 @@
-
 import { apiClient } from './apiClient'
 
 export const classMemberApi = {
@@ -21,8 +20,32 @@ export const classMemberApi = {
   },
 
   endMembership(classId, studentId) {
-    return apiClient.delete(
-      `/classes/${classId}/students/${studentId}`,
+    return apiClient.delete(`/classes/${classId}/students/${studentId}`)
+  },
+
+  downloadTemplate(classId) {
+    return apiClient.download(
+      `/classes/${classId}/students/template`,
+    )
+  },
+
+  previewImport(classId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return apiClient.postForm(
+      `/classes/${classId}/students/import/preview`,
+      formData,
+    )
+  },
+
+  importExcel(classId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    return apiClient.postForm(
+      `/classes/${classId}/students/import`,
+      formData,
     )
   },
 }

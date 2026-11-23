@@ -5,9 +5,9 @@ import {
     useMemo,
     useState,
   } from 'react'
-  
+
   import { useAuth } from '../../context/useAuth'
-  
+
   import PageHeader from '../../components/ui/PageHeader'
   import Card from '../../components/ui/Card'
   import Table from '../../components/ui/Table'
@@ -19,14 +19,14 @@ import {
   import ErrorState from '../../components/ui/ErrorState'
   import LoadingState from '../../components/ui/LoadingState'
   import Modal from '../../components/ui/Modal'
-  
+
   import { classApi } from '../../services/classApi'
   import { classMemberApi } from '../../services/classMemberApi'
   import { studentApi } from '../../services/studentApi'
   import { academicYearApi } from '../../services/academicYearApi'
-  
+
   import './ClassMembersPage.css'
-  
+
   const columns = [
     { key: 'identity', label: 'Identitas Siswa' },
     { key: 'nisn', label: 'NISN' },
@@ -34,52 +34,53 @@ import {
     { key: 'tanggal_mulai', label: 'Tanggal Mulai' },
     { key: 'actions', label: 'Aksi' },
   ]
-  
+
   function yearLabel(year) {
     return `${year.tahun_mulai}/${year.tahun_selesai} - ${year.semester}`
   }
-  
+
   function formatDate(value) {
     if (!value) return '-'
-  
+
     const parts = String(value).slice(0, 10).split('-')
-  
+
     if (parts.length !== 3) return value
-  
+
     return `${parts[2]}-${parts[1]}-${parts[0]}`
   }
-  
+
   function studentName(student) {
     return student?.nama_lengkap || student?.user?.name || '-'
   }
-  
+
   function errorMessage(error, fallback) {
     return (
       error?.response?.data?.message ||
+      error?.payload?.message ||
       error?.data?.message ||
       error?.message ||
       fallback
     )
   }
-  
+
   function getRoleCode(role) {
     return typeof role === 'string'
       ? role
       : role?.code || role?.name || null
   }
-  
+
   function getSelectValue(value) {
     if (value?.target) {
       return String(value.target.value ?? '')
     }
-  
+
     if (value && typeof value === 'object' && 'value' in value) {
       return String(value.value ?? '')
     }
-  
+
     return String(value ?? '')
   }
-  
+
   export default function ClassMembersPage() {
     const { role } = useAuth()
     if (getRoleCode(role) === 'GURU') return <HomeroomClassMembers />
@@ -88,11 +89,11 @@ import {
 
   function ExistingClassMembersPage() {
     const { role, assignments = [] } = useAuth()
-  
+
     const roleCode = getRoleCode(role)
     const isTU = roleCode === 'TU'
     const isGuru = roleCode === 'GURU'
-  
+
     const homeroomAssignments = useMemo(
       () =>
         assignments.filter(
@@ -100,7 +101,7 @@ import {
         ),
       [assignments],
     )
-  
+
     const assignedClassIds = useMemo(
       () =>
         homeroomAssignments
@@ -108,19 +109,22 @@ import {
           .filter((id) => id !== 'undefined' && id !== 'null'),
       [homeroomAssignments],
     )
-  
+
     const [years, setYears] = useState([])
     const [classes, setClasses] = useState([])
     const [students, setStudents] = useState([])
     const [members, setMembers] = useState([])
-  
+    const [studentSearch, setStudentSearch] = useState('')
+    const [searchingStudents, setSearchingStudents] = useState(false)
+  const [studentSearchError, setStudentSearchError] = useState('')
+
     const [yearId, setYearId] = useState('')
     const [classId, setClassId] = useState('')
     const [studentId, setStudentId] = useState('')
     const [startDate, setStartDate] = useState(
       () => new Date().toISOString().slice(0, 10),
     )
-  
+
     const [loadingOptions, setLoadingOptions] = useState(true)
     const [loadingMembers, setLoadingMembers] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -131,10 +135,18 @@ import {
     const [formError, setFormError] = useState(null)
     const [successMessage, setSuccessMessage] = useState('')
     const [modalOpen, setModalOpen] = useState(false)
-  
+
+    // Import Excel
+const [importModalOpen, setImportModalOpen] = useState(false)
+const [importFile, setImportFile] = useState(null)
+const [importPreview, setImportPreview] = useState(null)
+const [importResult, setImportResult] = useState(null)
+const [importLoading, setImportLoading] = useState(false)
+const [importError, setImportError] = useState('')
+
     const canManage =
       isTU || (isGuru && homeroomAssignments.length > 0)
-  
+
     const selectedClass = useMemo(
       () =>
         classes.find(
@@ -142,7 +154,7 @@ import {
         ) || null,
       [classes, classId],
     )
-  
+
     const selectedYear = useMemo(
       () =>
         years.find(
@@ -152,76 +164,68 @@ import {
         ) || null,
       [years, selectedClass],
     )
-  
+
     const loadOptions = useCallback(async () => {
-      setLoadingOptions(true)
-      setListError(null)
-  
-      try {
-        const [yearResponse, classResponse, studentResponse] =
-          await Promise.all([
-            academicYearApi.getAll({ per_page: 100 }),
-            classApi.getAll({ per_page: 100 }),
-            studentApi.getAll({ page: 1, per_page: 100 }),
-          ])
-  
-        const allYears = Array.isArray(yearResponse?.data)
-          ? yearResponse.data
-          : []
-  
-        let allClasses = Array.isArray(classResponse?.data)
-          ? classResponse.data
-          : []
-  
-        const allStudents = Array.isArray(studentResponse?.data)
-          ? studentResponse.data
-          : []
-  
-        if (isGuru) {
-          allClasses = allClasses.filter((item) =>
-            assignedClassIds.includes(String(item.id)),
-          )
-        }
-  
-        setYears(allYears)
-        setClasses(allClasses)
-        setStudents(allStudents)
-  
-        if (allClasses.length > 0) {
-          const currentClass = allClasses.find(
-            (item) => String(item.id) === String(classId),
-          )
-  
-          const nextClass = currentClass || allClasses[0]
-  
-          setClassId(String(nextClass.id))
-          setYearId(String(nextClass.tahun_akademik_id))
-        } else {
-          setClassId('')
-          setYearId('')
-        }
-      } catch (error) {
-        setListError(error)
-      } finally {
-        setLoadingOptions(false)
-      }
-    }, [isGuru, assignedClassIds, classId])
-  
+  setLoadingOptions(true)
+  setListError(null)
+
+  try {
+    const [yearResponse, classResponse] = await Promise.all([
+      academicYearApi.getAll({ per_page: 100 }),
+      classApi.getAll({ per_page: 100 }),
+    ])
+
+    const allYears = Array.isArray(yearResponse?.data)
+      ? yearResponse.data
+      : []
+
+    let allClasses = Array.isArray(classResponse?.data)
+      ? classResponse.data
+      : []
+
+    if (isGuru) {
+      allClasses = allClasses.filter((item) =>
+        assignedClassIds.includes(String(item.id)),
+      )
+    }
+
+    setYears(allYears)
+    setClasses(allClasses)
+
+    const nextClass =
+      allClasses.find(
+        (item) => String(item.id) === String(classId),
+      ) || allClasses[0]
+
+    if (nextClass) {
+      setClassId(String(nextClass.id))
+      setYearId(String(nextClass.tahun_akademik_id))
+    } else {
+      setClassId('')
+      setYearId('')
+    }
+  } catch (error) {
+    setListError(error)
+  } finally {
+    setLoadingOptions(false)
+  }
+}, [isGuru, assignedClassIds])
+
     const loadMembers = useCallback(async () => {
       if (!classId || !/^\d+$/.test(String(classId))) {
         setMembers([])
         setLoadingMembers(false)
         return
       }
-  
+
       setLoadingMembers(true)
       setListError(null)
-  
+
       try {
         const response = await classMemberApi.getAll(classId, {
           per_page: 100,
         })
-  
+
         setMembers(
           Array.isArray(response?.data) ? response.data : [],
         )
@@ -232,15 +236,59 @@ import {
         setLoadingMembers(false)
       }
     }, [classId])
-  
+
     useEffect(() => {
       loadOptions()
     }, [loadOptions])
-  
+
     useEffect(() => {
-      loadMembers()
-    }, [loadMembers])
-  
+  const keyword = studentSearch.trim()
+
+  if (!modalOpen || keyword.length < 2 || studentId) {
+    setStudents([])
+    setStudentSearchError('')
+    setSearchingStudents(false)
+    return
+  }
+
+  let cancelled = false
+
+  const timer = setTimeout(async () => {
+    setSearchingStudents(true)
+    setStudentSearchError('')
+
+    try {
+      const response = await studentApi.getAll({
+        search: keyword,
+        page: 1,
+        page_size: 20,
+      })
+
+      if (!cancelled) {
+        setStudents(
+          Array.isArray(response?.data) ? response.data : [],
+        )
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setStudents([])
+        setStudentSearchError(
+          errorMessage(error, 'Pencarian siswa gagal.'),
+        )
+      }
+    } finally {
+      if (!cancelled) {
+        setSearchingStudents(false)
+      }
+    }
+  }, 300)
+
+  return () => {
+    cancelled = true
+    clearTimeout(timer)
+  }
+}, [studentSearch, modalOpen, studentId])
+
     const visibleClasses = useMemo(
       () =>
         classes.filter(
@@ -250,12 +298,12 @@ import {
         ),
       [classes, yearId],
     )
-  
+
     const memberIds = useMemo(
       () => new Set(members.map((member) => String(member.siswa_id))),
       [members],
     )
-  
+
     const availableStudents = useMemo(
       () =>
         students.filter(
@@ -263,7 +311,7 @@ import {
         ),
       [students, memberIds],
     )
-  
+
     const yearOptions = useMemo(
       () =>
         years.map((year) => ({
@@ -272,7 +320,7 @@ import {
         })),
       [years],
     )
-  
+
     const classOptions = useMemo(
       () =>
         visibleClasses.map((item) => ({
@@ -281,61 +329,56 @@ import {
         })),
       [visibleClasses],
     )
-  
-    const studentOptions = useMemo(
-      () =>
-        availableStudents.map((student) => ({
-          value: String(student.id),
-          label: `${studentName(student)} (${student.nisn || student.nis || student.id})`,
-        })),
-      [availableStudents],
-    )
-  
+
+
     function handleYearChange(rawValue) {
       const value = getSelectValue(rawValue)
-  
+
       setYearId(value)
-      setSuccessMessage('')
-      setListError(null)
-  
+  setSuccessMessage('')
+  setListError(null)
+  setStudentId('')
+  setStudentSearch('')
+  setStudents([])
+
       const nextClass = classes.find(
         (item) =>
           String(item.tahun_akademik_id) === value &&
           (!isGuru || assignedClassIds.includes(String(item.id))),
       )
-  
+
       setClassId(nextClass ? String(nextClass.id) : '')
     }
-  
+
     function handleClassChange(rawValue) {
       const value = getSelectValue(rawValue)
-  
+
       if (value && !/^\d+$/.test(value)) {
         setListError({
           message: 'Pilihan kelas tidak valid. Pilih kelas dari daftar.',
         })
         return
       }
-  
+
       setClassId(value)
       setSuccessMessage('')
       setListError(null)
-  
+
       const nextClass = classes.find(
         (item) => String(item.id) === value,
       )
-  
+
       if (nextClass) {
         setYearId(String(nextClass.tahun_akademik_id))
       }
     }
-  
+
     async function handleAddMember(event) {
       event.preventDefault()
-  
+
       setFormError(null)
       setSuccessMessage('')
-  
+
       if (
         !classId ||
         !/^\d+$/.test(String(classId)) ||
@@ -348,19 +391,21 @@ import {
         })
         return
       }
-  
+
       setSaving(true)
-  
+
       try {
         await classMemberApi.create(Number(classId), {
           siswa_id: Number(studentId),
           tanggal_mulai: startDate,
         })
-  
+
         setModalOpen(false)
         setStudentId('')
+        setStudentSearch('')
+        setStudents([])
         setSuccessMessage('Siswa berhasil ditambahkan ke kelas.')
-  
+
         await loadMembers()
       } catch (error) {
         setFormError(error)
@@ -368,7 +413,7 @@ import {
         setSaving(false)
       }
     }
-  
+
     function openEndMembershipModal(member) {
       setSuccessMessage('')
       setFormError(null)
@@ -405,7 +450,93 @@ import {
         setEndingId(null)
       }
     }
-  
+  function openImportModal() {
+    setImportFile(null)
+    setImportPreview(null)
+    setImportResult(null)
+    setImportError('')
+    setImportModalOpen(true)
+  }
+
+  async function handleDownloadTemplate() {
+    try {
+      setImportError('')
+      const blob = await classMemberApi.downloadTemplate(classId)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+
+      link.href = url
+      link.download = 'template_anggota_kelas.xlsx'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      setImportError(
+        errorMessage(error, 'Gagal mengunduh template Excel.'),
+      )
+      setImportModalOpen(true)
+    }
+  }
+
+  async function handlePreviewImport() {
+    if (!importFile || !classId || importLoading) return
+
+    setImportLoading(true)
+    setImportError('')
+    setImportPreview(null)
+    setImportResult(null)
+
+    try {
+      const response = await classMemberApi.previewImport(
+        classId,
+        importFile,
+      )
+      setImportPreview(response?.data || null)
+    } catch (error) {
+      setImportError(
+        errorMessage(error, 'Gagal memeriksa file Excel.'),
+      )
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
+  async function handleImportExcel() {
+    if (!importFile || !importPreview || importLoading) return
+
+    if ((importPreview.summary?.valid_rows || 0) < 1) {
+      setImportError('Tidak ada data valid untuk diimpor.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Import ${importPreview.summary.valid_rows} siswa valid ke kelas ${selectedClass?.nama || ''}?`,
+    )
+    if (!confirmed) return
+
+    setImportLoading(true)
+    setImportError('')
+
+    try {
+      const response = await classMemberApi.importExcel(
+        classId,
+        importFile,
+      )
+      setImportResult(response?.data || null)
+      setImportPreview(null)
+      setImportFile(null)
+      await loadMembers()
+      setSuccessMessage('Proses import Anggota Kelas selesai.')
+    } catch (error) {
+      setImportError(
+        errorMessage(error, 'Import Excel gagal dilakukan.'),
+      )
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
     if (!isTU && !isGuru) {
       return (
         <section className="class-members-page">
@@ -413,12 +544,12 @@ import {
             title="Anggota Kelas"
             description="Kelola keanggotaan siswa dalam kelas."
           />
-  
+
           <ErrorState message="Kamu tidak memiliki akses ke halaman ini." />
         </section>
       )
     }
-  
+
     return (
       <section className="class-members-page">
         <PageHeader
@@ -426,20 +557,42 @@ import {
           description="Kelola penempatan siswa pada rombongan belajar dan tahun akademik."
           actions={
             canManage ? (
-              <Button
-                disabled={!classId || loadingOptions}
-                onClick={() => {
-                  setStudentId('')
-                  setFormError(null)
-                  setModalOpen(true)
-                }}
-              >
-                + Tambah Anggota
-              </Button>
+              <div className="class-members-page__header-actions">
+                <Button
+                  type="button"
+                  disabled={!classId || loadingOptions}
+                  onClick={handleDownloadTemplate}
+                >
+                  Download Template
+                </Button>
+
+                <Button
+                  type="button"
+                  disabled={!classId || loadingOptions}
+                  onClick={openImportModal}
+                >
+                  Import Excel
+                </Button>
+
+                <Button
+                  type="button"
+                  disabled={!classId || loadingOptions}
+                  onClick={() => {
+                    setStudentId('')
+                    setStudentSearch('')
+                    setStudents([])
+                    setStudentSearchError('')
+                    setFormError(null)
+                    setModalOpen(true)
+                  }}
+                >
+                  + Tambah Anggota
+                </Button>
+              </div>
             ) : null
           }
         />
-  
+
         {successMessage && (
           <div
             className="class-members-page__success"
@@ -448,7 +601,7 @@ import {
             {successMessage}
           </div>
         )}
-  
+
         <Card className="class-members-page__card">
           <div className="class-members-page__filters">
             <Select
@@ -461,7 +614,7 @@ import {
               disabled={loadingOptions || isGuru}
               onChange={handleYearChange}
             />
-  
+
             <Select
               id="member-class"
               name="class"
@@ -473,11 +626,11 @@ import {
               onChange={handleClassChange}
             />
           </div>
-  
+
           {loadingOptions && (
             <LoadingState message="Memuat data kelas dan siswa..." />
           )}
-  
+
           {!loadingOptions && listError && (
             <ErrorState
               message={errorMessage(
@@ -486,35 +639,39 @@ import {
               )}
             />
           )}
-  
+
           {!loadingOptions && !listError && !classId && (
             <EmptyState
               title="Belum ada kelas yang tersedia"
-              description="Pilih tahun akademik yang memiliki kelas atau pastikan akun Guru memiliki penugasan Wali Kelas."
+              description={
+                isTU
+                    ? 'Belum ada kelas pada tahun akademik ini. Silakan tambahkan kelas terlebih dahulu melalui menu Data Kelas.'
+                    : 'Belum ada kelas yang ditugaskan kepada akun Guru ini pada tahun akademik yang dipilih. Silakan hubungi Tata Usaha.'
+                }
             />
           )}
-  
+
           {!loadingOptions && !listError && classId && (
             <>
               <div className="class-members-page__list-heading">
                 <div>
                   <h2>{selectedClass?.nama || 'Anggota Kelas'}</h2>
-  
+
                   <p>
                     Tingkat {selectedClass?.tingkat || '-'} ·{' '}
                     {selectedYear ? yearLabel(selectedYear) : '-'}
                   </p>
                 </div>
-  
+
                 <Badge variant="neutral">
                   {members.length} anggota aktif
                 </Badge>
               </div>
-  
+
               {loadingMembers && (
                 <LoadingState message="Memuat anggota kelas..." />
               )}
-  
+
               {!loadingMembers &&
                 !listError &&
                 members.length === 0 && (
@@ -523,7 +680,7 @@ import {
                     description="Tambahkan siswa untuk mulai mengisi kelas ini."
                   />
                 )}
-  
+
               {!loadingMembers &&
                 !listError &&
                 members.length > 0 && (
@@ -540,7 +697,7 @@ import {
                             username &&
                             username !== member.siswa?.nama_lengkap &&
                             username !== name
-  
+
                           return (
                             <div className="class-members-page__identity">
                               <strong>{name}</strong>
@@ -548,16 +705,16 @@ import {
                             </div>
                           )
                         }
-  
+
                         case 'nisn':
                           return member.siswa?.nisn || '-'
-  
+
                         case 'nis':
                           return member.siswa?.nis || '-'
-  
+
                         case 'tanggal_mulai':
                           return formatDate(member.tanggal_mulai)
-  
+
                         case 'actions':
                           return (
                             <Button
@@ -574,7 +731,7 @@ import {
                               Akhiri Keanggotaan
                             </Button>
                           )
-  
+
                         default:
                           return '-'
                       }
@@ -584,7 +741,7 @@ import {
             </>
           )}
         </Card>
-  
+
         <Modal
           open={modalOpen}
           title="Tambah Anggota Kelas"
@@ -602,7 +759,7 @@ import {
               >
                 Batal
               </Button>
-  
+
               <Button
                 type="submit"
                 form="class-member-form"
@@ -623,25 +780,100 @@ import {
               />
             </div>
           )}
-  
+
           <form
             id="class-member-form"
             onSubmit={handleAddMember}
           >
-            <Select
-              id="member-student"
-              name="siswa_id"
-              label="Siswa"
-              value={studentId}
-              options={studentOptions}
-              placeholder="Pilih siswa"
-              required
-              disabled={saving}
-              onChange={(value) => {
-                setStudentId(getSelectValue(value))
-              }}
-            />
-  
+            <Input
+  id="member-student-search"
+  name="student_search"
+  label="Cari Siswa"
+  placeholder="Ketik nama, NISN, atau NIS siswa..."
+  value={studentSearch}
+  disabled={saving || Boolean(studentId)}
+  onChange={(value) => {
+    setStudentSearch(getSelectValue(value))
+    setStudentId('')
+  }}
+/>
+
+{studentId ? (
+  <div className="class-members-page__selected-student">
+    <strong>
+      {studentName(
+        students.find(
+          (student) => String(student.id) === String(studentId),
+        ),
+      )}
+    </strong>
+
+    <span>Siswa berhasil dipilih.</span>
+
+    <Button
+      type="button"
+      disabled={saving}
+      onClick={() => {
+        setStudentId('')
+        setStudentSearch('')
+      }}
+    >
+      Ganti Siswa
+    </Button>
+  </div>
+) : (
+  <div className="class-members-page__search-results">
+    {studentSearch.trim().length < 2 && (
+      <p className="class-members-page__hint">
+        Ketik minimal 2 karakter untuk mencari siswa.
+      </p>
+    )}
+
+    {searchingStudents && (
+      <LoadingState message="Mencari siswa..." />
+    )}
+
+    {studentSearchError && (
+      <ErrorState message={studentSearchError} />
+    )}
+
+    {!searchingStudents &&
+      !studentSearchError &&
+      studentSearch.trim().length >= 2 &&
+      availableStudents.length === 0 && (
+        <p className="class-members-page__hint">
+          Tidak ditemukan siswa yang tersedia.
+        </p>
+      )}
+
+    {!searchingStudents &&
+      availableStudents.map((student) => (
+        <div
+          key={student.id}
+          className="class-members-page__search-item"
+        >
+          <div className="class-members-page__identity">
+            <strong>{studentName(student)}</strong>
+
+            <span>NISN: {student.nisn || '-'}</span>
+
+            <span>NIS: {student.nis || '-'}</span>
+          </div>
+
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setStudentId(String(student.id))
+            }}
+          >
+            Pilih
+          </Button>
+        </div>
+      ))}
+  </div>
+)}
+
             <Input
               id="member-start-date"
               name="tanggal_mulai"
@@ -654,15 +886,232 @@ import {
                 setStartDate(getSelectValue(value))
               }}
             />
-  
-            {studentOptions.length === 0 && (
-              <p className="class-members-page__hint">
-                Tidak ada siswa yang tersedia pada daftar yang dimuat.
-                Periksa apakah siswa sudah terdaftar atau sudah menjadi
-                anggota kelas.
-              </p>
-            )}
+
+
           </form>
+        </Modal>
+
+        <Modal
+          open={importModalOpen}
+          title="Import Excel Anggota Kelas"
+          description="Pilih file template yang sudah diisi, lalu periksa data sebelum diimpor."
+          onClose={() => {
+            if (!importLoading) setImportModalOpen(false)
+          }}
+          size="large"
+          footer={
+            <>
+              <Button
+                type="button"
+                disabled={importLoading}
+                onClick={() => setImportModalOpen(false)}
+              >
+                Tutup
+              </Button>
+
+              {!importResult && (
+                <>
+                  <Button
+                    type="button"
+                    disabled={!importFile || importLoading}
+                    loading={importLoading && !importPreview}
+                    onClick={handlePreviewImport}
+                  >
+                    Preview Excel
+                  </Button>
+
+                  {importPreview && (
+                    <Button
+                      type="button"
+                      disabled={
+                        importLoading ||
+                        (importPreview.summary?.valid_rows || 0) === 0
+                      }
+                      loading={importLoading}
+                      onClick={handleImportExcel}
+                    >
+                      Import Data Valid
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
+          }
+        >
+          <div className="class-members-page__import-content">
+            {importError && (
+              <div className="class-members-page__import-error" role="alert">
+                {importError}
+              </div>
+            )}
+
+            {!importResult && (
+              <>
+                <div className="class-members-page__upload">
+                  <label htmlFor="member-excel-file">
+                    File Excel (.xlsx)
+                  </label>
+                  <input
+                    id="member-excel-file"
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    disabled={importLoading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null
+                      setImportFile(file)
+                      setImportPreview(null)
+                      setImportError('')
+
+                      if (file && !file.name.toLowerCase().endsWith('.xlsx')) {
+                        setImportFile(null)
+                        setImportError('File harus berformat .xlsx.')
+                      } else if (file && file.size > 2 * 1024 * 1024) {
+                        setImportFile(null)
+                        setImportError('Ukuran file maksimal 2 MB.')
+                      }
+                    }}
+                  />
+                  <p>
+                    Maksimal 2 MB dan 1.000 baris data. Gunakan template resmi
+                    Anggota Kelas.
+                  </p>
+                  {importFile && <strong>{importFile.name}</strong>}
+                </div>
+
+                {importLoading && (
+                  <LoadingState message="Memproses file Excel..." />
+                )}
+
+                {importPreview && (
+                  <>
+                    <h3>Periksa hasil validasi sebelum mengimpor data.</h3>
+
+<div className="class-members-page__import-summary">
+  <div className="class-members-page__summary-item">
+    <span>Total Data</span>
+    <strong>
+      {importPreview.summary?.total_rows ?? 0}
+    </strong>
+  </div>
+
+  <div className="class-members-page__summary-item class-members-page__summary-item--valid">
+    <span>Data Valid</span>
+    <strong>
+      {importPreview.summary?.valid_rows ?? 0}
+    </strong>
+  </div>
+
+  <div className="class-members-page__summary-item class-members-page__summary-item--invalid">
+    <span>Data Tidak Valid</span>
+    <strong>
+      {Math.max(
+        0,
+        (importPreview.summary?.total_rows ?? 0) -
+        (importPreview.summary?.valid_rows ?? 0)
+      )}
+    </strong>
+  </div>
+</div>
+
+
+                    <h3>Preview Data</h3>
+
+<div className="class-members-page__preview-table-wrapper">
+  <table className="class-members-page__preview-table">
+    <thead>
+      <tr>
+        <th>Baris</th>
+        <th>NISN</th>
+        <th>NIPD</th>
+        <th>Nama Lengkap</th>
+        <th>Status</th>
+        <th>Keterangan</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {(importPreview.rows || []).map((row, index) => {
+        const statusClass = {
+          Valid: 'valid',
+          'Sudah di kelas': 'existing',
+          'Di kelas lain': 'other',
+          'Tidak ditemukan': 'missing',
+          'Konflik identitas': 'conflict',
+          Duplikat: 'duplicate',
+        }[row.status] || 'missing'
+
+        return (
+          <tr key={`${row.row}-${index}`}>
+            <td>{row.row}</td>
+            <td>{row.nisn || '-'}</td>
+            <td>{row.nipd || '-'}</td>
+            <td>{row.nama_excel || '-'}</td>
+
+            <td>
+              <span
+                className={`class-members-page__status class-members-page__status--${statusClass}`}
+              >
+                {row.status}
+              </span>
+            </td>
+
+            <td>{row.keterangan || '-'}</td>
+          </tr>
+        )
+      })}
+    </tbody>
+  </table>
+</div>
+                  </>
+                )}
+              </>
+            )}
+
+            {importResult && (
+              <div className="class-members-page__import-result">
+                <h3>Import Selesai</h3>
+                <div className="class-members-page__import-summary">
+                  {[
+                    ['Total Data', importResult.summary?.total_rows],
+                    ['Berhasil Diimpor', importResult.summary?.imported_rows],
+                    ['Dilewati', importResult.summary?.skipped_rows],
+                    ['Ditolak', importResult.summary?.rejected_rows],
+                  ].map(([label, value]) => (
+                    <div className="class-members-page__summary-item" key={label}>
+                      <span>{label}</span>
+                      <strong>{value ?? 0}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                <h3>Detail Hasil Import</h3>
+                <div className="class-members-page__preview-table-wrapper">
+                  <table className="class-members-page__preview-table">
+                    <thead>
+                      <tr>
+                        <th>Baris</th>
+                        <th>NISN</th>
+                        <th>Nama</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(importResult.details || []).map((row, index) => (
+                        <tr key={`${row.row}-${index}`}>
+                          <td>{row.row}</td>
+                          <td>{row.nisn || '-'}</td>
+                          <td>{row.nama || '-'}</td>
+                          <td>{row.status || '-'}</td>
+                          <td>{row.keterangan || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         </Modal>
 
         <Modal
@@ -712,4 +1161,3 @@ import {
       </section>
     )
   }
-  
