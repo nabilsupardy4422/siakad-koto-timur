@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import {
   TIMETABLE_DAYS,
@@ -14,6 +14,8 @@ import {
   getTeacherTitle,
   startOfWeek,
 } from '../utils/timetableUtils'
+import { calendarSwipeDirection } from '../utils/calendarSwipe'
+import '../styles/principal-schedule-mobile-scroll.css'
 
 
 const VIEW_OPTIONS = [
@@ -159,9 +161,38 @@ function TimetableCard({
 function MiniCalendar({
   date,
   onChange,
+  swipeable = false,
 }) {
   const days = getMonthDays(date)
   const today = new Date()
+  const pointerStart = useRef(null)
+  const suppressClick = useRef(false)
+
+  function handlePointerDown(event) {
+    if (!swipeable || !event.isPrimary) return
+    pointerStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId }
+    suppressClick.current = false
+  }
+
+  function handlePointerUp(event) {
+    const start = pointerStart.current
+    pointerStart.current = null
+    if (!swipeable || !start || start.id !== event.pointerId) return
+
+    const direction = calendarSwipeDirection(start.x, start.y, event.clientX, event.clientY)
+    if (direction === 0) return
+
+    // Prevent the swipe from also selecting a date underneath the pointer.
+    suppressClick.current = true
+    onChange(addMonths(date, direction))
+  }
+
+  function handleClickCapture(event) {
+    if (!suppressClick.current) return
+    suppressClick.current = false
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
   return (
     <section className="timetable__side-card">
@@ -187,7 +218,14 @@ function MiniCalendar({
         </div>
       </div>
 
-      <div className="timetable__mini-grid">
+      <div
+        className={`timetable__mini-grid${swipeable ? ' is-swipeable' : ''}`}
+        onPointerDown={swipeable ? handlePointerDown : undefined}
+        onPointerUp={swipeable ? handlePointerUp : undefined}
+        onPointerCancel={swipeable ? () => { pointerStart.current = null } : undefined}
+        onClickCapture={swipeable ? handleClickCapture : undefined}
+        aria-label={swipeable ? 'Kalender: geser ke kiri atau kanan untuk pindah bulan' : undefined}
+      >
         {TIMETABLE_DAYS.map((day) => (
           <span key={day.key}>{day.short}</span>
         ))}
@@ -216,6 +254,9 @@ function MiniCalendar({
           )
         })}
       </div>
+      {swipeable && (
+        <p className="timetable__mini-swipe-hint">Geser kiri atau kanan untuk pindah bulan.</p>
+      )}
     </section>
   )
 }
@@ -396,6 +437,20 @@ function TimeGrid({
   role,
   onSelect,
 }) {
+  const gridScrollRef = useRef(null)
+  const hasWeekScrollControls = (role === 'KEPALA_SEKOLAH' || role === 'GURU') && view === 'week'
+
+  // Scroll the element that actually owns the seven-day grid, not a parent card.
+  // A direct scrollLeft update also works when a desktop device emulator uses a mouse.
+  function moveDays(direction) {
+    const region = gridScrollRef.current
+    if (!region || ![-1, 1].includes(direction)) return
+    const firstDay = region.querySelector('.timetable__day-column')
+    const oneDay = firstDay?.getBoundingClientRect().width || 110
+    const maxScroll = Math.max(0, region.scrollWidth - region.clientWidth)
+    region.scrollLeft = Math.max(0, Math.min(maxScroll, region.scrollLeft + oneDay * 2 * direction))
+  }
+
   const bounds = getTimeBounds(schedules)
   const hours = []
 
@@ -417,8 +472,25 @@ function TimeGrid({
   const gridHeight =
     ((bounds.end - bounds.start) / 60) * HOUR_HEIGHT
 
-  return (
-    <div className="timetable__grid-scroll">
+  const grid = (
+    <div
+      ref={gridScrollRef}
+        className="timetable__grid-scroll"
+        role={hasWeekScrollControls ? 'region' : undefined}
+        aria-label={hasWeekScrollControls ? 'Kalender jadwal tujuh hari, dapat digeser horizontal' : undefined}
+        tabIndex={hasWeekScrollControls ? 0 : undefined}
+        style={hasWeekScrollControls ? {
+          display: 'block',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          overflowX: 'auto',
+          overscrollBehaviorX: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-x pan-y',
+          scrollBehavior: 'auto',
+        } : undefined}
+      >
       <div
         className={`timetable__time-grid ${
           view === 'day' ? 'timetable__time-grid--day' : ''
@@ -515,6 +587,23 @@ function TimeGrid({
           )
         })}
       </div>
+    </div>
+  )
+
+  // Preserve the original grid for Siswa and daily views.
+  // The existing Kepala Sekolah controls now also serve Guru (same 7-day grid).
+  if (!hasWeekScrollControls) return grid
+
+  return (
+    <div className="timetable__week-scroll-shell">
+      <div className="timetable__week-scroll-controls" role="group" aria-label="Geser tujuh hari jadwal">
+        <span>Geser kalender ke samping untuk melihat Senin–Minggu</span>
+        <div className="timetable__week-scroll-buttons">
+          <button type="button" aria-label="Geser kalender hari ke kiri" onClick={() => moveDays(-1)}>‹</button>
+          <button type="button" aria-label="Geser kalender hari ke kanan" onClick={() => moveDays(1)}>›</button>
+        </div>
+      </div>
+      {grid}
     </div>
   )
 }
@@ -729,6 +818,7 @@ export default function InteractiveTimetable({
         <MiniCalendar
           date={activeDate}
           onChange={selectMiniDate}
+          swipeable={role === 'KEPALA_SEKOLAH'}
         />
 
         <NextScheduleCard

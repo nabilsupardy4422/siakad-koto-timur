@@ -14,3 +14,16 @@
 @media(max-width:720px){.sa-premium{padding:20px 16px 34px}.sa-premium-pagehead{align-items:flex-start}.sa-premium-heading h1{font-size:23px}.sa-premium-reload{padding:9px;font-size:11px}.sa-premium-overview{grid-template-columns:1fr}.sa-premium-overview-main{border-right:0;border-bottom:1px solid #e2e9f1;padding:13px 16px}.sa-premium-overview-main:last-child{border-bottom:0}.sa-premium-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.sa-premium-metric{min-height:92px;padding:13px}.sa-premium-metric-value{font-size:23px}.sa-premium-toolbar{align-items:stretch}.sa-premium-filter{width:100%}.sa-premium-filter label{flex:1;min-width:120px}.sa-premium-filter input{width:100%}.sa-premium-subject-grid{grid-template-columns:1fr}.sa-premium-subject{min-height:175px}.sa-premium-sectionhead{align-items:start}.sa-premium-section-count{white-space:nowrap}}
 @media(max-width:410px){.sa-premium-pagehead{flex-wrap:wrap}.sa-premium-reload{margin-left:auto}.sa-premium-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.sa-premium-filter .sa-premium-apply{flex:1;justify-content:center}.sa-premium-filter .sa-premium-reset{flex:1}}
 @media(prefers-reduced-motion:reduce){.sa-premium-subject,.sa-premium-spin{transition:none;animation:none}}
+
+/* Mobile Siswa: scroll the HISTORY TABLE, not the full detail layout. */
+.sa-premium-detail-layout, .sa-premium-history-panel, .sa-premium-table-shell { min-width:0; max-width:100%; }
+.sa-premium-table-shell .sa-premium-table-wrap {
+  display:block; width:100%; max-width:100%; min-width:0;
+  overflow-x:auto; overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x pan-y;
+  scrollbar-width:thin;
+  scrollbar-color:#9cb6d1 #f0f6fd;
+}
+.sa-premium-table-shell .sa-premium-table-wrap table { min-width:690px; }

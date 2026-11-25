@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { attendanceApi } from '../../../services/attendanceApi'
 import './SiswaAttendancePageV2.css'
+import HorizontalScrollControls from '../../../components/ui/HorizontalScrollControls.jsx'
 import { timeText, initials, teacherNames, getSummary, periodText, textStatus, totalSummary, presentPercentage, isInvalidDateRange } from './studentAttendanceView.js'
 
 const STATUS = { HADIR: 'Hadir', IZIN: 'Izin', SAKIT: 'Sakit', ALPA: 'Alpa' }
@@ -38,6 +39,7 @@ export default function SiswaAttendancePage() {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
+  const historyScrollRef = useRef(null)
 
   useEffect(() => {
     let current = true
@@ -148,7 +150,9 @@ export default function SiswaAttendancePage() {
               <div className="sa-premium-teacher-hint"><Icon name="info" size={15}/> Jadwal berasal dari data resmi kelasmu.</div>
             </section>
             <section className="sa-premium-panel sa-premium-history-panel"><div className="sa-premium-panel-head"><div><h3>Riwayat kehadiran</h3></div><span className="sa-premium-history-count">{meta?.total ?? getSummary(chosen).total ?? 0} catatan</span></div>
-              {result.data.history.length ? <div className="sa-premium-table-wrap"><table><thead><tr><th>Tanggal</th><th>Guru pengampu</th><th>Jam</th><th>Status</th><th>Catatan</th></tr></thead><tbody>{result.data.history.map(row => <tr key={row.id}><td>{formatDate(row.date)}</td><td>{row.teacher}</td><td>{timeText(row.start)}–{timeText(row.end)}</td><td><span className={`sa-premium-pill sa-premium-pill-${String(row.status).toLowerCase()}`}>{STATUS[row.status] || row.status}</span></td><td>{row.note || '—'}</td></tr>)}</tbody></table></div> : <div className="sa-premium-history-empty"><div className="sa-premium-history-empty-icon"><Icon name="calendar" size={24}/></div><strong>Belum ada catatan kehadiran</strong><p>Guru belum mencatat presensi untuk mapel dan rentang waktu ini. Tidak adanya catatan bukan berarti Alpa.</p></div>}
+              {result.data.history.length ? <div className="sa-premium-table-shell">
+                <HorizontalScrollControls scrollRef={historyScrollRef} label="Geser tabel riwayat kehadiran hingga kolom Catatan" stepSelector="th" />
+                <div className="sa-premium-table-wrap" ref={historyScrollRef} role="region" tabIndex={0} aria-label="Tabel riwayat kehadiran, geser horizontal"><table><thead><tr><th>Tanggal</th><th>Guru pengampu</th><th>Jam</th><th>Status</th><th>Catatan</th></tr></thead><tbody>{result.data.history.map(row => <tr key={row.id}><td>{formatDate(row.date)}</td><td>{row.teacher}</td><td>{timeText(row.start)}–{timeText(row.end)}</td><td><span className={`sa-premium-pill sa-premium-pill-${String(row.status).toLowerCase()}`}>{STATUS[row.status] || row.status}</span></td><td>{row.note || '—'}</td></tr>)}</tbody></table></div></div> : <div className="sa-premium-history-empty"><div className="sa-premium-history-empty-icon"><Icon name="calendar" size={24}/></div><strong>Belum ada catatan kehadiran</strong><p>Guru belum mencatat presensi untuk mapel dan rentang waktu ini. Tidak adanya catatan bukan berarti Alpa.</p></div>}
               {meta && meta.last_page > 1 && <div className="sa-premium-pagination"><span>Halaman {meta.current_page} dari {meta.last_page}</span><div><button disabled={page <= 1 || busy} type="button" onClick={() => setPage(n => Math.max(1, n - 1))}>Sebelumnya</button><button disabled={page >= meta.last_page || busy} type="button" onClick={() => setPage(n => n + 1)}>Berikutnya</button></div></div>}
             </section>
           </div>

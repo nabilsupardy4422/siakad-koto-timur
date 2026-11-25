@@ -181,6 +181,14 @@ class LoginController extends Controller
                     'code' => $user->role->code,
                     'name' => $user->role->name,
                 ],
+                // Selaraskan identitas akademik dengan GET /api/me.
+                // Guru dapat langsung membuka jadwal/presensi/nilai tanpa refresh.
+                // Jangan pernah memakai users.id sebagai pengganti guru.id.
+                'guru' => $user->guru ? [
+                    'id' => $user->guru->id,
+                    'nip' => $user->guru->nip,
+                    'nama_lengkap' => $user->guru->nama_lengkap,
+                ] : null,
             ],
 
             'permissions' => Permissions::forRole(

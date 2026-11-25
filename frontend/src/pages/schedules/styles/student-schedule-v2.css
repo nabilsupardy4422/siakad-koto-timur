@@ -105,3 +105,18 @@
 @media(max-width:780px){.ssv2-week{overflow-x:auto;grid-template-columns:repeat(7,minmax(126px,1fr))}.ssv2-head{flex-direction:column;align-items:stretch}.ssv2-period{width:max-content}.ssv2-stats{grid-template-columns:1fr 1fr}.ssv2-stat:first-child{grid-column:1/-1}.ssv2-aside{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.ssv2-head h1{font-size:25px}.ssv2-stats{gap:9px}.ssv2-stat{padding:12px;min-height:73px}.ssv2-stat strong{font-size:18px}.ssv2-stat-icon{width:37px;height:37px}.ssv2-columns{gap:11px}.ssv2-panel{padding:16px 13px}.ssv2-panel-top{flex-wrap:wrap}.ssv2-switch{width:100%}.ssv2-switch button{flex:1}.ssv2-filter{align-items:stretch;flex-wrap:wrap}.ssv2-filter>span{text-align:left}.ssv2-filter label,.ssv2-filter select{max-width:100%;width:100%}.ssv2-aside{grid-template-columns:1fr}.ssv2-week{grid-template-columns:repeat(7,minmax(122px,1fr))}.ssv2-week-day .ssv2-day-body{min-height:160px}.ssv2-day-tabs{gap:3px}.ssv2-day-tabs button{font-size:11px}.ssv2-modal{padding:19px}}
 @media(prefers-reduced-motion:reduce){.ssv2-lesson,.ssv2-agenda-lesson{transition:none}}
+
+/* Mobile: only the seven-day grid scrolls, never the entire student workspace. */
+.ssv2-main, .ssv2-week-shell { min-width:0; max-width:100%; }
+.ssv2-week-shell .ssv2-week {
+  width:100%; max-width:100%; min-width:0;
+  overflow-x:auto; overflow-y:hidden;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x pan-y;
+  scrollbar-width:thin;
+  scrollbar-color:#9db5d0 #f0f5fb;
+}
+@media(max-width:900px) {
+  .ssv2-week-shell .ssv2-week { grid-template-columns:repeat(7,minmax(140px,1fr)); }
+}

@@ -12,6 +12,7 @@ import ReportFilters from './components/ReportFilters'
 
 import './styles/ReportsPage.css'
 import GuruReports from './roles/GuruReports'
+import KepalaSekolahReports from './roles/KepalaSekolahReports'
 
 export default function ReportsPage() {
   const { status, user } = useAuth()
@@ -55,6 +56,7 @@ export default function ReportsPage() {
   }
 
   if (roleCode === 'GURU') return <GuruReports key={user.id} />
+  if (roleCode === 'KEPALA_SEKOLAH') return <KepalaSekolahReports key={user.id} />
 
   async function handleGenerate(params) {
     setError('')

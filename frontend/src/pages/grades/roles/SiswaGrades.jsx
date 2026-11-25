@@ -3,6 +3,7 @@ import { academicYearApi } from '../../../services/academicYearApi'
 import { studentGradeWorkspaceApi } from '../../../services/studentGradeWorkspaceApi'
 import { formatGrade, formatWeight, uniqueTeacherNames, validateWorkspace } from './studentGradeView'
 import '../styles/SiswaGrades.css'
+import HorizontalScrollControls from '../../../components/ui/HorizontalScrollControls.jsx'
 
 function unwrap(response) {
   const p = response?.data ?? response
@@ -32,6 +33,7 @@ export default function SiswaGrades() {
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const seq = useRef(0)
+  const gradesScrollRef = useRef(null)
   const initialYear = years.find((year) => String(year.id) === yearId)
   const selected = workspace?.subjects.find((subject) => subject.key === subjectKey) ?? null
 
@@ -115,8 +117,11 @@ export default function SiswaGrades() {
         </section> : <section className="sg-detail">
           <button className="sg-button sg-back" type="button" onClick={() => setSubjectKey(null)}>← Semua mata pelajaran</button>
           <div className="sg-section-heading"><div><span className="sg-eyebrow">RINCIAN NILAI</span><h2>{selected.subject}</h2><p>{selected.class_name} · {uniqueTeacherNames(selected.teachers)}</p></div><small>{selected.components.length} komponen</small></div>
-          <div className="sg-table-scroll"><table><thead><tr><th>Komponen</th><th>Guru pengampu</th><th>Bobot</th><th>Nilai</th><th>Catatan guru</th><th>Status</th></tr></thead>
+          <div className="sg-table-shell">
+            <HorizontalScrollControls scrollRef={gradesScrollRef} label="Geser tabel rincian nilai hingga kolom Status" stepSelector="th" />
+            <div className="sg-table-scroll" ref={gradesScrollRef} role="region" tabIndex={0} aria-label="Tabel rincian nilai, dapat digeser horizontal"><table><thead><tr><th>Komponen</th><th>Guru pengampu</th><th>Bobot</th><th>Nilai</th><th>Catatan guru</th><th>Status</th></tr></thead>
             <tbody>{selected.components.map((component) => <tr key={component.id}><td><strong>{component.name}</strong><small>{component.day} · {component.start}–{component.end}</small></td><td>{component.teacher}</td><td>{formatWeight(component.weight)}</td><td><strong>{formatGrade(component.score)}</strong></td><td>{component.note || '—'}</td><td><span className={component.assessed ? 'sg-chip sg-chip-success' : 'sg-chip'}>{component.assessed ? 'Sudah dinilai' : 'Belum dinilai'}</span></td></tr>)}</tbody></table></div>
+          </div>
         </section>}
         <p className="sg-note">Nilai 0 adalah nilai sah. Tanda — berarti belum ada nilai. Bobot hanya informasi; halaman ini tidak menghitung nilai akhir atau rapor otomatis.</p>
       </>}

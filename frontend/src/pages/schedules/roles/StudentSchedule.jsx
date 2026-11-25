@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { scheduleApi } from '../../../services/scheduleApi'
 import {
   WEEK_DAYS, DAY_LABELS, displayClock, getCompleteStudentSchedule,
   nextWeeklyClass, wibNow, yearTitle,
 } from './studentScheduleScope'
 import '../styles/student-schedule-v2.css'
+import HorizontalScrollControls from '../../../components/ui/HorizontalScrollControls.jsx'
 
 const icons = {
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></>,
@@ -50,6 +51,7 @@ export default function StudentSchedule() {
   const [subject, setSubject] = useState('all')
   const [detail, setDetail] = useState(null)
   const [reload, setReload] = useState(0)
+  const weekScrollRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -106,7 +108,9 @@ export default function StudentSchedule() {
             <select value={subject} onChange={e => setSubject(e.target.value)}><option value="all">Semua mata pelajaran</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
             <span>{filtered.length} jadwal dalam cakupan</span></div>
           {schedules.length === 0 ? <div className="ssv2-empty"><Icon name="calendar" size={27}/><h3>Jadwal kelas belum diatur</h3><p>Tata Usaha belum menetapkan jadwal rutin untuk kelas ini.</p></div> : mode === 'week' ?
-            <div className="ssv2-week" role="group" aria-label="Jadwal rutin mingguan">
+            <div className="ssv2-week-shell">
+              <HorizontalScrollControls scrollRef={weekScrollRef} label="Geser jadwal Senin hingga Minggu" stepSelector=".ssv2-week-day" />
+              <div className="ssv2-week" ref={weekScrollRef} role="region" tabIndex={0} aria-label="Jadwal rutin mingguan, dapat digeser horizontal">
               {WEEK_DAYS.map((key, index) => {
                 const entries = filtered.filter(s => weekday(s) === index)
                 return <div className={'ssv2-week-day' + (now.weekday === index ? ' today' : '')} key={key}>
@@ -116,6 +120,7 @@ export default function StudentSchedule() {
                   </button>) : <p className="ssv2-no-day">Tidak ada jadwal</p>}</div>
                 </div>
               })}
+              </div>
             </div> : <><div className="ssv2-day-tabs" aria-label="Pilih hari">
               {DAY_LABELS.map((label, i) => <button key={label} type="button" onClick={() => setDay(i)} className={i === day ? 'is-current' : ''} aria-pressed={i === day}>{label.slice(0, 3)}</button>)}</div>
               <div className="ssv2-day-agenda"><h3>{DAY_LABELS[day]} <span>· {daily.length} pelajaran</span></h3>

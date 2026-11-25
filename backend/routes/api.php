@@ -93,7 +93,7 @@ Route::middleware([
 
     /*
     |--------------------------------------------------------------------------
-    | Google Account Linking ΓÇö Semua Role SIAKAD
+    | Google Account Linking — Semua Role SIAKAD
     |--------------------------------------------------------------------------
     | Akun TU, Kepala Sekolah, Guru, dan Siswa dapat menautkan Google
     | setelah login. Middleware EnsureAccountIsUsable tetap berlaku.
@@ -118,7 +118,7 @@ Route::middleware([
 
     /*
     |--------------------------------------------------------------------------
-    | Foto Profil ΓÇö Semua Role SIAKAD
+    | Foto Profil — Semua Role SIAKAD
     |--------------------------------------------------------------------------
     | Hanya pengguna yang sedang login dan memiliki akun aktif
     | yang dapat melihat, mengunggah, dan menghapus foto sendiri.
@@ -418,6 +418,19 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
         '/attendance/class-recap',
         [AttendanceController::class, 'classRecap']
     )->middleware('role:TU,KEPALA_SEKOLAH');
+
+    // Analitik presensi per pertemuan dan mata pelajaran.
+    // Khusus Kepala Sekolah, hanya akses baca.
+    Route::get(
+        '/attendance/principal-insights',
+        [\App\Http\Controllers\Api\PrincipalAttendanceInsightsController::class, 'index']
+    )->middleware('role:KEPALA_SEKOLAH');
+
+    // Monitoring pengisian presensi per jadwal (baca saja, Kepala Sekolah).
+    Route::get(
+        '/attendance/principal-schedule-coverage',
+        [\App\Http\Controllers\Api\PrincipalScheduleCoverageController::class, 'index']
+    )->middleware('role:KEPALA_SEKOLAH');
 
     /*
     |--------------------------------------------------------------------------

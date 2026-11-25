@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import LoadingState from '../../../components/ui/LoadingState'
 import ErrorState from '../../../components/ui/ErrorState'
@@ -8,47 +8,12 @@ import { academicYearApi } from '../../../services/academicYearApi'
 import { scheduleApi } from '../../../services/scheduleApi'
 import { classMemberApi } from '../../../services/classMemberApi'
 import { gradeApi } from '../../../services/gradeApi'
+import { getAcademicYears, getAllPages, isActivePeriod, strictId, scoreOf } from './principalGradeIntegrity'
+import { matchesPrincipalStudentSearch } from './principalStudentSearch'
 
 import '../styles/KepalaSekolahGrades.css'
 
 const PAGE_SIZE = 20
-
-function getCollection(response) {
-  const payload = response?.data ?? response
-
-  if (Array.isArray(payload)) {
-    return {
-      data: payload,
-      meta: response?.meta ?? {},
-    }
-  }
-
-  if (Array.isArray(payload?.data)) {
-    return {
-      data: payload.data,
-      meta: payload.meta ?? response?.meta ?? {},
-    }
-  }
-
-  return { data: [], meta: {} }
-}
-
-async function getAllPages(fetchPage, perPage = 100) {
-  const allData = []
-  let page = 1
-  let lastPage = 1
-
-  do {
-    const response = await fetchPage(page, perPage)
-    const result = getCollection(response)
-
-    allData.push(...result.data)
-    lastPage = Math.max(1, Number(result.meta.last_page ?? 1))
-    page += 1
-  } while (page <= lastPage && page <= 100)
-
-  return allData
-}
 
 function getStudent(member) {
   return member?.siswa ?? member?.student ?? {}
@@ -100,7 +65,6 @@ export default function KepalaSekolahGrades() {
   const [academicYears, setAcademicYears] = useState([])
   const [filters, setFilters] = useState({
     academic_year_id: '',
-    semester: '',
     tingkat: '',
     class_id: '',
     subject_id: '',
@@ -112,25 +76,29 @@ export default function KepalaSekolahGrades() {
   const [lookupError, setLookupError] = useState('')
   const [monitoringError, setMonitoringError] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [studentSearch, setStudentSearch] = useState('')
+  const tableScrollRef = useRef(null)
+  const [tableScroll, setTableScroll] = useState({ left: false, right: false })
+  const monitoringRequest = useRef(0)
 
   const loadAcademicYears = useCallback(async () => {
     setLoadingYears(true)
     setLookupError('')
 
     try {
-      const years = await getAllPages((page, perPage) =>
-        academicYearApi.getAll({ page, per_page: perPage }),
-      )
+      const years = getAcademicYears(await academicYearApi.getAll())
 
+      if (!years.every((year) => Number.isSafeInteger(Number(year?.id)) && ['GANJIL', 'GENAP'].includes(year?.semester))) {
+        throw new Error('Data tahun akademik tidak valid.')
+      }
       setAcademicYears(years)
 
-      const activeYear = years.find((year) => year.is_active === true)
+      const activeYear = years.find(isActivePeriod) || years[0]
 
       if (activeYear) {
         setFilters((previous) => ({
           ...previous,
           academic_year_id: String(activeYear.id),
-          semester: activeYear.semester ?? '',
         }))
       }
     } catch (error) {
@@ -147,167 +115,159 @@ export default function KepalaSekolahGrades() {
   }, [loadAcademicYears])
 
   const loadMonitoring = useCallback(async () => {
-    if (!filters.academic_year_id) {
+    const requestId = ++monitoringRequest.current
+    const selectedPeriod = academicYears.find(
+      (year) => String(year.id) === String(filters.academic_year_id),
+    )
+
+    if (!selectedPeriod) {
       setMonitoringRows([])
       setMonitoringError('')
       setLoadingMonitoring(false)
       return
     }
 
+    const historical = !isActivePeriod(selectedPeriod)
     setLoadingMonitoring(true)
     setMonitoringError('')
+    setMonitoringRows([])
 
     try {
       const schedules = await getAllPages((page, perPage) =>
         scheduleApi.getAll({
-          academic_year_id: filters.academic_year_id,
-          semester: filters.semester || undefined,
+          academic_year_id: selectedPeriod.id,
+          semester: selectedPeriod.semester,
           per_page: perPage,
           page,
         }),
       )
-
-      if (schedules.length === 0) {
-        setMonitoringRows([])
-        return
+      // The year/semester must be guaranteed by the server, not inferred from
+      // a label in the frontend.
+      for (const schedule of schedules) {
+        strictId(schedule.id)
+        if (Number(schedule.tahun_akademik_id) !== Number(selectedPeriod.id)) {
+          throw new Error('Jadwal dari periode akademik lain terdeteksi.')
+        }
       }
 
-      const classIds = [
-        ...new Set(
-          schedules
-            .map((schedule) => Number(schedule.kelas_id ?? schedule.kelas?.id))
-            .filter((id) => Number.isFinite(id) && id > 0),
-        ),
-      ]
+      const classIds = [...new Set(schedules.map((s) => strictId(s.kelas_id ?? s.kelas?.id)))]
+      // The regular class-members API returns TODAY's active memberships only.
+      // Therefore historical periods must display STORED grades, not create
+      // fictitious "missing slots" from today's roster.
+      const membersByClass = historical ? [] : await Promise.all(
+        classIds.map(async (classId) => [classId, await getAllPages((page, perPage) =>
+          classMemberApi.getAll(classId, { page, per_page: perPage }),
+        )]),
+      )
 
-      const [membersByClass, scheduleData] = await Promise.all([
-        Promise.all(
-          classIds.map(async (classId) => {
-            const members = await getAllPages((page, perPage) =>
-              classMemberApi.getAll(classId, {
-                page,
-                per_page: perPage,
-              }),
-            )
-
-            return [classId, members]
-          }),
-        ),
-        Promise.all(
-          schedules.map(async (schedule) => {
-            const [components, grades] = await Promise.all([
-              getAllPages((page, perPage) =>
-                gradeApi.getComponents({
-                  schedule_id: schedule.id,
-                  academic_year_id: filters.academic_year_id,
-                  semester: filters.semester || undefined,
-                  page,
-                  per_page: perPage,
-                }),
-              ),
-              getAllPages((page, perPage) =>
-                gradeApi.getGrades({
-                  schedule_id: schedule.id,
-                  academic_year_id: filters.academic_year_id,
-                  semester: filters.semester || undefined,
-                  page,
-                  per_page: perPage,
-                }),
-              ),
-            ])
-
-            return { schedule, components, grades }
-          }),
-        ),
-      ])
+      const scheduleData = await Promise.all(schedules.map(async (schedule) => {
+        const [components, grades] = await Promise.all([
+          getAllPages((page, perPage) => gradeApi.getComponents({
+            schedule_id: schedule.id, academic_year_id: selectedPeriod.id,
+            semester: selectedPeriod.semester, page, per_page: perPage,
+          })),
+          getAllPages((page, perPage) => gradeApi.getGrades({
+            schedule_id: schedule.id, academic_year_id: selectedPeriod.id,
+            semester: selectedPeriod.semester, page, per_page: perPage,
+          })),
+        ])
+        return { schedule, components, grades }
+      }))
 
       const memberMap = new Map(membersByClass)
       const rows = []
+      const seen = new Set()
+      for (const { schedule, components, grades } of scheduleData) {
+        const scheduleId = strictId(schedule.id)
+        const classId = strictId(schedule.kelas_id ?? schedule.kelas?.id)
+        const componentMap = new Map()
+        const gradeMap = new Map()
+        for (const component of components) {
+          const componentId = strictId(component.id)
+          if (Number(component.jadwal_pelajaran_id) !== scheduleId || componentMap.has(componentId)) {
+            throw new Error('Komponen penilaian tidak sesuai jadwal atau terduplikasi.')
+          }
+          componentMap.set(componentId, component)
+        }
+        for (const grade of grades) {
+          const componentId = strictId(grade.komponen_nilai_id)
+          const studentId = strictId(grade.siswa_id)
+          const key = createGradeKey(componentId, studentId)
+          if (!componentMap.has(componentId) || gradeMap.has(key)) {
+            throw new Error('Nilai tidak sesuai komponen atau terduplikasi.')
+          }
+          scoreOf(grade)
+          gradeMap.set(key, grade)
+        }
 
-      scheduleData.forEach(({ schedule, components, grades }) => {
-        const classId = Number(schedule.kelas_id ?? schedule.kelas?.id)
-        const members = memberMap.get(classId) ?? []
-        const gradeMap = new Map(
-          grades.map((grade) => [
-            createGradeKey(grade.komponen_nilai_id, grade.siswa_id),
-            grade,
-          ]),
-        )
-
-        components.forEach((component) => {
-          members.forEach((member) => {
-            if (member.tanggal_selesai) return
-
-            const student = getStudent(member)
-            const studentId = Number(member.siswa_id ?? student.id)
-
-            if (!studentId) return
-
-            const grade = gradeMap.get(
-              createGradeKey(component.id, studentId),
-            )
-
-            rows.push({
-              id: `${schedule.id}-${component.id}-${studentId}`,
-              scheduleId: schedule.id,
-              componentId: component.id,
-              studentId,
-              studentName: student.nama_lengkap ?? student.user?.name ?? '-',
-              nis: student.nis ?? '-',
-              nisn: student.nisn ?? '-',
-              classId,
-              className: getClassName(schedule),
-              tingkat: schedule.kelas?.tingkat ?? '-',
-              subjectId: Number(schedule.mapel_id ?? schedule.mapel?.id),
-              subjectName: getSubjectName(schedule),
-              componentName: component.nama ?? '-',
-              weight: component.bobot,
-              score: grade?.nilai ?? null,
-              note: grade?.catatan ?? '',
-              assessed: Boolean(grade),
-            })
+        function append(component, studentId, student, grade) {
+          const componentId = strictId(component.id)
+          const id = `${scheduleId}-${componentId}-${studentId}`
+          if (seen.has(id)) throw new Error('Slot penilaian ganda ditemukan.')
+          seen.add(id)
+          rows.push({
+            id,
+            scheduleId,
+            componentId,
+            studentId,
+            studentName: student?.nama_lengkap ?? student?.user?.name ?? '-',
+            nis: student?.nis ?? '-',
+            nisn: student?.nisn ?? '-',
+            classId,
+            className: getClassName(schedule),
+            tingkat: schedule.kelas?.tingkat ?? '-',
+            subjectId: strictId(schedule.mapel_id ?? schedule.mapel?.id),
+            subjectName: getSubjectName(schedule),
+            componentName: component.nama ?? '-',
+            weight: component.bobot,
+            score: scoreOf(grade),
+            note: grade?.catatan ?? '',
+            assessed: Boolean(grade),
           })
-        })
-      })
+        }
 
-      setMonitoringRows(rows)
+        if (historical) {
+          // Historical data includes only recorded grades. Never report
+          // "0 unassessed" as proof that historical scoring is complete.
+          for (const grade of gradeMap.values()) {
+            const studentId = strictId(grade.siswa_id)
+            if (grade.siswa && Number(grade.siswa.id) !== studentId) {
+              throw new Error('Identitas siswa pada nilai tidak sesuai.')
+            }
+            append(componentMap.get(strictId(grade.komponen_nilai_id)), studentId, grade.siswa, grade)
+          }
+        } else {
+          const members = memberMap.get(classId) ?? []
+          const usedMembers = new Set()
+          for (const member of members) {
+            if (Number(member.kelas_id) !== classId) throw new Error('Anggota dari kelas lain terdeteksi.')
+            const student = getStudent(member)
+            const studentId = strictId(member.siswa_id ?? student.id)
+            if (usedMembers.has(studentId)) throw new Error('Keanggotaan kelas ganda ditemukan.')
+            usedMembers.add(studentId)
+            for (const component of components) {
+              const grade = gradeMap.get(createGradeKey(component.id, studentId))
+              append(component, studentId, student, grade)
+            }
+          }
+        }
+      }
+
+      if (monitoringRequest.current === requestId) setMonitoringRows(rows)
     } catch (error) {
-      setMonitoringRows([])
-      setMonitoringError(
-        error?.message ||
-          'Data monitoring penilaian gagal dimuat. Periksa akses API dan koneksi server.',
-      )
+      if (monitoringRequest.current === requestId) {
+        setMonitoringRows([])
+        setMonitoringError(error?.message || 'Data monitoring penilaian gagal dimuat.')
+      }
     } finally {
-      setLoadingMonitoring(false)
+      if (monitoringRequest.current === requestId) setLoadingMonitoring(false)
     }
-  }, [filters.academic_year_id, filters.semester])
+  }, [academicYears, filters.academic_year_id])
 
   useEffect(() => {
-    let active = true
-
-    const run = async () => {
-      if (!filters.academic_year_id) {
-        setMonitoringRows([])
-        setLoadingMonitoring(false)
-        return
-      }
-
-      setLoadingMonitoring(true)
-      setMonitoringError('')
-
-      try {
-        await loadMonitoring()
-      } finally {
-        if (!active) return
-      }
-    }
-
-    run()
-
-    return () => {
-      active = false
-    }
-  }, [loadMonitoring, filters.academic_year_id])
+    loadMonitoring()
+    return () => { monitoringRequest.current += 1 }
+  }, [loadMonitoring])
 
   const selectedYear = useMemo(
     () =>
@@ -317,8 +277,11 @@ export default function KepalaSekolahGrades() {
     [academicYears, filters.academic_year_id],
   )
 
+  const historical = selectedYear !== null && !isActivePeriod(selectedYear)
+
   const availableRows = useMemo(() => {
     return monitoringRows.filter((row) => {
+      if (!matchesPrincipalStudentSearch(row, studentSearch)) return false
       if (filters.tingkat && String(row.tingkat) !== filters.tingkat) {
         return false
       }
@@ -336,7 +299,7 @@ export default function KepalaSekolahGrades() {
 
       return true
     })
-  }, [monitoringRows, filters.tingkat, filters.class_id, filters.subject_id])
+  }, [monitoringRows, filters.tingkat, filters.class_id, filters.subject_id, studentSearch])
 
   const levelOptions = useMemo(() => {
     const levels = [
@@ -412,6 +375,8 @@ export default function KepalaSekolahGrades() {
       slots: availableRows.length,
       assessed,
       pending: availableRows.length - assessed,
+      classes: new Set(availableRows.map((row) => row.classId)).size,
+      components: new Set(availableRows.map((row) => `${row.scheduleId}-${row.componentId}`)).size,
     }
   }, [availableRows])
 
@@ -422,9 +387,52 @@ export default function KepalaSekolahGrades() {
     safePage * PAGE_SIZE,
   )
 
+  const updateTableScroll = useCallback(() => {
+    const element = tableScrollRef.current
+    if (!element) {
+      setTableScroll({ left: false, right: false })
+      return
+    }
+    const max = Math.max(0, element.scrollWidth - element.clientWidth)
+    setTableScroll({
+      left: max > 2 && element.scrollLeft > 2,
+      right: max > 2 && element.scrollLeft < max - 2,
+    })
+  }, [])
+
+  useEffect(() => {
+    // Re-measure when filter results, loading state, or viewport size changes.
+    // The scrollable element belongs to the table, not the page/document.
+    const element = tableScrollRef.current
+    if (!element) return undefined
+    const frame = window.requestAnimationFrame(updateTableScroll)
+    window.addEventListener('resize', updateTableScroll)
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateTableScroll)
+      : null
+    observer?.observe(element)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', updateTableScroll)
+      observer?.disconnect()
+    }
+  }, [updateTableScroll, loadingMonitoring, monitoringError, availableRows.length])
+
+  const scrollGradeTable = useCallback((direction) => {
+    const element = tableScrollRef.current
+    if (!element || (direction !== -1 && direction !== 1)) return
+    const distance = Math.max(180, Math.round(element.clientWidth * 0.8))
+    element.scrollBy({ left: direction * distance, behavior: 'smooth' })
+  }, [])
+
+  const updateSearch = (value) => {
+    setStudentSearch(value)
+    setCurrentPage(1)
+  }
+
   const yearOptions = academicYears.map((year) => ({
     value: String(year.id),
-    label: `${formatAcademicYear(year)}${year.semester ? ` - ${year.semester}` : ''}${year.is_active ? ' (Aktif)' : ''}`,
+    label: `${formatAcademicYear(year)}${year.semester ? ` - ${year.semester}` : ''}${isActivePeriod(year) ? ' (Aktif)' : ''}`,
   }))
 
   const updateFilter = (name, value) => {
@@ -443,33 +451,21 @@ export default function KepalaSekolahGrades() {
       }
 
       if (name === 'academic_year_id') {
-        const nextYear = academicYears.find(
-          (year) => String(year.id) === String(value),
-        )
-        next.semester = nextYear?.semester ?? ''
+        setStudentSearch('')
         next.tingkat = ''
         next.class_id = ''
         next.subject_id = ''
       }
 
-      if (name === 'semester') {
-        next.tingkat = ''
-        next.class_id = ''
-        next.subject_id = ''
-      }
 
       return next
     })
   }
 
   const resetFilters = () => {
+    setStudentSearch('')
     setFilters({
-      academic_year_id: selectedYear?.is_active
-        ? String(selectedYear.id)
-        : '',
-      semester: selectedYear?.is_active
-        ? selectedYear.semester ?? ''
-        : '',
+      academic_year_id: selectedYear ? String(selectedYear.id) : '',
       tingkat: '',
       class_id: '',
       subject_id: '',
@@ -500,17 +496,15 @@ export default function KepalaSekolahGrades() {
     <div className="kepala-grades">
       <header className="kepala-grades__header">
         <div>
-          <h1>Monitoring Penilaian</h1>
-          <p>
-            Pantau kelengkapan penilaian siswa berdasarkan periode akademik,
-            tingkat, kelas, dan mata pelajaran.
-          </p>
+          <span className="kepala-grades__eyebrow">MONITORING AKADEMIK · PENILAIAN</span>
+          <h1>Pantau penilaian sekolah,<br /><em>tanpa mengubah data guru.</em></h1>
+          <p>Telusuri komponen dan nilai yang tercatat menurut periode, tingkat, kelas, serta mata pelajaran. Hanya akses baca.</p>
         </div>
         <div className="kepala-grades__period">
-          <span>Periode terpilih</span>
+          <span>PERIODE DIPANTAU · BACA SAJA</span>
           <strong>
             {selectedYear
-              ? `${formatAcademicYear(selectedYear)} - ${filters.semester || selectedYear.semester || '-'}`
+              ? `${formatAcademicYear(selectedYear)} - ${selectedYear.semester || '-'}`
               : 'Belum dipilih'}
           </strong>
         </div>
@@ -521,8 +515,7 @@ export default function KepalaSekolahGrades() {
           <div>
             <h2>Filter Monitoring</h2>
             <p>
-              Data historis tersedia sesuai hak akses. Periode aktif dipilih
-              secara otomatis saat halaman dibuka.
+              Pilih tahun akademik beserta semesternya dalam satu kolom. Tingkat, kelas, dan mata pelajaran hanya menyaring data yang sudah dimuat.
             </p>
           </div>
           <button
@@ -536,34 +529,19 @@ export default function KepalaSekolahGrades() {
 
         <div className="kepala-grades__filters">
           <label>
-            <span>Tahun Akademik</span>
+            <span>Tahun Akademik / Semester</span>
             <select
               value={filters.academic_year_id}
               onChange={(event) =>
                 updateFilter('academic_year_id', event.target.value)
               }
             >
-              <option value="">Pilih tahun akademik</option>
+              <option value="">Pilih tahun akademik / semester</option>
               {yearOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Semester</span>
-            <select
-              value={filters.semester}
-              onChange={(event) =>
-                updateFilter('semester', event.target.value)
-              }
-              disabled={!filters.academic_year_id}
-            >
-              <option value="">Semua semester</option>
-              <option value="GANJIL">Ganjil</option>
-              <option value="GENAP">Genap</option>
             </select>
           </label>
 
@@ -621,6 +599,33 @@ export default function KepalaSekolahGrades() {
             </select>
           </label>
         </div>
+        <div className="kepala-grades__student-search">
+          <label htmlFor="principal-grade-student-search">Cari siswa (nama / NISN)</label>
+          <div className="kepala-grades__search-row">
+            <input
+              id="principal-grade-student-search"
+              type="search"
+              value={studentSearch}
+              onChange={(event) => updateSearch(event.target.value)}
+              placeholder="Ketik nama siswa atau NISN..."
+              autoComplete="off"
+              disabled={loadingMonitoring || monitoringRows.length === 0}
+              aria-describedby="principal-grade-search-help"
+            />
+            {studentSearch && (
+              <button
+                type="button"
+                className="kepala-grades__button kepala-grades__button--secondary"
+                onClick={() => updateSearch('')}
+              >
+                Hapus
+              </button>
+            )}
+          </div>
+          <small id="principal-grade-search-help">
+            Pencarian pada data periode terpilih. NISN (nomor nasional) berbeda dari NIS (nomor sekolah).
+          </small>
+        </div>
       </section>
 
       <section className="kepala-grades__panel">
@@ -628,8 +633,9 @@ export default function KepalaSekolahGrades() {
           <div>
             <h2>Ringkasan Penilaian</h2>
             <p>
-              Total slot penilaian dihitung dari siswa aktif dikalikan
-              komponen yang tersedia pada jadwal.
+              {historical
+                ? 'Riwayat hanya menampilkan nilai yang benar-benar tersimpan. Tidak menghitung slot belum dinilai dari anggota kelas saat ini.'
+                : 'Slot monitoring dihitung dari anggota kelas aktif saat ini dan komponen nilai yang tersedia pada jadwal. Bukan hasil rapor akhir.'}
             </p>
           </div>
           <button
@@ -657,44 +663,64 @@ export default function KepalaSekolahGrades() {
           />
         ) : monitoringRows.length === 0 ? (
           <EmptyState
-            title="Belum ada slot penilaian"
-            message="Belum ditemukan jadwal, komponen penilaian, atau siswa aktif pada periode yang dipilih."
+              title={historical ? 'Belum ada nilai tersimpan' : 'Belum ada slot penilaian'}
+            message={historical
+              ? 'Tidak ditemukan catatan nilai tersimpan untuk periode ini.'
+              : 'Belum ditemukan jadwal, komponen penilaian, atau anggota kelas aktif saat ini pada periode yang dipilih.'}
           />
         ) : (
           <>
-            <div className="kepala-grades__summary">
-              <article>
-                <span>Total Siswa</span>
-                <strong>{summary.students}</strong>
-              </article>
-              <article>
-                <span>Total Slot Penilaian</span>
-                <strong>{summary.slots}</strong>
-              </article>
-              <article>
-                <span>Sudah Dinilai</span>
-                <strong className="is-success">{summary.assessed}</strong>
-              </article>
-              <article>
-                <span>Belum Dinilai</span>
-                <strong className="is-warning">{summary.pending}</strong>
-              </article>
+            <div className="kepala-grades__summary" aria-label="Ringkasan monitoring nilai">
+              {historical ? (
+                <>
+                  <article><span>Siswa dengan nilai tersimpan</span><strong>{summary.students}</strong></article>
+                  <article><span>Catatan nilai tersimpan</span><strong>{summary.assessed}</strong></article>
+                  <article><span>Kelas dengan nilai tersimpan</span><strong>{summary.classes}</strong></article>
+                  <article><span>Komponen dengan nilai tersimpan</span><strong>{summary.components}</strong></article>
+                </>
+              ) : (
+                <>
+                  <article><span>Siswa pada slot yang terdata</span><strong>{summary.students}</strong></article>
+                  <article><span>Slot penilaian terdata</span><strong>{summary.slots}</strong></article>
+                  <article><span>Sudah dinilai</span><strong className="is-success">{summary.assessed}</strong></article>
+                  <article><span>Belum ada nilai</span><strong className="is-warning">{summary.pending}</strong></article>
+                </>
+              )}
             </div>
+            <p className="kepala-grades__integrity-note">
+              {historical
+                ? 'Riwayat tidak bisa dipakai untuk menyimpulkan kelengkapan nilai setiap siswa. Anggota kelas historis tidak diasumsikan sama dengan anggota kelas saat ini.'
+                : 'Nilai 0 adalah skor tercatat yang sah. Kolom “Belum ada nilai” berarti slot dari anggota kelas aktif dan komponen yang terdata, bukan berarti guru tidak mengajar atau nilai rapor 0.'}
+            </p>
 
             {availableRows.length === 0 ? (
               <EmptyState
                 title="Tidak ada data sesuai filter"
-                message="Ubah tingkat, kelas, atau mata pelajaran untuk melihat data lainnya."
+                message={studentSearch.trim()
+                  ? 'Nama atau NISN tidak ditemukan dalam data periode dan filter saat ini.'
+                  : 'Ubah tingkat, kelas, atau mata pelajaran untuk melihat data lainnya.'}
               />
             ) : (
               <>
-                <div className="kepala-grades__table-wrap">
+                <div className="kepala-grades__table-tools">
+                  <span>Geser tabel ke samping untuk melihat seluruh kolom, termasuk Nilai dan Status.</span>
+                  <div className="kepala-grades__table-actions" aria-label="Navigasi horizontal tabel nilai">
+                    <button type="button" aria-label="Geser tabel nilai ke kiri" title="Geser ke kiri"
+                      disabled={!tableScroll.left} onClick={() => scrollGradeTable(-1)}>‹</button>
+                    <button type="button" aria-label="Geser tabel nilai ke kanan" title="Geser ke kanan"
+                      disabled={!tableScroll.right} onClick={() => scrollGradeTable(1)}>›</button>
+                  </div>
+                </div>
+                <div className="kepala-grades__table-wrap" ref={tableScrollRef}
+                  role="region" aria-label="Tabel monitoring penilaian siswa, dapat digeser horizontal"
+                  tabIndex={0} onScroll={updateTableScroll}>
                   <table className="kepala-grades__table">
                     <thead>
                       <tr>
                         <th>No.</th>
                         <th>Nama Siswa</th>
-                        <th>NIS / NISN</th>
+                        <th>NISN</th>
+                        <th>NIS</th>
                         <th>Kelas</th>
                         <th>Tingkat</th>
                         <th>Mata Pelajaran</th>
@@ -710,7 +736,8 @@ export default function KepalaSekolahGrades() {
                         <tr key={row.id}>
                           <td>{(safePage - 1) * PAGE_SIZE + index + 1}</td>
                           <td><strong>{row.studentName}</strong></td>
-                          <td>{row.nis !== '-' ? row.nis : row.nisn}</td>
+                          <td className="kepala-grades__identity">{row.nisn}</td>
+                          <td className="kepala-grades__identity">{row.nis}</td>
                           <td>{row.className}</td>
                           <td>Tingkat {row.tingkat}</td>
                           <td>{row.subjectName}</td>
@@ -728,7 +755,7 @@ export default function KepalaSekolahGrades() {
                                   : 'kepala-grades__status--pending'
                               }`}
                             >
-                              {row.assessed ? 'Sudah Dinilai' : 'Belum Dinilai'}
+                              {historical ? 'Tercatat' : row.assessed ? 'Sudah Dinilai' : 'Belum Dinilai'}
                             </span>
                           </td>
                         </tr>

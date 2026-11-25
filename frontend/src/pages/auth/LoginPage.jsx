@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Link,
   Navigate,
-  useLocation,
   useNavigate,
 } from 'react-router-dom'
 
@@ -258,18 +257,12 @@ const recoveryStyles = {
   },
 }
 
-function safeDestination(pathname) {
-  // Cegah redirect ke URL eksternal atau area publik
-  // melalui state navigasi yang tidak diharapkan.
-  return typeof pathname === 'string' &&
-    (pathname === '/app' || pathname.startsWith('/app/'))
-    ? pathname
-    : '/app/dashboard'
-}
+// Setiap pergantian akun memulai konteks kerja dari Dashboard role baru.
+// Jangan membawa location.state.from milik akun yang baru logout.
+const AUTHENTICATED_HOME = '/app/dashboard'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { status, login } = useAuth()
 
   const [username, setUsername] = useState('')
@@ -296,9 +289,7 @@ export default function LoginPage() {
   const mountedRef = useRef(false)
   const busyRef = useRef(false)
 
-  const destination = safeDestination(
-    location.state?.from?.pathname
-  )
+  const destination = AUTHENTICATED_HOME
 
   useEffect(() => {
     mountedRef.current = true
