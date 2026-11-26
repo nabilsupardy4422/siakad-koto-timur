@@ -14,7 +14,8 @@ class ClassMemberResource extends JsonResource
             'kelas_id' => $this->kelas_id,
             'siswa_id' => $this->siswa_id,
 
-            'siswa' => $this->whenLoaded('siswa', function () {
+            'siswa' => $this->whenLoaded('siswa', function () use ($request) {
+                $private = $request->user()?->role?->code === 'TU' || (int) $request->user()?->id === (int) $this->siswa->user_id;
                 return [
                     'id' => $this->siswa->id,
                     'nisn' => $this->siswa->nisn,
@@ -22,7 +23,7 @@ class ClassMemberResource extends JsonResource
                     'nama_lengkap' => $this->siswa->nama_lengkap,
                     'user' => $this->siswa->user
                         ? [
-                            'username' => $this->siswa->user->username,
+                            'username' => $this->when($private, fn () => $this->siswa->user->username),
                             'name' => $this->siswa->user->name,
                         ]
                         : null,

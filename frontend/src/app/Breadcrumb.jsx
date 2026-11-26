@@ -5,6 +5,8 @@ import './Breadcrumb.css'
 const routeLabels = {
   '/app': 'Dashboard',
   '/app/dashboard': 'Dashboard',
+  '/app/profil': 'Profil Saya',
+  '/app/homeroom-assignments': 'Manajemen Wali Kelas',
   '/app/academic-years': 'Tahun Akademik',
   '/app/teachers': 'Guru',
   '/app/students': 'Siswa',

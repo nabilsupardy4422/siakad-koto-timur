@@ -20,6 +20,7 @@ class UpdateStudentRequest extends FormRequest
             ?? $this->route('student');
 
         return [
+            'profile_version' => ['sometimes', 'required', 'string', 'size:64'],
             'user_id' => [
                 'required',
                 'integer',
@@ -32,6 +33,7 @@ class UpdateStudentRequest extends FormRequest
                 'max:50',
                 Rule::unique('siswa', 'nisn')->ignore($studentId),
             ],
+            'nipd' => ['nullable', 'string', 'max:50', Rule::unique('siswa', 'nipd')->ignore($studentId)],
             'nis' => [
                 'nullable',
                 'string',
@@ -51,6 +53,7 @@ class UpdateStudentRequest extends FormRequest
             'tanggal_lahir' => [
                 'nullable',
                 'date',
+                'before_or_equal:today',
             ],
             'tempat_lahir' => [
                 'nullable',
@@ -72,6 +75,14 @@ class UpdateStudentRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('user_id')) return;
+            $profile = $this->route('student');
+            if ($profile && (int) $profile->user_id !== (int) $this->input('user_id')) {
+                $validator->errors()->add('user_id', 'Relasi akun profil tidak dapat diubah.');
+            }
+            if ($validator->errors()->has('user_id') || ! $this->filled('user_id')) {
+                return;
+            }
             $user = User::with('role')->find($this->input('user_id'));
 
             if ($user !== null && $user->role?->code !== 'SISWA') {

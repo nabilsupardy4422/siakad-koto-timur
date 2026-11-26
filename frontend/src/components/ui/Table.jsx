@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import HorizontalScrollControls from './HorizontalScrollControls.jsx'
 import './Table.css'
 
 export default function Table({
@@ -6,9 +8,17 @@ export default function Table({
   rowKey = 'id',
   emptyMessage = 'Tidak ada data.',
   renderCell,
+  scrollLabel,
 }) {
-  return (
-    <div className="ui-table-wrapper">
+  const scrollRef = useRef(null)
+  const table = (
+    <div
+      className={`ui-table-wrapper${scrollLabel ? ' ui-table-wrapper--guided' : ''}`}
+      ref={scrollRef}
+      role={scrollLabel ? 'region' : undefined}
+      aria-label={scrollLabel}
+      tabIndex={scrollLabel ? 0 : undefined}
+    >
       <table className="ui-table">
         <thead className="ui-table__head">
           <tr>
@@ -52,6 +62,15 @@ export default function Table({
           )}
         </tbody>
       </table>
+    </div>
+  )
+  if (!scrollLabel) return table
+
+  return (
+    <div className="ui-table-scroll-shell">
+      <HorizontalScrollControls scrollRef={scrollRef} label={scrollLabel} endLabel="Ke aksi" />
+      {table}
+      <HorizontalScrollControls scrollRef={scrollRef} label={`${scrollLabel} (bawah)`} endLabel="Ke aksi" />
     </div>
   )
 }

@@ -55,3 +55,7 @@
 @media (prefers-reduced-motion: reduce) {
   .app-shell__content, .app-shell__skip { transition: none; }
 }
+
+/* Programmatic and skip-link focus stays visible without a full-height border. */
+.app-shell__main:focus { outline: none; }
+.app-shell__main:focus-visible { box-shadow: inset 0 3px #2563eb; }

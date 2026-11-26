@@ -9,6 +9,7 @@ use App\Support\ApiResponse;
 use App\Support\Permissions;
 use App\Support\UserAssignments;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class GoogleLoginController extends Controller
@@ -65,97 +66,113 @@ class GoogleLoginController extends Controller
             );
         }
 
-        // =====================================
-        // 4. PERIKSA STATUS AKUN
-        // =====================================
+        // Recheck the verified Google link and account under the same lock
+        // used by credential changes and administrative deactivation.
+        return DB::transaction(function () use ($user, $googleSubject): JsonResponse {
+            $locked = User::query()->with(['role', 'guru'])->lockForUpdate()->find($user->id);
+            if (! $locked || ! is_string($locked->google_id) || ! hash_equals($googleSubject, $locked->google_id)
+                || ! hash_equals($user->password, $locked->password) || (int) $locked->role_id !== (int) $user->role_id) {
+                return ApiResponse::message('Akun berubah. Silakan login kembali.', null, 401);
+            }
+            $user = $locked;
 
-        if ($user->account_status !== 'active') {
-            return ApiResponse::message(
-                'Akun SIAKAD tidak aktif.',
-                null,
-                403
-            );
-        }
+            // =====================================
+            // 4. PERIKSA STATUS AKUN
+            // =====================================
 
-        // =====================================
-        // 5. PERIKSA AKTIVASI
-        // =====================================
+            if ($user->account_status !== 'active') {
+                return ApiResponse::message(
+                    'Akun SIAKAD tidak aktif.',
+                    null,
+                    403
+                );
+            }
 
-        if ($user->requires_activation) {
-            return ApiResponse::message(
-                'Akun belum diaktivasi. Gunakan kode aktivasi dari Tata Usaha.',
-                null,
-                403
-            );
-        }
+            // =====================================
+            // 5. PERIKSA AKTIVASI
+            // =====================================
 
-        // =====================================
-        // 6. PERIKSA ROLE
-        // =====================================
+            if ($user->requires_activation) {
+                return ApiResponse::message(
+                    'Akun belum diaktivasi. Gunakan kode aktivasi dari Tata Usaha.',
+                    null,
+                    403
+                );
+            }
 
-        $roleCode = $user->role?->code;
+            // =====================================
+            // 6. PERIKSA ROLE
+            // =====================================
 
-        if (
-            ! in_array(
-                $roleCode,
-                [
-                    'TU',
-                    'KEPALA_SEKOLAH',
-                    'GURU',
-                    'SISWA',
+            $roleCode = $user->role?->code;
+
+            if (
+                ! in_array(
+                    $roleCode,
+                    [
+                        'TU',
+                        'KEPALA_SEKOLAH',
+                        'GURU',
+                        'SISWA',
+                    ],
+                    true
+                )
+            ) {
+                return ApiResponse::message(
+                    'Role akun tidak diizinkan mengakses SIAKAD.',
+                    null,
+                    403
+                );
+            }
+
+            // =====================================
+            // 7. LOGIN BERHASIL
+            // =====================================
+
+            $user->forceFill([
+                'last_login_at' => now(),
+            ])->save();
+
+            // Gunakan Sanctum seperti login biasa.
+            $token = $user
+                ->createToken('siakad-api')
+                ->plainTextToken;
+
+            // =====================================
+            // 8. KIRIM RESPON LOGIN
+            // =====================================
+
+            return ApiResponse::success([
+                'token' => $token,
+                'token_type' => 'Bearer',
+
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'account_status' =>
+                        $user->account_status,
+
+                    'role' => [
+                        'code' => $user->role->code,
+                        'name' => $user->role->name,
+                    ],
+                    'guru' => $user->role?->code === 'GURU' && $user->guru ? [
+                        'id' => $user->guru->id,
+                        'nip' => $user->guru->nip,
+                        'nama_lengkap' => $user->guru->nama_lengkap,
+                    ] : null,
                 ],
-                true
-            )
-        ) {
-            return ApiResponse::message(
-                'Role akun tidak diizinkan mengakses SIAKAD.',
-                null,
-                403
-            );
-        }
 
-        // =====================================
-        // 7. LOGIN BERHASIL
-        // =====================================
+                'permissions' => Permissions::forRole(
+                    $roleCode
+                ),
 
-        $user->forceFill([
-            'last_login_at' => now(),
-        ])->save();
-
-        // Gunakan Sanctum seperti login biasa.
-        $token = $user
-            ->createToken('siakad-api')
-            ->plainTextToken;
-
-        // =====================================
-        // 8. KIRIM RESPON LOGIN
-        // =====================================
-
-        return ApiResponse::success([
-            'token' => $token,
-            'token_type' => 'Bearer',
-
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                'name' => $user->name,
-                'email' => $user->email,
-                'account_status' =>
-                    $user->account_status,
-
-                'role' => [
-                    'code' => $user->role->code,
-                    'name' => $user->role->name,
-                ],
-            ],
-
-            'permissions' => Permissions::forRole(
-                $roleCode
-            ),
-
-            'assignments' => UserAssignments::forUser(
-                $user
-            ),
-        ]);
+                'assignments' => UserAssignments::forUser(
+                    $user
+                ),
+            ]);
+        }, 3);
     }
 }

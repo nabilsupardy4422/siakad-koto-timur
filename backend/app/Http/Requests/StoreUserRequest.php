@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
+use App\Support\SchoolPasswordPolicy;
 use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
@@ -23,7 +23,7 @@ class StoreUserRequest extends FormRequest
             'username' => [
                 'required',
                 'string',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'username'),
             ],
 
@@ -46,11 +46,7 @@ class StoreUserRequest extends FormRequest
                 Rule::exists('roles', 'id'),
             ],
 
-            'password' => [
-                'required',
-                'string',
-                Password::defaults(),
-            ],
+            'password' => SchoolPasswordPolicy::rules($this->has('password_confirmation')),
         ];
     }
 

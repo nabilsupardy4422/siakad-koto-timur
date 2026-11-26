@@ -89,7 +89,7 @@ class GooglePasswordRecoveryVerifyController extends Controller
 
         // Grant 5 menit, hanya sekali pakai, terikat user + Google sub.
         // Token ini rahasia dan BUKAN token autentikasi Sanctum.
-        $resetGrant = $grant->issue((int) $user->id, $googleSubject);
+        $resetGrant = $grant->issue((int) $user->id, $googleSubject, $user->password);
 
         return ApiResponse::success([
             'username' => $user->username,

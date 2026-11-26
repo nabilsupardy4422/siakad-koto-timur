@@ -1,5 +1,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import ToastNotification from '../../components/ui/ToastNotification'
+import { academicProfileRoute } from '../identity/identityDirectoryLogic.js'
+import { teacherApi } from '../../services/teacherApi'
+import { studentApi } from '../../services/studentApi'
+import WorkspaceModal from '../../components/ui/WorkspaceModal'
+import '../identity/IdentityDirectory.css'
 
 import { useAuth } from '../../context/useAuth'
 import PageHeader from '../../components/ui/PageHeader'
@@ -16,17 +23,17 @@ import LoadingState from '../../components/ui/LoadingState'
 
 import { userApi } from '../../services/userApi'
 import UserActionsMenu from './UserActionsMenu'
-import UserImportButton from './UserImportButton'
-import UserActivationSlipModal from './UserActivationSlipModal'
+import UserActivationSlipModal from './UserActivationSlipModal.jsx'
+import {codeMonitor,codeLabel,monitorKeys,wibDate} from './activationMonitorLogic.js'
 
+import BulkAccountModal from './BulkAccountModal.jsx'
+import { BATCH_LIMIT, isAcademic, mergeSelection, accountTotals, filteredSnapshot } from './bulkAccountLogic.js'
+import { identityInitials } from '../identity/identityDirectoryPresentation.js'
+import { academicYearApi } from '../../services/academicYearApi.js'
+import { classApi } from '../../services/classApi.js'
 import './UsersPage.css'
-
-const ROLES = [
-  { value: '1', label: 'Tata Usaha' },
-  { value: '2', label: 'Kepala Sekolah' },
-  { value: '3', label: 'Guru' },
-  { value: '4', label: 'Siswa' },
-]
+import {isStrongPassword, PASSWORD_POLICY_MESSAGE} from '../../components/security/passwordPolicy.js'
+import PasswordRequirements from '../../components/security/PasswordRequirements.jsx'
 
 const initialForm = {
   username: '',
@@ -34,6 +41,7 @@ const initialForm = {
   email: '',
   role_id: '',
   password: '',
+  password_confirmation: '',
 }
 
 const initialResetForm = {
@@ -45,6 +53,7 @@ const columns = [
   { key: 'identity', label: 'Identitas Pengguna' },
   { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status Akun' },
+  { key: 'profile', label: 'Profil akademik' },
   { key: 'google', label: 'Google' },
   { key: 'actions', label: 'Aksi' },
 ]
@@ -58,10 +67,10 @@ function getApiMessage(error, fallback) {
   return error?.message || fallback
 }
 
-function getRoleName(user) {
+function getRoleName(user, roles = []) {
   return (
     user?.role?.name ||
-    ROLES.find(
+    roles.find(
       (item) => item.value === String(user?.role_id)
     )?.label ||
     '-'
@@ -70,11 +79,31 @@ function getRoleName(user) {
 
 function getUserInitial(user) {
   const name = user?.name || user?.username || 'U'
-  return name.trim().charAt(0).toUpperCase() || 'U'
+  return identityInitials(name)
 }
 
 export default function UsersPage() {
   const { role, permissions = [] } = useAuth()
+  const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const [roles, setRoles] = useState([])
+  const [rolesError, setRolesError] = useState('')
+  const [entry, setEntry] = useState(null)
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const [templateError, setTemplateError] = useState('')
+  async function downloadAcademicTemplate(code) {
+    if (templateBusy || !canCreate) return
+    setTemplateBusy(true); setTemplateError('')
+    try {
+      const blob = await (code === 'GURU' ? teacherApi : studentApi).downloadTemplate()
+      if (!(blob instanceof Blob) || !blob.size) throw new Error('Template kosong.')
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = code === 'GURU' ? 'template_data_guru.xlsx' : 'template_data_siswa.xlsx'
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) {setTemplateError(e.message || 'Template gagal diunduh.')}
+    finally {setTemplateBusy(false)}
+  }
+  const exactUserId = params.get('user_id') || ''
 
   const roleCode =
     typeof role === 'string'
@@ -106,12 +135,89 @@ export default function UsersPage() {
     permissions.includes('users.reset_password')
 
   // Daftar, filter, dan pagination
+  const ROLES = roles.map(r => ({value: String(r.id), label: r.name, code: r.code}))
+  useEffect(() => {
+    if (!canView) return
+    let live = true
+    userApi.getRoles().then(r => {if (live) setRoles(Array.isArray(r?.data) ? r.data : [])}).catch(e => {if (live) setRolesError(e.message || 'Katalog role gagal dimuat.')})
+    return () => {live = false}
+  }, [canView])
   const [users, setUsers] = useState([])
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [sortOrder, setSortOrder] = useState('asc')
+  const [pageSize, setPageSize] = useState('15')
+  const [profileFilter, setProfileFilter] = useState('')
+  const [codeFilter,setCodeFilter]=useState('')
+  const [monitor,setMonitor]=useState(null)
+  const [period, setPeriod] = useState('')
+  const [periods, setPeriods] = useState([])
+  const [classes, setClasses] = useState([])
+  const [classFilter, setClassFilter] = useState('')
+  const [contextError, setContextError] = useState('')
+  const [summary, setSummary] = useState(null)
+  const [summaryError, setSummaryError] = useState('')
+  const [selected, setSelected] = useState([])
+  const [bulk, setBulk] = useState(null)
+  const [selectionNotice, setSelectionNotice] = useState('')
+  const [selectingAll, setSelectingAll] = useState(false)
+  const allRequest = useRef(0)
+  const canBulk = roleCode === 'TU' && (canResetPassword || canDeactivate)
+  const query = useCallback(() => ({search, role_id:roleFilter, account_state:statusFilter, profile_state:profileFilter,code_state:codeFilter,
+    academic_year_id:period, class_id:classFilter==='unassigned'?'':classFilter,
+    placement_state:classFilter==='unassigned'?'unassigned':'', sort_order:sortOrder,user_id:exactUserId}),
+    [search,roleFilter,statusFilter,profileFilter,codeFilter,period,classFilter,sortOrder,exactUserId])
+  const filterKey = JSON.stringify([query(),pageSize])
+  const filterRef = useRef(filterKey)
+  filterRef.current = filterKey
+  useEffect(()=>{allRequest.current++;setSelected([]);setSelectionNotice('');setSelectingAll(false)},[filterKey])
+  useEffect(()=>{
+    if(!canView)return
+    let live=true
+    academicYearApi.getAll().then(r=>{if(!Array.isArray(r?.data))throw new Error('Katalog periode tidak valid.');if(live)setPeriods(r.data)})
+      .catch(e=>{if(live)setContextError(e.message||'Periode tidak dapat dimuat.')})
+    return()=>{live=false}
+  },[canView])
+  const activePeriods=periods.filter(y=>y.is_active===true||y.is_active===1)
+  const effectivePeriod=period||(activePeriods.length===1?String(activePeriods[0].id):'')
+  useEffect(()=>{
+    setClasses([])
+    if(!canView||!effectivePeriod)return
+    let live=true
+    async function load(){
+      try{
+        const rows=[];const ids=new Set();let last=1
+        for(let page=1;page<=last;page++){
+          const r=await classApi.getAll({academic_year_id:effectivePeriod,per_page:100,page})
+          const next=Number(r?.meta?.last_page)
+          if(!Array.isArray(r?.data)||Number(r?.meta?.current_page)!==page||!Number.isSafeInteger(next)||next<page||next>100||(page>1&&last!==next))throw new Error('Katalog kelas tidak valid.')
+          last=next
+          for(const c of r.data){if(String(c.tahun_akademik_id)!==effectivePeriod||ids.has(c.id))throw new Error('Identitas kelas tidak valid.');ids.add(c.id);rows.push(c)}
+        }
+        if(live){setClasses(rows);setContextError('')}
+      }catch(e){if(live)setContextError(e.message||'Kelas gagal dimuat.')}
+    }
+    load();return()=>{live=false}
+  },[canView,effectivePeriod])
+  function addSelection(ids){
+    try{setSelected(mergeSelection(selected,ids));setSelectionNotice('')}catch(e){setSelectionNotice(e.message)}
+  }
+  async function selectFiltered(){
+    if(loading||listError||selectingAll||meta.total>BATCH_LIMIT)return
+    const generation=++allRequest.current;const key=filterRef.current
+    setSelectingAll(true);setSelectionNotice('')
+    try{
+      const response=await userApi.getAll({...query(),page:1,page_size:BATCH_LIMIT})
+      if(generation!==allRequest.current||key!==filterRef.current)return
+      const snapshot=filteredSnapshot(response,meta.total)
+      setSelected(snapshot.ids);setSelectionNotice(snapshot.excluded?`${snapshot.excluded} akun administratif tidak disertakan.`:'Semua hasil filter telah dipilih.')
+    }catch(e){if(generation===allRequest.current)setSelectionNotice(e.message)}
+    finally{if(generation===allRequest.current)setSelectingAll(false)}
+  }
+
 
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -124,6 +230,14 @@ export default function UsersPage() {
   const [listError, setListError] = useState(null)
   const [successMessage, setSuccessMessage] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  useEffect(()=>{
+    if(!canView)return
+    let live=true;setSummary(null);setMonitor(null);setSummaryError('')
+    userApi.getActivationSummary().then(r=>{if(!live)return;const d=accountTotals(r);if(!d)throw new Error('Ringkasan tidak valid.');setSummary(d);setMonitor(codeMonitor(r))})
+      .catch(e=>{if(live)setSummaryError(e.message||'Ringkasan gagal dimuat.')})
+    return()=>{live=false}
+  },[canView,reloadKey])
+
 
   // Melindungi hasil request terbaru dari respons lama.
   const requestIdRef = useRef(0)
@@ -168,11 +282,7 @@ export default function UsersPage() {
 
     try {
       const response = await userApi.getAll({
-        search,
-        role_id: roleFilter,
-        account_status: statusFilter,
-        page,
-        page_size: 15,
+        ...query(), page, page_size:Number(pageSize),
       })
 
       // Abaikan respons yang sudah tidak relevan.
@@ -197,7 +307,7 @@ export default function UsersPage() {
         setLoading(false)
       }
     }
-  }, [canView, page, roleFilter, search, statusFilter])
+  }, [canView, page, query, pageSize])
 
   useEffect(() => {
     loadUsers()
@@ -209,22 +319,6 @@ export default function UsersPage() {
 
   function refreshUsers() {
     setReloadKey((current) => current + 1)
-  }
-
-  // Dipanggil oleh UserImportButton setelah
-  // Laravel berhasil menyimpan akun.
-  function handleUsersImported(result) {
-    setSearchInput('')
-    setSearch('')
-    setRoleFilter('')
-    setStatusFilter('')
-    setPage(1)
-
-    setSuccessMessage(
-      `${result.created_count} akun berhasil diimpor. Terbitkan slip aktivasi melalui menu Aksi pengguna.`
-    )
-
-    refreshUsers()
   }
 
   // ==========================================
@@ -246,9 +340,26 @@ export default function UsersPage() {
   }
 
   function openCreateModal() {
+    setEntry('register')
+  }
+
+  function chooseRegistration(code) {
+    setEntry(null)
+    if (code === 'GURU' || code === 'SISWA') {
+      navigate(`/app/${code === 'GURU' ? 'teachers' : 'students'}?register=1`)
+      return
+    }
+    const selected = roles.find(r => r.code === code)
+    if (!selected) return
     clearUserForm()
+    setForm({...initialForm, role_id: String(selected.id)})
     setSuccessMessage('')
     setModalOpen(true)
+  }
+
+  function openAcademicProfile(user) {
+    const target = academicProfileRoute(user)
+    if (target) navigate(target)
   }
 
   function openEditModal(user) {
@@ -262,6 +373,7 @@ export default function UsersPage() {
       email: user.email || '',
       role_id: String(user.role_id ?? ''),
       password: '',
+      password_confirmation: '',
     })
 
     setModalOpen(true)
@@ -290,10 +402,13 @@ export default function UsersPage() {
   }
 
   function resetFilters() {
+    setParams({})
     setSearchInput('')
     setSearch('')
     setRoleFilter('')
     setStatusFilter('')
+    setSortOrder('asc')
+    setProfileFilter('');setCodeFilter('');setPeriod('');setClassFilter('');setPageSize('15')
     setPage(1)
   }
 
@@ -318,8 +433,9 @@ export default function UsersPage() {
       localErrors.role_id = 'Role wajib dipilih.'
     }
 
-    if (!editingUser && !form.password) {
-      localErrors.password = 'Password wajib diisi.'
+    if (!editingUser) {
+      if (!isStrongPassword(form.password)) localErrors.password = PASSWORD_POLICY_MESSAGE
+      if (!form.password_confirmation || form.password_confirmation !== form.password) localErrors.password_confirmation = 'Konfirmasi password tidak sesuai.'
     }
 
     if (Object.keys(localErrors).length > 0) {
@@ -336,6 +452,7 @@ export default function UsersPage() {
 
     if (!editingUser) {
       payload.password = form.password
+      payload.password_confirmation = form.password_confirmation
     }
 
     setSaving(true)
@@ -357,6 +474,7 @@ export default function UsersPage() {
         setSearchInput('')
         setRoleFilter('')
         setStatusFilter('')
+        setCodeFilter('')
       }
 
       setModalOpen(false)
@@ -462,6 +580,8 @@ export default function UsersPage() {
 
     if (!resetForm.password) {
       errors.password = 'Password baru wajib diisi.'
+    } else if (!isStrongPassword(resetForm.password)) {
+      errors.password = PASSWORD_POLICY_MESSAGE
     }
 
     if (!resetForm.password_confirmation) {
@@ -517,7 +637,7 @@ export default function UsersPage() {
 
   if (!canView) {
     return (
-      <section className="users-page">
+      <section className="users-page identity-directory-page">
         <PageHeader
           title="Manajemen Pengguna"
           description="Pengelolaan akun pengguna SIAKAD."
@@ -535,16 +655,15 @@ export default function UsersPage() {
   // ==========================================
 
   return (
-    <section className="users-page">
+    <section className="users-page identity-directory-page">
       <PageHeader
+        eyebrow="Administrasi akun"
         title="Manajemen Pengguna"
         description="Kelola akun, role, dan status akses pengguna SIAKAD."
         actions={
           canCreate ? (
             <div className="users-page__header-actions">
-              <UserImportButton
-                onImported={handleUsersImported}
-              />
+              <Button variant="secondary" onClick={() => setEntry('import')}>Import Excel</Button>
 
               <Button onClick={openCreateModal}>
                 + Tambah Pengguna
@@ -554,16 +673,34 @@ export default function UsersPage() {
         }
       />
 
-      {successMessage && (
-        <div
-          className="users-page__success"
-          role="status"
-          aria-live="polite"
-        >
-          {successMessage}
+      <ToastNotification notice={successMessage ? {type:'success', title:'Berhasil', message:successMessage} : null} onClose={() => setSuccessMessage('')}/>
+      {rolesError && <ErrorState message={rolesError}/>}
+      {exactUserId && <div className="users-page__exact-context"><span>Menampilkan akun terkait profil (ID {exactUserId}).</span><Button variant="secondary" onClick={resetFilters}>Lihat semua pengguna</Button></div>}
+      {entry && <WorkspaceModal className="identity-entry-workspace" busy={templateBusy} title={entry === 'import' ? 'Import identitas akademik' : 'Pilih jenis pengguna'} eyebrow="MANAJEMEN AKUN" description={entry === 'import' ? 'Gunakan template resmi untuk membuat profil dan akun sekaligus.' : 'Pilih jenis identitas yang akan didaftarkan.'} onClose={() => {setEntry(null);setTemplateError('')}} footer={<Button variant="secondary" disabled={templateBusy} onClick={() => {setEntry(null);setTemplateError('')}}>Tutup</Button>}>
+        <div className="identity-entry-grid">
+          {['GURU','SISWA',...(entry === 'register' ? ['TU','KEPALA_SEKOLAH'] : [])].map(code => <article key={code} className="identity-entry-card">
+            <span className="identity-entry-mark" aria-hidden="true">{({GURU:'G',SISWA:'S',TU:'TU',KEPALA_SEKOLAH:'KS'})[code]}</span>
+            <h3>{({GURU:'Guru',SISWA:'Siswa',TU:'Tata Usaha',KEPALA_SEKOLAH:'Kepala Sekolah'})[code]}</h3>
+            <p>{['GURU','SISWA'].includes(code) ? 'Identitas resmi dan akun dalam satu proses.' : 'Akun administratif tanpa profil akademik terpisah.'}</p>
+            <div className="identity-entry-actions">{entry === 'import' && <Button variant="secondary" disabled={templateBusy} onClick={() => downloadAcademicTemplate(code)}>Unduh template</Button>}
+            <Button disabled={templateBusy || (entry === 'register' && !['GURU','SISWA'].includes(code) && !roles.some(r => r.code === code))} onClick={() => entry === 'import' ? navigate(`/app/${code === 'GURU' ? 'teachers' : 'students'}?import=1`) : chooseRegistration(code)}>{entry==='import'?'Import':'Daftarkan'}</Button></div>
+          </article>)}
         </div>
-      )}
+        {templateError && <ErrorState message={templateError}/>}
+        <p className="identity-entry-note">Akun Guru dan Siswa baru memerlukan aktivasi mandiri. Akun existing dapat dilengkapi melalui profil akademik.</p>
+      </WorkspaceModal>}
 
+      <section className="account-overview" aria-label="Ringkasan seluruh akun">
+        <div className="account-overview-head"><strong>Ringkasan akses pengguna</strong><span>Seluruh akun · di luar filter</span></div>
+        <div className="account-overview-grid">{[['total','Total pengguna','Seluruh akun terdaftar'],['ready','Siap digunakan','Aktif dan dapat login'],['pending','Menunggu aktivasi','Perlu aktivasi mandiri'],['inactive','Nonaktif','Akses dinonaktifkan']].map(([key,label,note])=><article key={key} className={`account-metric account-metric-${key}`}><span>{label}</span><strong>{summary?summary[key].toLocaleString('id-ID'):'—'}</strong><small>{note}</small></article>)}</div>
+        {summaryError&&<div className="account-summary-note" role="status">{summaryError} <Button size="small" variant="secondary" onClick={refreshUsers}>Coba lagi</Button></div>}
+        <section className="account-code-monitor" aria-label="Monitoring kode aktivasi">
+          <div className="account-code-monitor-head"><div><strong>Monitoring kode aktivasi</strong><small>Guru/Siswa aktif yang masih perlu aktivasi · seluruh akun</small></div><Button size="small" variant="secondary" onClick={refreshUsers}>Perbarui</Button></div>
+          <div className="account-code-monitor-grid">{monitorKeys.map(key=><button key={key} type="button" aria-pressed={codeFilter===key} className={`account-code-monitor-item account-code-${key}`} disabled={!monitor} onClick={()=>{setParams({});setCodeFilter(codeFilter===key?'':key);setStatusFilter('');setRoleFilter('');setProfileFilter('');setPeriod('');setClassFilter('');setSearch('');setSearchInput('');setPage(1)}}><span>{codeLabel(key)}</span><strong>{monitor?monitor[key].toLocaleString('id-ID'):'—'}</strong></button>)}</div>
+          {!monitor&&summary&&<p role="status">Data monitoring belum tersedia. Perbarui ringkasan.</p>}
+        </section>
+        {!!summary?.unknown&&<p className="account-summary-note">{summary.unknown} akun memiliki status belum diketahui.</p>}
+      </section>
       <Card className="users-page__card">
         <div className="users-page__list-header">
           <div>
@@ -588,8 +725,11 @@ export default function UsersPage() {
           </span>
         </div>
 
+        <div className="account-role-tabs" role="group" aria-label="Filter role pengguna">
+          {[{value:'',label:'Semua akun'},...ROLES].map(r=><button type="button" key={r.value} aria-pressed={roleFilter===r.value} onClick={()=>{setRoleFilter(r.value);setPeriod('');setClassFilter('');setPage(1)}}>{r.label}</button>)}
+        </div>
         <form
-          className="users-page__filters"
+          className="users-page__filters account-filter-panel"
           onSubmit={handleSearch}
         >
           <Input
@@ -604,27 +744,15 @@ export default function UsersPage() {
           />
 
           <Select
-            id="user-role-filter"
-            name="role_id"
-            label="Role"
-            value={roleFilter}
-            placeholder="Semua role"
-            options={ROLES}
-            onChange={(event) => {
-              setRoleFilter(event.target.value)
-              setPage(1)
-            }}
-          />
-
-          <Select
             id="user-status-filter"
             name="account_status"
             label="Status akun"
             value={statusFilter}
             placeholder="Semua status"
             options={[
-              { value: 'active', label: 'Aktif' },
-              { value: 'inactive', label: 'Tidak Aktif' },
+              { value: 'ready', label: 'Siap digunakan' },
+              { value: 'pending', label: 'Menunggu aktivasi' },
+              { value: 'inactive', label: 'Nonaktif' },
             ]}
             onChange={(event) => {
               setStatusFilter(event.target.value)
@@ -632,6 +760,9 @@ export default function UsersPage() {
             }}
           />
 
+          <Select id="user-sort" label="Urutan nama" value={sortOrder}
+            options={[{value: 'asc', label: 'A–Z'}, {value: 'desc', label: 'Z–A'}]}
+            onChange={event => {setSortOrder(event.target.value || 'asc'); setPage(1)}} />
           <div className="users-page__filter-actions">
             <Button type="submit">Cari</Button>
 
@@ -643,7 +774,28 @@ export default function UsersPage() {
               Reset
             </Button>
           </div>
+          <details className="identity-directory-advanced"><summary>Filter lanjutan & tampilan {(profileFilter||period||classFilter||codeFilter)&&<span className="identity-filter-active">Aktif</span>}</summary>
+            <div className="identity-directory-advanced-grid">
+              <Select id="user-code-state" label="Status kode aktivasi" value={codeFilter} placeholder="Semua kode" options={monitorKeys.map(key=>({value:key,label:codeLabel(key)}))} onChange={e=>{setCodeFilter(e.target.value);setPage(1)}}/>
+              <Select id="user-profile-state" label="Profil akademik" value={profileFilter} placeholder="Semua" options={[{value:'linked',label:'Terhubung'},{value:'unlinked',label:'Belum terhubung'}]} onChange={e=>{setProfileFilter(e.target.value);setPage(1)}}/>
+              <Select id="user-period" label="Periode siswa" value={period} placeholder="Semua periode" options={periods.map(y=>({value:String(y.id),label:`${y.tahun_mulai}/${y.tahun_selesai} · ${y.semester}`}))} onChange={e=>{setPeriod(e.target.value);setClassFilter('');setRoleFilter(String(roles.find(r=>r.code==='SISWA')?.id||''));setPage(1)}}/>
+              <Select id="user-class" label="Kelas siswa" value={classFilter} disabled={!effectivePeriod||!!contextError} placeholder={period?'Semua kelas periode':'Semua kelas (filter kelas: periode aktif)'} options={[{value:'unassigned',label:'Belum ditempatkan'},...classes.map(c=>({value:String(c.id),label:c.nama}))]} onChange={e=>{setClassFilter(e.target.value);setRoleFilter(String(roles.find(r=>r.code==='SISWA')?.id||''));setPage(1)}}/>
+              <Select id="user-size" label="Data per halaman" value={pageSize} options={[15,25,50,100].map(n=>({value:String(n),label:String(n)}))} onChange={e=>{setPageSize(e.target.value||'15');setPage(1)}}/>
+            </div>{contextError&&<ErrorState message={contextError}/>}
+          </details>
         </form>
+
+        {canBulk&&!loading&&!listError&&users.length>0&&<div className="account-selection" aria-busy={selectingAll}>
+          <div><strong>{selected.length} akun dipilih</strong><small>Maksimal 100 per batch · hanya Guru/Siswa</small></div>
+          <div className="account-selection-actions">
+            <Button size="small" variant="secondary" disabled={selectingAll} onClick={()=>addSelection(users.filter(isAcademic).map(u=>u.id))}>Pilih halaman</Button>
+            <Button size="small" variant="secondary" disabled={selectingAll||meta.total>BATCH_LIMIT} onClick={selectFiltered}>Pilih semua hasil ({meta.total})</Button>
+            <Button size="small" variant="secondary" disabled={selectingAll||!selected.length} onClick={()=>{setSelected([]);setSelectionNotice('')}}>Kosongkan</Button>
+          </div>
+          {selected.length>0&&<div className="account-bulk-actions">{canResetPassword&&<Button disabled={selectingAll} onClick={()=>setBulk({action:'issue',ids:[...selected]})}>Buat kode & slip PDF</Button>}{canDeactivate&&<Button variant="secondary" disabled={selectingAll} onClick={()=>setBulk({action:'deactivate',ids:[...selected]})}>Nonaktifkan terpilih</Button>}</div>}
+          {meta.total>BATCH_LIMIT&&<small className="account-selection-note">Hasil lebih dari 100. Persempit filter atau pilih per halaman untuk setiap batch.</small>}
+          {selectionNotice&&<small className="account-selection-note" role="status">{selectionNotice}</small>}
+        </div>}
 
         {loading && (
           <LoadingState
@@ -678,11 +830,14 @@ export default function UsersPage() {
           users.length > 0 && (
             <>
               <Table
-                columns={columns}
+                scrollLabel="Tabel Manajemen Pengguna"
+                columns={canBulk?[{key:'selection',label:'Pilih',className:'account-select-cell'},...columns]:columns}
                 data={users}
                 rowKey="id"
                 renderCell={(user, column) => {
                   switch (column.key) {
+                    case 'selection':
+                      return <input type="checkbox" aria-label={`Pilih ${user.name||user.username}`} checked={selected.includes(user.id)} disabled={!isAcademic(user)||selectingAll} onChange={e=>e.target.checked?addSelection([user.id]):setSelected(old=>old.filter(id=>id!==user.id))}/>
                     case 'identity':
                       return (
                         <div className="users-page__identity-row">
@@ -711,30 +866,40 @@ export default function UsersPage() {
                       )
 
                     case 'role':
-                      return getRoleName(user)
+                      return getRoleName(user, ROLES)
 
                     case 'status':
                       if (user.account_status !== 'active') {
                         return (
                           <Badge variant="neutral">
-                            Tidak Aktif
+                            {user.account_status === 'inactive' ? 'Nonaktif' : 'Status belum diketahui'}
                           </Badge>
                         )
                       }
 
                       if (user.requires_activation === true) {
                         return (
-                          <span className="users-page__activation-pending">
-                            Belum Aktivasi
-                          </span>
+                          <div className="account-status-stack"><span className="users-page__activation-pending">Belum Aktivasi</span><small>{codeLabel(user.activation_status?.state)}</small>{user.activation_status?.expires_at&&<small>{wibDate(user.activation_status.expires_at)}</small>}</div>
                         )
                       }
 
                       return (
-                        <Badge variant="success">
-                          Aktif
+                        <Badge variant={user.requires_activation === false ? "success" : "neutral"}>
+                          {user.requires_activation === false ? "Siap digunakan" : "Status belum diketahui"}
                         </Badge>
                       )
+
+                    case 'profile': {
+                      const status = user.academic_profile?.status
+                      if (status === 'linked' || status === 'unlinked') {
+                        return <div className="users-page__profile-link">
+                          <Badge variant={status === 'linked' ? 'success' : 'warning'}>{status === 'linked' ? 'Terhubung' : 'Belum terhubung'}</Badge>
+                          {canCreate && academicProfileRoute(user) && <Button size="small" variant="secondary" onClick={() => openAcademicProfile(user)}>{status === 'linked' ? 'Lihat Profil' : 'Lengkapi Profil'}</Button>}
+                          {status === 'unlinked' && user.account_status !== 'active' && <small>Aktifkan administratif dahulu.</small>}
+                        </div>
+                      }
+                      return <Badge variant={status === 'conflict' ? 'danger' : 'neutral'}>{status === 'not_required' ? 'Tidak diperlukan' : status === 'conflict' ? 'Konflik relasi' : 'Belum diketahui'}</Badge>
+                    }
 
                     case 'google':
                       return user.google_linked ? (
@@ -753,21 +918,12 @@ export default function UsersPage() {
                           ? canDeactivate
                           : canActivate
 
-                      const canIssueActivation =
-                        roleCode === 'TU' &&
-                        canResetPassword &&
-                        user.account_status === 'active' &&
-                        user.requires_activation === true &&
-                        ['GURU', 'SISWA'].includes(
-                          user.role?.code
-                        )
-
                       return (
                         <div className="users-page__actions">
                           {canUpdate ||
                           canToggle ||
                           canResetPassword ||
-                          canIssueActivation ? (
+                          canView ? (
                             <UserActionsMenu
                               user={user}
                               canUpdate={canUpdate}
@@ -776,9 +932,7 @@ export default function UsersPage() {
                                 canResetPassword &&
                                 user.requires_activation !== true
                               }
-                              canIssueActivation={
-                                canIssueActivation
-                              }
+                              canIssueActivation={canView}
                               disabled={
                                 processingId !== null ||
                                 resetting
@@ -927,7 +1081,7 @@ export default function UsersPage() {
               label="Nama lengkap"
               value={form.name}
               required
-              disabled={saving}
+              disabled={saving || editingUser?.academic_profile?.status === 'linked'}
               error={getFieldError(
                 fieldErrors,
                 'name'
@@ -955,9 +1109,9 @@ export default function UsersPage() {
               label="Role pengguna"
               value={form.role_id}
               required
-              disabled={saving}
+              disabled={saving || editingUser?.academic_profile?.status === 'linked'}
               placeholder="Pilih role"
-              options={ROLES}
+              options={ROLES.filter(r => ['TU','KEPALA_SEKOLAH'].includes(r.code) || (editingUser && String(editingUser.role_id) === r.value))}
               error={getFieldError(
                 fieldErrors,
                 'role_id'
@@ -979,9 +1133,11 @@ export default function UsersPage() {
                     fieldErrors,
                     'password'
                   )}
-                  hint="Password disimpan oleh backend menggunakan hashing."
+                  autoComplete="new-password"
                   onChange={handleChange}
                 />
+                <Input id="password-confirmation" name="password_confirmation" label="Konfirmasi password awal" type="password" autoComplete="new-password" required disabled={saving} value={form.password_confirmation} error={getFieldError(fieldErrors, 'password_confirmation')} onChange={handleChange}/>
+                <PasswordRequirements password={form.password} confirmation={form.password_confirmation}/>
               </div>
             )}
           </div>
@@ -1150,7 +1306,7 @@ export default function UsersPage() {
                     resetFieldErrors,
                     'password'
                   )}
-                  hint="Gunakan password yang kuat dan tidak mudah ditebak."
+                  autoComplete="new-password"
                   onChange={handleResetFieldChange}
                 />
 
@@ -1167,7 +1323,9 @@ export default function UsersPage() {
                     'password_confirmation'
                   )}
                   onChange={handleResetFieldChange}
+                  autoComplete="new-password"
                 />
+                <PasswordRequirements password={resetForm.password} confirmation={resetForm.password_confirmation}/>
               </div>
             </form>
 
@@ -1182,13 +1340,17 @@ export default function UsersPage() {
         )}
       </Modal>
 
+      {bulk&&<BulkAccountModal action={bulk.action} ids={bulk.ids} onClose={()=>setBulk(null)} onCompleted={()=>{setSelected([]);refreshUsers()}}/>}
       {/* SLIP AKTIVASI GURU / SISWA */}
 
       {activationUser && (
         <UserActivationSlipModal
           key={activationUser.id}
           user={activationUser}
-          onClose={() => setActivationUser(null)}
+          canManageActivation={roleCode==='TU'&&canResetPassword}
+          onIssue={()=>{const id=activationUser.id;setActivationUser(null);setBulk({action:'issue',ids:[id]})}}
+          onChanged={refreshUsers}
+          onClose={() => {setActivationUser(null);refreshUsers()}}
         />
       )}
     </section>

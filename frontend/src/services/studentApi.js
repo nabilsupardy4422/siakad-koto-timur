@@ -21,8 +21,8 @@ export const studentApi = {
     return apiClient.get(`/students${buildQuery(params)}`)
   },
 
-  getById(id) {
-    return apiClient.get(`/students/${id}`)
+  getById(id, params = {}) {
+    return apiClient.get(`/students/${id}${buildQuery(params)}`)
   },
 
   create(payload) {

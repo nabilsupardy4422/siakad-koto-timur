@@ -1,109 +1,33 @@
+import { lazy } from "react";
+import RouteContentBoundary from "./routes/RouteContentBoundary.jsx";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-
-// ==========================================
-// Landing Page
-// ==========================================
-
-import FeatureHighlights from "./components/landing/FeatureHighlights";
-import Hero from "./components/landing/Hero";
-import Navbar from "./components/landing/Navbar";
-import AboutSection from "./components/landing/AboutSection";
-import RoleOverview from "./components/landing/RoleOverview";
-import FAQSection from "./components/landing/FAQSection";
-import CTASection from "./components/landing/CTASection";
-import Footer from "./components/landing/Footer";
-
-// ==========================================
-// Authentication
-// ==========================================
-
-import LoginPage from "./pages/auth/LoginPage";
-import ActivateAccountPage from "./pages/public/ActivateAccountPage";
-
 import { AuthProvider } from "./context/AuthContext.jsx";
-
 import RequireAuth from "./routes/RequireAuth";
 import AccessRoute from "./routes/AccessRoute";
-
-// ==========================================
-// Application Shell
-// ==========================================
-
 import AppShell from "./app/AppShell";
 
-// ==========================================
-// Dashboard
-// ==========================================
-
-import DashboardPage from "./pages/dashboard/DashboardPage";
-import ProfilePage from "./pages/profile/ProfilePage";
-
-// ==========================================
-// Master Data
-// ==========================================
-
-import AcademicYearsPage from "./pages/academic-years/AcademicYearsPage";
-import StudentsPage from "./pages/students/StudentsPage";
-import TeachersPage from "./pages/teachers/TeachersPage";
-import UsersPage from "./pages/users/UsersPage";
-
-import HomeroomManagementPage from "./pages/homeroom/HomeroomManagementPage";
-import HomeroomPage from "./pages/homeroom/HomeroomPage";
-
-import ClassesPage from "./pages/classes/ClassesPage";
-import ClassMembersPage from "./pages/class-members/ClassMembersPage";
-
-import SubjectsPage from "./pages/subjects/SubjectsPage";
-import SchedulesPage from "./pages/schedules/SchedulesPage";
-
-import MaterialsPage from "./pages/materials/MaterialsPage";
-import AssignmentsPage from "./pages/assignments/AssignmentsPage";
-import GradesPage from "./pages/grades/GradesPage";
-
-// ==========================================
-// Report Cards
-// ==========================================
-
-import ReportCardsPage from "./pages/report-cards/ReportCardsPage";
-
-// ==========================================
-// Reports
-// ==========================================
-
-import ReportsPage from "./pages/reports/ReportsPage";
-
-// ==========================================
-// Attendance
-// ==========================================
-
-import AttendancePage from "./pages/attendance/AttendancePage";
-
-// ==========================================
-// Public Landing Page
-// ==========================================
-
-function LandingPage() {
-  return (
-    <div className="app">
-      <Navbar />
-
-      <main>
-        <Hero />
-        <FeatureHighlights />
-        <AboutSection />
-        <RoleOverview />
-        <FAQSection />
-        <CTASection />
-      </main>
-
-      <Footer />
-    </div>
-  );
-}
-
-// ==========================================
-// Main Application Router
-// ==========================================
+// Route modules load only on demand; guards and shell remain eager.
+const LandingPage = lazy(() => import("./pages/public/LandingPage.jsx"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage.jsx"));
+const ActivateAccountPage = lazy(() => import("./pages/public/ActivateAccountPage.jsx"));
+const DashboardPage = lazy(() => import("./pages/dashboard/DashboardPage.jsx"));
+const ProfilePage = lazy(() => import("./pages/profile/ProfilePage.jsx"));
+const AcademicYearsPage = lazy(() => import("./pages/academic-years/AcademicYearsPage.jsx"));
+const StudentsPage = lazy(() => import("./pages/students/StudentsPage.jsx"));
+const TeachersPage = lazy(() => import("./pages/teachers/TeachersPage.jsx"));
+const UsersPage = lazy(() => import("./pages/users/UsersPage.jsx"));
+const HomeroomManagementPage = lazy(() => import("./pages/homeroom/HomeroomManagementPage.jsx"));
+const HomeroomPage = lazy(() => import("./pages/homeroom/HomeroomPage.jsx"));
+const ClassesPage = lazy(() => import("./pages/classes/ClassesPage.jsx"));
+const ClassMembersPage = lazy(() => import("./pages/class-members/ClassMembersPage.jsx"));
+const SubjectsPage = lazy(() => import("./pages/subjects/SubjectsPage.jsx"));
+const SchedulesPage = lazy(() => import("./pages/schedules/SchedulesPage.jsx"));
+const MaterialsPage = lazy(() => import("./pages/materials/MaterialsPage.jsx"));
+const AssignmentsPage = lazy(() => import("./pages/assignments/AssignmentsPage.jsx"));
+const GradesPage = lazy(() => import("./pages/grades/GradesPage.jsx"));
+const ReportCardsPage = lazy(() => import("./pages/report-cards/ReportCardsPage.jsx"));
+const ReportsPage = lazy(() => import("./pages/reports/ReportsPage.jsx"));
+const AttendancePage = lazy(() => import("./pages/attendance/AttendancePage.jsx"));
 
 function App() {
   return (
@@ -116,12 +40,12 @@ function App() {
 
           <Route
             path="/"
-            element={<LandingPage />}
+            element={<RouteContentBoundary publicPage><LandingPage /></RouteContentBoundary>}
           />
 
           <Route
             path="/login"
-            element={<LoginPage />}
+            element={<RouteContentBoundary publicPage><LoginPage /></RouteContentBoundary>}
           />
 
           {/*
@@ -137,7 +61,7 @@ function App() {
 
           <Route
             path="/aktivasi-akun"
-            element={<ActivateAccountPage />}
+            element={<RouteContentBoundary publicPage><ActivateAccountPage /></RouteContentBoundary>}
           />
 
           {/* ==================================

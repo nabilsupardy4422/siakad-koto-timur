@@ -142,7 +142,8 @@ final class ReportAccess
             $query->whereIn('kelas_id', $ids);
         }
         if ($filters['scope'] === 'school' && (isset($filters['subject_id']) || isset($filters['schedule_id']))) {
-            $schedules = JadwalPelajaran::query();
+            $schedules = JadwalPelajaran::query()
+                ->whereHas('kelas', fn (Builder $q) => $q->whereColumn('kelas.tahun_akademik_id', 'jadwal_pelajaran.tahun_akademik_id'));
             if (isset($filters['subject_id'])) $schedules->where('mapel_id', $filters['subject_id']);
             if (isset($filters['schedule_id'])) $schedules->whereKey($filters['schedule_id']);
             if (isset($filters['academic_year_id'])) $schedules->where('tahun_akademik_id', $filters['academic_year_id']);

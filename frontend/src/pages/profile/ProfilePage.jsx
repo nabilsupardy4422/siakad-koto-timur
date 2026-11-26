@@ -4,6 +4,10 @@ import { apiClient } from '../../services/apiClient'
 import { googleAccountApi } from '../../services/googleAccountApi'
 import ProfilePhotoCard from './ProfilePhotoCard'
 import './ProfilePage.css'
+import {ProfileBanner, ProfileIdentity, ProfilePassword} from './PersonalProfileWorkspace'
+import ToastNotification from '../../components/ui/ToastNotification'
+import {useAuth} from '../../context/useAuth'
+import { getGoogleEnvironment, googleUnavailableMessage } from '../../utils/googleEnvironment.js'
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
@@ -95,10 +99,17 @@ function readMe(response) {
 }
 
 export default function ProfilePage() {
+  const {logout} = useAuth()
+  const googleEnvironment = getGoogleEnvironment(window.location.origin, GOOGLE_CLIENT_ID)
+  const googleAvailable = googleEnvironment.available
+  const [profile, setProfile] = useState(null)
+  const [tab, setTab] = useState('identity')
+  const [revision, setRevision] = useState(0)
   const [account, setAccount] = useState(null)
   const [googleLinked, setGoogleLinked] = useState(null)
   const [googleEmail, setGoogleEmail] = useState(null)
   const [reverifyOpen, setReverifyOpen] = useState(false)
+  const [linkOpen, setLinkOpen] = useState(false)
   const [linkPassword, setLinkPassword] = useState('')
   const [showLinkPassword, setShowLinkPassword] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -134,15 +145,18 @@ export default function ProfilePage() {
 
       const [meResult, statusResult] =
         await Promise.allSettled([
-          apiClient.get('/me'),
+          apiClient.get('/profile'),
           googleAccountApi.status(),
         ])
 
       if (cancelled) return
 
       if (meResult.status === 'fulfilled') {
+        setProfile(meResult.value.data)
         setAccount(readMe(meResult.value))
       } else {
+        setProfile(null)
+        setAccount(null)
         setError(
           apiMessage(
             meResult.reason,
@@ -185,20 +199,21 @@ export default function ProfilePage() {
       cancelled = true
       mountedRef.current = false
     }
-  }, [])
+  }, [revision])
 
   // ==========================================
   // HUBUNGKAN GOOGLE
   // ==========================================
 
   async function handleCredential(response) {
-    if (!response?.credential || workingRef.current) {
+    if (!googleAvailable || !mountedRef.current || tab !== 'security' || !response?.credential || workingRef.current) {
       return
     }
 
     const firstLink = googleLinked === false
+    if (googleLinked !== false && (googleLinked !== true || !reverifyOpen || unlinkOpen)) return
 
-    if (firstLink && !linkPasswordReady) {
+    if (firstLink && (!linkOpen || !linkPasswordReady)) {
       setError('Masukkan password SIAKAD sebelum menautkan Google.')
       return
     }
@@ -235,6 +250,7 @@ export default function ProfilePage() {
             : null
         )
         setReverifyOpen(false)
+        setLinkOpen(false)
         setWidgetError('')
 
         setNotice(
@@ -275,10 +291,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const showGoogleButton =
-      (googleLinked === false && linkPasswordReady) ||
+      (googleLinked === false && linkOpen && linkPasswordReady) ||
       (googleLinked === true && reverifyOpen && !unlinkOpen)
 
-    if (loading || !showGoogleButton || !GOOGLE_CLIENT_ID) {
+    if (loading || tab !== 'security' || !showGoogleButton || !googleAvailable) {
       return
     }
 
@@ -303,8 +319,9 @@ export default function ProfilePage() {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
 
-          callback: (response) =>
-            googleCallbackRef.current?.(response),
+          callback: (response) => {
+            if (!cancelled) googleCallbackRef.current?.(response)
+          },
 
           auto_select: false,
           ux_mode: 'popup',
@@ -337,7 +354,7 @@ export default function ProfilePage() {
       cancelled = true
       buttonContainer.replaceChildren()
     }
-  }, [loading, googleLinked, linkPasswordReady, reverifyOpen, unlinkOpen])
+  }, [loading, tab, googleLinked, linkOpen, linkPasswordReady, reverifyOpen, unlinkOpen, googleAvailable])
 
   // ==========================================
   // LEPASKAN GOOGLE
@@ -400,17 +417,10 @@ export default function ProfilePage() {
     <section className="siakad-profile">
       <PageHeader
         title="Profil Saya"
-        description="Lihat informasi akun dan kelola metode pemulihan SIAKAD."
+        description="Identitas resmi, kontak pribadi, foto, dan keamanan akun dalam satu tempat."
       />
 
-      {notice && (
-        <div
-          className="siakad-profile__notice"
-          role="status"
-        >
-          {notice}
-        </div>
-      )}
+      <ToastNotification notice={notice?{type:'success',title:'Berhasil',message:notice}:null} onClose={()=>setNotice('')}/>
 
       {error && (
         <div
@@ -421,80 +431,15 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* FOTO PROFIL — HANYA JIKA AKUN BERHASIL DIMUAT */}
-      {!loading && account?.id != null && (
-        <ProfilePhotoCard
-          userId={account.id}
-          name={account.name}
-        />
-      )}
-
-      {loading ? (
-        <div
-          className="siakad-profile__card"
-          role="status"
-        >
-          Memuat informasi akun...
-        </div>
-      ) : (
-        <div className="siakad-profile__layout">
-          {/* INFORMASI PENGGUNA */}
-
-          <article className="siakad-profile__card">
-            <div className="siakad-profile__section-heading">
-              <div
-                className="siakad-profile__icon"
-                aria-hidden="true"
-              >
-                A
-              </div>
-
-              <div>
-                <h2>Informasi Akun</h2>
-                <p>
-                  Data identitas yang terdaftar
-                  pada SIAKAD.
-                </p>
-              </div>
-            </div>
-
-            <dl className="siakad-profile__details">
-              <div>
-                <dt>Nama lengkap</dt>
-                <dd>{account?.name || '-'}</dd>
-              </div>
-
-              <div>
-                <dt>Username</dt>
-                <dd>{account?.username || '-'}</dd>
-              </div>
-
-              <div>
-                <dt>Email</dt>
-                <dd>{account?.email || '-'}</dd>
-              </div>
-
-              <div>
-                <dt>Role</dt>
-                <dd>{account?.role || '-'}</dd>
-              </div>
-
-              <div>
-                <dt>Status akun</dt>
-                <dd>
-                  {account?.accountStatus === 'active'
-                    ? 'Aktif'
-                    : account?.accountStatus || '-'}
-                </dd>
-              </div>
-            </dl>
-
-            <p className="siakad-profile__footnote">
-              Perubahan identitas dan role dikelola
-              sesuai kewenangan sekolah.
-            </p>
-          </article>
-
+      {loading ? <div className="siakad-profile__card" role="status">Memuat informasi profil...</div> : !profile ? <button className="pp-button pp-reload" onClick={()=>setRevision(v=>v+1)}>Muat ulang profil</button> : <>
+        <ProfileBanner profile={profile}/>
+        <nav className="pp-tabs" aria-label="Bagian profil">
+          {[['identity','Biodata'],['security','Keamanan'],['photo','Foto profil']].map(([key,label])=><button type="button" key={key} aria-pressed={tab===key} disabled={working} onClick={()=>{setTab(key);setLinkOpen(false);setError('');setLinkPassword('');setPassword('');setShowPassword(false);setShowLinkPassword(false);setReverifyOpen(false);setUnlinkOpen(false)}}>{label}</button>)}
+        </nav>
+        {tab==='identity'&&<ProfileIdentity profile={profile} onChange={setProfile} onNotice={setNotice} onReload={()=>setRevision(v=>v+1)}/>}
+        {tab==='photo'&&account?.id!=null&&<ProfilePhotoCard userId={account.id} name={profile.user.name}/>}
+        {tab==='security'&&<div className="pp-grid pp-security">
+          <ProfilePassword disabled={working} onChanged={async()=>{try{await logout()}catch{/* logout clears session in finally */}}}/>
           {/* KEAMANAN GOOGLE */}
 
           <article className="siakad-profile__card">
@@ -507,14 +452,14 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <h2>Keamanan & Pemulihan Akun</h2>
+                <h2>Google & pemulihan akun</h2>
                 <p>
-                  Hubungkan Google untuk persiapan
-                  pemulihan akun mandiri.
+                  Kelola akses Google dan pemulihan akun mandiri.
                 </p>
               </div>
             </div>
 
+            {googleLinked===null&&<p className="pp-alert" role="status">Status Google tidak tersedia. <button type="button" className="pp-button" onClick={()=>setRevision(v=>v+1)}>Periksa ulang</button></p>}
             <div className="siakad-profile__google-row">
               <div>
                 <strong>Akun Google</strong>
@@ -548,14 +493,14 @@ export default function ProfilePage() {
             {googleLinked === false && (
               <div className="siakad-profile__link-box">
                 <p>
-                  Gunakan akun Google milikmu sendiri.
-                  Akun SIAKAD harus sudah diaktivasi
-                  terlebih dahulu.
+                  Tautkan akun Google pribadi untuk masuk dan memulihkan akun sekolah.
                 </p>
 
-                {GOOGLE_CLIENT_ID ? (
+                {googleAvailable ? (
                   <>
-                    <div className="siakad-profile__unlink">
+                    <button type="button" className="siakad-profile__button siakad-profile__button--secondary" aria-expanded={linkOpen} disabled={working} onClick={()=>{setLinkOpen(v=>!v);setLinkPassword('');setShowLinkPassword(false);setWidgetError('');setError('')}}>{linkOpen?'Batal menautkan':'Tautkan akun Google'}</button>
+                    {linkOpen && <>
+                    <div className="siakad-profile__verify">
                       <label htmlFor="siakad-link-password">
                         Konfirmasi password SIAKAD
                       </label>
@@ -620,12 +565,11 @@ export default function ProfilePage() {
                         Memverifikasi akun Google...
                       </small>
                     )}
+                    </>}
                   </>
                 ) : (
-                  <p className="siakad-profile__inline-error">
-                    Client ID belum tersedia.
-                    Periksa VITE_GOOGLE_CLIENT_ID
-                    di frontend/.env.
+                  <p className="siakad-profile__footnote" role="status">
+                    {googleUnavailableMessage(googleEnvironment, 'link')}
                   </p>
                 )}
               </div>
@@ -666,7 +610,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     className="siakad-profile__button siakad-profile__button--secondary"
-                    disabled={working}
+                    disabled={working || !googleAvailable}
                     aria-expanded={reverifyOpen}
                     onClick={() => {
                       setReverifyOpen((value) => !value)
@@ -697,14 +641,18 @@ export default function ProfilePage() {
                   </button>
                 </div>
 
-                {reverifyOpen && (
+                {!googleAvailable && <p className="siakad-profile__footnote" role="status">
+                  {googleUnavailableMessage(googleEnvironment, 'reverify')} Tautan Google yang sudah tersimpan tetap dipertahankan.
+                </p>}
+
+                {reverifyOpen && googleAvailable && (
                   <div className="siakad-profile__link-box">
                     <p>
                       Pilih akun Google yang sama dengan tautan sebelumnya.
                       Akun Google berbeda akan ditolak oleh sistem.
                     </p>
 
-                    {GOOGLE_CLIENT_ID ? (
+                    {googleAvailable ? (
                       <>
                         <div
                           ref={googleButtonRef}
@@ -728,9 +676,8 @@ export default function ProfilePage() {
                         )}
                       </>
                     ) : (
-                      <p className="siakad-profile__inline-error">
-                        Client ID Google belum tersedia.
-                        Periksa VITE_GOOGLE_CLIENT_ID di frontend/.env.
+                      <p className="siakad-profile__footnote" role="status">
+                        {googleUnavailableMessage(googleEnvironment, 'reverify')}
                       </p>
                     )}
                   </div>
@@ -824,14 +771,12 @@ export default function ProfilePage() {
               <p>
                 Penautan Google tidak mengubah
                 username, password, atau role sekolah.
-                Fitur lupa username/password melalui
-                Google akan diaktifkan pada tahap
-                berikutnya.
+                Pemulihan username dan password melalui Google hanya tersedia untuk akun yang telah tertaut.
               </p>
             </div>
           </article>
-        </div>
-      )}
+        </div>}
+      </>}
     </section>
   )
 }

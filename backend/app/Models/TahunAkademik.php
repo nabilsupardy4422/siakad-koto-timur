@@ -10,6 +10,28 @@ class TahunAkademik extends Model
 {
     use HasFactory;
 
+    public const PERIOD_DEPENDENCIES = ['kelas', 'waliKelas', 'jadwalPelajaran', 'rapor'];
+
+    // Serialize period mutations even when the period table is empty. The TU
+    // role is an existing, stable row; callers must already be in a transaction.
+    public static function lockForAdministrativeMutation(): \Illuminate\Database\Eloquent\Collection
+    {
+        Role::query()->where('code', 'TU')->lockForUpdate()->firstOrFail();
+
+        return self::query()->orderBy('id')->lockForUpdate()->get();
+    }
+
+    public function hasAcademicDependencies(): bool
+    {
+        foreach (self::PERIOD_DEPENDENCIES as $relation) {
+            if ($this->{$relation}()->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected $table = 'tahun_akademik';
 
     protected $fillable = [

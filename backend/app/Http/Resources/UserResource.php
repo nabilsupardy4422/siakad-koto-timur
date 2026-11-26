@@ -24,6 +24,20 @@ class UserResource extends JsonResource
                 ];
             }),
 
+            'academic_profile' => $this->when(
+                $this->resource->relationLoaded('guru') && $this->resource->relationLoaded('siswa'),
+                function (): array {
+                    $code = $this->role?->code;
+                    $profile = $code === 'GURU' ? $this->guru : ($code === 'SISWA' ? $this->siswa : null);
+                    $opposite = $code === 'GURU' ? $this->siswa : ($code === 'SISWA' ? $this->guru : ($this->guru ?? $this->siswa));
+                    return ['status' => $opposite ? 'conflict' : (! in_array($code, ['GURU', 'SISWA'], true) ? 'not_required' : ($profile ? 'linked' : 'unlinked')),
+                        'id' => $profile?->id];
+                }
+            ),
+            'activation_status' => $this->when(array_key_exists('code_state', $this->resource->getAttributes()), fn () => [
+                'state' => $this->code_state,
+                'expires_at' => $this->code_state !== 'not_applicable' && $this->code_expires_at ? \Carbon\Carbon::parse($this->code_expires_at, config('app.timezone'))->toIso8601String() : null,
+            ]),
             'account_status' => $this->account_status,
             // Akun impor akan bernilai true sampai aktivasi berhasil.
             // Tidak ada kode aktivasi ataupun password di resource ini.

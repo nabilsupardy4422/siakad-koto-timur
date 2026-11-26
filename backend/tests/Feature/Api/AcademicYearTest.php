@@ -173,13 +173,14 @@ class AcademicYearTest extends TestCase
     public function test_tu_can_update_academic_year(): void
     {
         $user = $this->createUserWithRole('TU');
-        $academicYear = TahunAkademik::create($this->validPayload());
+        TahunAkademik::create($this->validPayload());
+        $academicYear = TahunAkademik::create(array_merge($this->validPayload(), ['semester' => 'GENAP', 'is_active' => false]));
 
         $payload = [
             'tahun_mulai' => 2027,
             'tahun_selesai' => 2028,
             'semester' => 'GENAP',
-            'is_active' => true,
+            'is_active' => false,
         ];
 
         $response = $this
@@ -191,14 +192,14 @@ class AcademicYearTest extends TestCase
             ->assertJsonPath('data.tahun_mulai', 2027)
             ->assertJsonPath('data.tahun_selesai', 2028)
             ->assertJsonPath('data.semester', 'GENAP')
-            ->assertJsonPath('data.is_active', true);
+            ->assertJsonPath('data.is_active', false);
 
         $this->assertDatabaseHas('tahun_akademik', [
             'id' => $academicYear->id,
             'tahun_mulai' => 2027,
             'tahun_selesai' => 2028,
             'semester' => 'GENAP',
-            'is_active' => true,
+            'is_active' => false,
         ]);
     }
 
@@ -413,5 +414,162 @@ class AcademicYearTest extends TestCase
                     'is_active',
                 ],
             ]);
+    }
+
+    public function test_first_period_is_activated_even_when_create_requests_inactive(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')))
+            ->postJson('/api/academic-years', array_merge($this->validPayload(), ['is_active' => false]))
+            ->assertCreated()->assertJsonPath('data.is_active', true)->assertJsonPath('data.identity_locked', true);
+    }
+
+    public function test_create_cannot_replace_active_period(): void
+    {
+        $active = TahunAkademik::create($this->validPayload());
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $next = array_merge($this->validPayload(), ['semester' => 'GENAP']);
+        $this->postJson('/api/academic-years', $next)->assertUnprocessable()->assertJsonValidationErrors('is_active');
+        $this->postJson('/api/academic-years', array_merge($next, ['is_active' => false]))
+            ->assertCreated()->assertJsonPath('data.is_active', false)->assertJsonPath('data.identity_locked', false);
+        $this->assertTrue($active->fresh()->is_active);
+    }
+
+    public function test_years_must_be_consecutive_on_create_and_edit(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $this->postJson('/api/academic-years', array_merge($this->validPayload(), ['tahun_selesai' => 2029]))
+            ->assertUnprocessable()->assertJsonValidationErrors('tahun_selesai');
+        $active = TahunAkademik::create($this->validPayload());
+        $next = TahunAkademik::create(array_merge($this->validPayload(), ['semester' => 'GENAP', 'is_active' => false]));
+        $this->putJson("/api/academic-years/{$next->id}", ['tahun_mulai' => 2028, 'tahun_selesai' => 2028, 'semester' => 'GENAP', 'is_active' => false])
+            ->assertUnprocessable()->assertJsonValidationErrors('tahun_selesai');
+        $this->assertTrue($active->fresh()->is_active);
+    }
+
+    public function test_active_and_used_period_identity_is_locked_but_activation_preserves_relations(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $active = TahunAkademik::create($this->validPayload());
+        $historical = TahunAkademik::create(array_merge($this->validPayload(), ['semester' => 'GENAP', 'is_active' => false]));
+        $class = Kelas::create(['tahun_akademik_id' => $historical->id, 'nama' => 'IPA 1', 'tingkat' => 10]);
+        $this->getJson("/api/academic-years/{$historical->id}")->assertOk()->assertJsonPath('data.identity_locked', true);
+        foreach ([$active, $historical] as $period) {
+            $this->putJson("/api/academic-years/{$period->id}", ['tahun_mulai' => 2028, 'tahun_selesai' => 2029, 'semester' => 'GANJIL', 'is_active' => $period->is_active])
+                ->assertUnprocessable()->assertJsonValidationErrors('academic_year');
+        }
+        $this->putJson("/api/academic-years/{$historical->id}", array_merge($this->validPayload(), ['semester' => 'GENAP']))->assertOk();
+        $this->assertFalse($active->fresh()->is_active);
+        $this->assertTrue($historical->fresh()->is_active);
+        $this->assertEquals($historical->id, $class->fresh()->tahun_akademik_id);
+        $this->assertEquals('GENAP', $historical->fresh()->semester);
+    }
+
+    public function test_identity_edit_and_activation_cannot_be_combined(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $active = TahunAkademik::create($this->validPayload());
+        $next = TahunAkademik::create(array_merge($this->validPayload(), ['semester' => 'GENAP', 'is_active' => false]));
+        $this->putJson("/api/academic-years/{$next->id}", ['tahun_mulai' => 2028, 'tahun_selesai' => 2029, 'semester' => 'GENAP', 'is_active' => true])
+            ->assertUnprocessable()->assertJsonValidationErrors('is_active');
+        $this->assertTrue($active->fresh()->is_active);
+        $this->assertEquals(2026, $next->fresh()->tahun_mulai);
+    }
+
+    public function test_existing_period_without_active_context_requires_explicit_recovery(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $existing = TahunAkademik::create(array_merge($this->validPayload(), ['is_active' => false]));
+        $this->postJson('/api/academic-years', array_merge($this->validPayload(), ['semester' => 'GENAP']))->assertUnprocessable();
+        $this->putJson("/api/academic-years/{$existing->id}", $this->validPayload())->assertOk();
+        $this->assertTrue($existing->fresh()->is_active);
+    }
+
+    public function test_non_tu_does_not_receive_administrative_lock_metadata(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('SISWA')));
+        $period = TahunAkademik::create($this->validPayload());
+        $this->getJson('/api/academic-years')->assertOk()->assertJsonMissingPath('data.0.identity_locked');
+        $this->getJson("/api/academic-years/{$period->id}")->assertOk()->assertJsonMissingPath('data.identity_locked');
+        $this->postJson('/api/academic-years/import/preview', [])->assertForbidden();
+        $this->postJson('/api/academic-years/import', [])->assertForbidden();
+        $this->getJson('/api/academic-years/template')->assertForbidden();
+    }
+
+    private function excelFile(array $rows): \Illuminate\Http\UploadedFile
+    {
+        $book = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $book->getActiveSheet()->fromArray(array_merge([['tahun_mulai','tahun_selesai','semester','is_active']], $rows), null, 'A1', true);
+        $path = tempnam(sys_get_temp_dir(), 'academic-year-');
+        try {
+            (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book))->save($path);
+            return \Illuminate\Http\UploadedFile::fake()->createWithContent('periods.xlsx', file_get_contents($path));
+        } finally {
+            $book->disconnectWorksheets();
+            unlink($path);
+        }
+    }
+
+    public function test_excel_preview_rejects_active_replacement_invalid_year_and_formula_without_writing(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $active = TahunAkademik::create($this->validPayload());
+        $rows = [[2027, 2028, 'GANJIL', 1], [2028, 2030, 'GENAP', 0], [2029, '=2029+1', 'GENAP', 0], [2030, 2031, 'GANJIL', 0]];
+        $this->postJson('/api/academic-years/import/preview', ['file' => $this->excelFile($rows)])
+            ->assertOk()->assertJsonPath('data.summary.invalid_rows', 3)->assertJsonPath('data.summary.valid_rows', 1);
+        $this->postJson('/api/academic-years/import', ['file' => $this->excelFile($rows)])->assertUnprocessable();
+        $this->assertDatabaseCount('tahun_akademik', 1);
+        $this->assertTrue($active->fresh()->is_active);
+    }
+
+    public function test_excel_bootstrap_requires_one_active_then_import_is_inactive(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $this->postJson('/api/academic-years/import/preview', ['file' => $this->excelFile([[2026,2027,'GANJIL',0]])])
+            ->assertOk()->assertJsonPath('data.summary.invalid_rows', 1);
+        $this->postJson('/api/academic-years/import', ['file' => $this->excelFile([[2026,2027,'GANJIL',1],[2026,2027,'GENAP',0]])])
+            ->assertOk()->assertJsonPath('data.imported_rows', 2);
+        $this->assertDatabaseCount('tahun_akademik', 2);
+        $this->assertSame(1, TahunAkademik::where('is_active', true)->count());
+        $this->postJson('/api/academic-years/import', ['file' => $this->excelFile([[2027,2028,'GANJIL',0]])])->assertOk();
+        $this->assertDatabaseHas('tahun_akademik', ['tahun_mulai'=>2027,'is_active'=>false]);
+        $this->assertSame(1, TahunAkademik::where('is_active', true)->count());
+    }
+
+    public function test_excel_revalidates_database_after_preview(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        TahunAkademik::create($this->validPayload());
+        $rows = [[2027,2028,'GANJIL',0],[2027,2028,'GENAP',0]];
+        $this->postJson('/api/academic-years/import/preview', ['file'=>$this->excelFile($rows)])->assertOk()->assertJsonPath('data.summary.valid_rows',2);
+        TahunAkademik::create(['tahun_mulai'=>2027,'tahun_selesai'=>2028,'semester'=>'GANJIL','is_active'=>false]);
+        $this->postJson('/api/academic-years/import', ['file'=>$this->excelFile($rows)])->assertUnprocessable();
+        $this->assertDatabaseCount('tahun_akademik',2);
+    }
+
+    public function test_excel_template_preserves_headers_and_safe_active_default(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        TahunAkademik::create($this->validPayload());
+        $response = $this->get('/api/academic-years/template')->assertOk();
+        $path = tempnam(sys_get_temp_dir(), 'academic-template-');
+        try {
+            file_put_contents($path, $response->streamedContent());
+            $book = (new \PhpOffice\PhpSpreadsheet\Reader\Xlsx())->load($path);
+            $this->assertSame([['tahun_mulai','tahun_selesai','semester','is_active']], $book->getActiveSheet()->rangeToArray('A1:D1'));
+            $this->assertEquals(0, $book->getActiveSheet()->getCell('D2')->getValue());
+            $book->disconnectWorksheets();
+        } finally { unlink($path); }
+    }
+
+    public function test_activation_with_stale_confirmation_returns_conflict(): void
+    {
+        $this->withToken($this->tokenFor($this->createUserWithRole('TU')));
+        $active = TahunAkademik::create($this->validPayload());
+        $target = TahunAkademik::create(array_merge($this->validPayload(), ['semester' => 'GENAP', 'is_active' => false]));
+        $this->putJson("/api/academic-years/{$target->id}", array_merge($this->validPayload(), ['semester' => 'GENAP', 'expected_active_ids' => []]))->assertStatus(409);
+        $this->assertTrue($active->fresh()->is_active);
+        $this->assertFalse($target->fresh()->is_active);
+        $this->putJson("/api/academic-years/{$target->id}", array_merge($this->validPayload(), ['semester' => 'GENAP', 'expected_active_ids' => [$active->id]]))->assertOk();
+        $this->assertTrue($target->fresh()->is_active);
     }
 }

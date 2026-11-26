@@ -39,7 +39,24 @@ class UpdateAcademicYearRequest extends FormRequest
                 'required',
                 'boolean',
             ],
+            'expected_active_ids' => ['sometimes', 'array'],
+            'expected_active_ids.*' => ['integer', 'min:1', 'distinct'],
         ];
+    }
+
+    public function after(): array
+    {
+        return [function (\Illuminate\Validation\Validator $validator): void {
+            $period = $this->route('academicYear');
+            if ($this->boolean('is_active') && (int) $this->input('tahun_mulai') === $period->tahun_mulai
+                && (int) $this->input('tahun_selesai') === $period->tahun_selesai && $this->input('semester') === $period->semester) {
+                return; // Preserve legacy identities; do not rewrite historical data.
+            }
+            if (! $validator->errors()->has('tahun_mulai') && ! $validator->errors()->has('tahun_selesai')
+                && ((int) $this->input('tahun_mulai') < 1000 || (int) $this->input('tahun_selesai') !== (int) $this->input('tahun_mulai') + 1)) {
+                $validator->errors()->add('tahun_selesai', 'Tahun selesai harus satu tahun setelah tahun mulai.');
+            }
+        }];
     }
 
     public function messages(): array

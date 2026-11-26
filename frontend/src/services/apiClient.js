@@ -182,6 +182,11 @@ export const apiClient = {
     });
   },
 
+  /** POST with JSON payload and authenticated binary response. */
+  postBlob(path, body = {}) {
+    return requestBlob(path, { method: "POST", body: JSON.stringify(body), cache: "no-store" });
+  },
+
   /**
    * GET Blob.
    * Digunakan oleh modul jadwal.
@@ -205,9 +210,10 @@ export const apiClient = {
   /**
    * DELETE.
    */
-  delete(path) {
+  delete(path, body) {
     return request(path, {
       method: "DELETE",
+      ...(body === undefined ? {} : {body: JSON.stringify(body)}),
     });
   },
 };

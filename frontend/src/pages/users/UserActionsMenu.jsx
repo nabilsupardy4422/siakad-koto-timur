@@ -151,7 +151,7 @@ export default function UserActionsMenu({
                 }}
               >
                 <span aria-hidden="true">▤</span>
-                Terbitkan Slip Aktivasi
+                Detail & keamanan akun
               </button>
             )}
 

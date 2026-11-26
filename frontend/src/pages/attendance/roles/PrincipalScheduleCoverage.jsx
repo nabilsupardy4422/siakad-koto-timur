@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiClient } from '../../../services/apiClient'
-import './principalScheduleCoverage.css'
+import './PrincipalScheduleCoverage.css'
 import { formatCount, isISODate } from './principalDailyRecap'
 import {
   scheduleCoverageParams, normalizePrincipalScheduleCoverage, recordedScheduleRate,
-} from './principalScheduleCoverage.js'
+} from './PrincipalScheduleCoverage.js'
 
 const STATE = {
   complete: ['Lengkap', 'complete'],

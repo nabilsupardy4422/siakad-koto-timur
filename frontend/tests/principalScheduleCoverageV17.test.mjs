@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   scheduleCoverageParams, normalizePrincipalScheduleCoverage, recordedScheduleRate,
-} from '../src/pages/attendance/roles/principalScheduleCoverage.js'
+} from '../src/pages/attendance/roles/PrincipalScheduleCoverage.js'
 
 const request = { yearId: 7, date: '2026-11-23', classId: '' }
 const schedule = (id, state, students, recorded, timeState = 'finished') => ({

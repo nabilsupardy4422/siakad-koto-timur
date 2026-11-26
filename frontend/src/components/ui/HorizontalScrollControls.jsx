@@ -3,7 +3,7 @@ import { horizontalScrollEdges, nextHorizontalPosition } from './horizontalScrol
 import './HorizontalScrollControls.css'
 
 /** Directly controls the scrollRef viewport; never scrolls the page or a parent card. */
-export default function HorizontalScrollControls({ scrollRef, label, stepSelector }) {
+export default function HorizontalScrollControls({ scrollRef, label, stepSelector, endLabel }) {
   const [edges, setEdges] = useState({ canLeft: false, canRight: false })
 
   const refresh = useCallback(() => {
@@ -51,12 +51,22 @@ export default function HorizontalScrollControls({ scrollRef, label, stepSelecto
     refresh()
   }
 
+  const jumpToEnd = () => {
+    const region = scrollRef.current
+    if (!region) return
+    region.scrollLeft = Math.max(0, region.scrollWidth - region.clientWidth)
+    refresh()
+  }
+
+  if (endLabel && !edges.canLeft && !edges.canRight) return null
+
   return (
-    <div className="siakad-hscroll-controls" role="group" aria-label={label}>
+    <div className={`siakad-hscroll-controls${endLabel ? ' siakad-hscroll-controls--directory' : ''}`} role="group" aria-label={label}>
       <span className="siakad-hscroll-hint">{label}. Geser tabel atau gunakan tombol panah.</span>
       <div className="siakad-hscroll-actions">
         <button type="button" aria-label={`Geser ke kiri: ${label}`} onClick={() => move(-1)} disabled={!edges.canLeft}>‹</button>
         <button type="button" aria-label={`Geser ke kanan: ${label}`} onClick={() => move(1)} disabled={!edges.canRight}>›</button>
+        {endLabel && <button type="button" className="siakad-hscroll-end" aria-label={`Ke kolom aksi: ${label}`} onClick={jumpToEnd} disabled={!edges.canRight}>{endLabel}</button>}
       </div>
     </div>
   )

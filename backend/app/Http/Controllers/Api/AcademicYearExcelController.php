@@ -46,14 +46,14 @@ class AcademicYearExcelController extends Controller
             'A1'
         );
 
-        $sheet->getStyle('A1:D1')
-            ->getFont()
-            ->setBold(true);
+        $sheet->getStyle('A1:D1')->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle('A1:D1')->getFill()->setFillType('solid')->getStartColor()->setARGB('FF173B62');
+        $sheet->freezePane('A2');
 
         $sheet->setCellValue('A2', '2026');
         $sheet->setCellValue('B2', '2027');
         $sheet->setCellValue('C2', 'GANJIL');
-        $sheet->setCellValue('D2', 1);
+        $sheet->setCellValue('D2', TahunAkademik::query()->exists() ? 0 : 1);
 
         foreach (range('A', 'D') as $column) {
             $sheet->getColumnDimension($column)
@@ -138,7 +138,7 @@ class AcademicYearExcelController extends Controller
 
             if ($result['invalid_rows'] > 0) {
                 throw ValidationException::withMessages([
-                    'file' => 'Import dibatalkan karena terdapat baris yang tidak valid.',
+                    'file' => collect($result['rows'])->filter(fn ($row) => ! $row['valid'])->map(fn ($row) => 'Baris '.$row['row'].': '.implode(' ', $row['errors']))->values()->all(),
                 ]);
             }
 
@@ -146,67 +146,19 @@ class AcademicYearExcelController extends Controller
                 function () use ($result) {
                     // Kunci data untuk menjaga konsistensi
                     // status tahun akademik aktif.
-                    TahunAkademik::query()
-                        ->orderBy('id')
-                        ->lockForUpdate()
-                        ->get();
-
-                    // Periksa kembali duplikasi di database.
-                    foreach ($result['normalized_rows'] as $row) {
-                        $exists = TahunAkademik::query()
-                            ->where('tahun_mulai', $row['tahun_mulai'])
-                            ->where('tahun_selesai', $row['tahun_selesai'])
-                            ->where('semester', $row['semester'])
-                            ->exists();
-
-                        if ($exists) {
-                            throw ValidationException::withMessages([
-                                'file' =>
-                                    "Periode {$row['tahun_mulai']}/{$row['tahun_selesai']} semester {$row['semester']} sudah terdaftar.",
-                            ]);
-                        }
-                    }
-
-                    $activeInFile = collect($result['normalized_rows'])
-                        ->where('is_active', true)
-                        ->count();
-
-                    if ($activeInFile > 1) {
-                        throw ValidationException::withMessages([
-                            'file' =>
-                                'Maksimal satu tahun akademik boleh berstatus aktif.',
-                        ]);
-                    }
-
-                    $hasActiveInDatabase = TahunAkademik::query()
-                        ->where('is_active', true)
-                        ->exists();
-
-                    if (
-                        $activeInFile === 0 &&
-                        ! $hasActiveInDatabase
-                    ) {
-                        throw ValidationException::withMessages([
-                            'file' =>
-                                'Import harus menyediakan satu tahun akademik aktif karena belum ada periode aktif di database.',
-                        ]);
-                    }
-
-                    // Jika file memiliki periode aktif,
-                    // nonaktifkan periode lama terlebih dahulu.
-                    if ($activeInFile === 1) {
-                        TahunAkademik::query()->update([
-                            'is_active' => false,
-                        ]);
+                    $periods = TahunAkademik::lockForAdministrativeMutation();
+                    $errors = $this->databaseErrors($result['rows'], $periods);
+                    if ($errors !== []) {
+                        throw ValidationException::withMessages(['file' => array_values($errors)[0][0]]);
                     }
 
                     // Simpan seluruh data.
                     foreach ($result['normalized_rows'] as $row) {
                         TahunAkademik::create($row);
-                }
+                    }
 
                     return count($result['normalized_rows']);
-                }
+                }, 3
             );
 
             return ApiResponse::message(
@@ -279,11 +231,7 @@ class AcademicYearExcelController extends Controller
 
             if (
                 $headers !== self::HEADERS ||
-                trim(
-                    (string) $sheet
-                        ->getCell('E1')
-                        ->getValue()
-                ) !== ''
+                $sheet->getHighestDataColumn() !== 'D'
             ) {
                 throw ValidationException::withMessages([
                     'file' =>
@@ -386,15 +334,10 @@ class AcademicYearExcelController extends Controller
                 );
 
                 $errors = $validator->errors()->all();
-                // Tahun selesai tidak boleh lebih kecil dari tahun mulai.
-if (
-    preg_match('/^\d{4}$/', $tahunMulai) &&
-    preg_match('/^\d{4}$/', $tahunSelesai) &&
-    (int) $tahunSelesai < (int) $tahunMulai
-) {
-    $errors[] =
-        'Tahun selesai tidak boleh lebih kecil dari tahun mulai.';
-}
+                if (preg_match('/^\d{4}$/', $tahunMulai) && preg_match('/^\d{4}$/', $tahunSelesai)
+                    && ((int) $tahunMulai < 1000 || (int) $tahunSelesai !== (int) $tahunMulai + 1)) {
+                    $errors[] = 'Tahun selesai harus satu tahun setelah tahun mulai.';
+                }
                 // Tolak formula Excel.
                 foreach ($cells as $cell) {
                     if (
@@ -434,57 +377,17 @@ if (
                 ]);
             }
 
-            // Periksa duplikasi dalam file.
-            // Periksa duplikasi dalam file.
-$validRows = 0;
-$activeCount = collect($rows)
-    ->filter(fn ($row) => $row['is_active'] === '1')
-    ->count();
-
+            $validRows = 0;
+            $databaseErrors = $this->databaseErrors($rows, TahunAkademik::query()->get());
             foreach ($rows as &$row) {
-                $key = implode('|', [
-                    $row['tahun_mulai'],
-                    $row['tahun_selesai'],
-                    $row['semester'],
-                ]);
-
+                $key = implode('|', [$row['tahun_mulai'], $row['tahun_selesai'], $row['semester']]);
                 if (count($occurrences[$key]) > 1) {
-                    $numbers = implode(
-                        ', ',
-                        $occurrences[$key]
-                    );
-
-                    $row['errors'][] =
-                        "Kombinasi tahun akademik dan semester duplikat pada baris {$numbers}.";
+                    $numbers = implode(', ', $occurrences[$key]);
+                    $row['errors'][] = "Kombinasi tahun akademik dan semester duplikat pada baris {$numbers}.";
                 }
-
-                // Periksa duplikasi database hanya untuk
-                // kombinasi yang formatnya sudah valid.
-                if (
-                    $row['errors'] === [] &&
-                    TahunAkademik::query()
-                        ->where('tahun_mulai', $row['tahun_mulai'])
-                        ->where('tahun_selesai', $row['tahun_selesai'])
-                        ->where('semester', $row['semester'])
-                        ->exists()
-                ) {
-                    $row['errors'][] =
-                        'Kombinasi tahun akademik dan semester sudah terdaftar di database.';
-                }
-
-                if (
-    $activeCount > 1 &&
-    $row['is_active'] === '1'
-) {
-    $row['errors'][] =
-        'File Excel hanya boleh memiliki satu tahun akademik aktif.';
-}
-
+                $row['errors'] = array_merge($row['errors'], $databaseErrors[$row['row']] ?? []);
                 $row['valid'] = $row['errors'] === [];
-
-                if ($row['valid']) {
-                    $validRows++;
-                }
+                $validRows += (int) $row['valid'];
             }
 
             unset($row);
@@ -512,5 +415,31 @@ $activeCount = collect($rows)
 
             unset($spreadsheet);
         }
+    }
+    // Shared by preview and the locked write transaction; no silent activation.
+    private function databaseErrors(array $rows, \Illuminate\Support\Collection $periods): array
+    {
+        $errors = [];
+        $activeCount = collect($rows)->whereStrict('is_active', '1')->count();
+        $hasActive = $periods->where('is_active', true)->count() === 1;
+        $keys = $periods->mapWithKeys(fn ($period) => [
+            "{$period->tahun_mulai}|{$period->tahun_selesai}|{$period->semester}" => true,
+        ]);
+
+        foreach ($rows as $row) {
+            $key = implode('|', [(int) $row['tahun_mulai'], (int) $row['tahun_selesai'], $row['semester']]);
+            if ($keys->has($key)) {
+                $errors[$row['row']][] = 'Kombinasi tahun akademik dan semester sudah terdaftar di database.';
+            }
+            if ($periods->isEmpty() && $activeCount !== 1) {
+                $errors[$row['row']][] = 'Import pertama harus memiliki tepat satu periode aktif (is_active = 1).';
+            } elseif ($periods->isNotEmpty() && ! $hasActive) {
+                $errors[$row['row']][] = 'Periode aktif belum konsisten. Aktifkan satu periode yang sudah tersedia sebelum mengimpor.';
+            } elseif ($hasActive && $row['is_active'] === '1') {
+                $errors[$row['row']][] = 'Gunakan is_active = 0. Aktivasi dilakukan terpisah setelah import.';
+            }
+        }
+
+        return $errors;
     }
 }

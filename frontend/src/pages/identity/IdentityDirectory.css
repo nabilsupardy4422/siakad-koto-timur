@@ -1,0 +1,221 @@
+/* Shared only by TU identity directories. No global shell overrides. */
+.teachers-page .teachers-page__search,.students-page .students-page__search {
+ display:grid;grid-template-columns:minmax(200px,2fr) repeat(3,minmax(125px,1fr));align-items:end;gap:12px;padding:16px;background:#f6f8fb;border:1px solid #dce5ee;border-radius:10px;
+}
+.teachers-page .teachers-page__search>*,.students-page .students-page__search>*{min-width:0;width:auto;max-width:100%}
+.teachers-page .teachers-page__search-actions,.students-page .students-page__search-actions{display:flex;gap:8px;flex-wrap:wrap;grid-column:1/-1;justify-content:flex-end;align-items:center}
+.identity-directory-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px;margin:0}
+.identity-directory-detail>div{padding:12px 0;border-bottom:1px solid #e2e8f0;min-width:0}
+.identity-directory-detail dt{font-size:.75rem;color:#52677b;margin-bottom:5px}
+.identity-directory-detail dd{margin:0;font-weight:600;color:#173b62;overflow-wrap:anywhere}
+.identity-directory-completeness{margin:0 0 12px;color:#52677b;font-size:.875rem}
+.identity-directory-history{margin-top:22px}
+.identity-directory-history h3{font-size:1rem;margin-bottom:12px}
+.identity-directory-history>div{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.identity-directory-history span{color:#52677b;font-size:.8rem}
+.teachers-page .ui-table-wrapper,.students-page .ui-table-wrapper{max-width:100%;overflow-x:auto}
+.teachers-page .ui-table,.students-page .ui-table{min-width:720px}
+.teachers-page .teachers-page__eyebrow,.students-page .students-page__eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.065em;text-transform:uppercase;color:#32638a}
+.teachers-page .teachers-page__count,.students-page .students-page__count{padding:7px 12px;border:1px solid #dce5ee;border-radius:8px;background:#f6f8fb}
+.identity-directory-context{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:#52677b;font-size:.85rem}
+.identity-directory-context strong{color:#173b62}
+.identity-directory-completeness-cell{font-size:.8rem;color:#52677b;white-space:nowrap}
+@media(max-width:1100px){.teachers-page .teachers-page__search,.students-page .students-page__search{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.teachers-page .teachers-page__search,.students-page .students-page__search,.identity-directory-detail{grid-template-columns:minmax(0,1fr)}.teachers-page .teachers-page__search-actions,.students-page .students-page__search-actions{justify-content:stretch}.teachers-page .teachers-page__search-actions button,.students-page .students-page__search-actions button{flex:1}}
+
+.students-page .ui-table{min-width:880px}
+.teachers-page .teachers-page__actions,.students-page .students-page__actions{gap:6px}
+.teachers-page .teachers-page__actions .ui-button,.students-page .students-page__actions .ui-button{min-width:0}
+
+/* Identity workspace refresh: deliberately scoped, no shell or shared UI changes. */
+.identity-directory-page{gap:20px;--id-ink:#173b62;--id-muted:#52677b;--id-line:#d8e3ed;--id-tint:#f3f7fa;min-width:0}
+.identity-directory-page .ui-page-header{margin:0;align-items:center;padding:16px 0 10px;border-bottom:1px solid var(--id-line);gap:20px}
+.identity-directory-page .ui-page-header__title{font-size:clamp(26px,3vw,34px);font-weight:750;letter-spacing:-.035em}
+.identity-directory-page .ui-page-header__eyebrow{font-size:11px;letter-spacing:.12em;color:#32638a}
+.identity-directory-page .ui-page-header__description{font-size:13px;color:var(--id-muted);margin-top:6px}
+.identity-directory-page :is(.teachers-page__card,.students-page__card,.users-page__card){border:1px solid var(--id-line);border-radius:14px;box-shadow:0 2px 8px #173b6208;min-width:0}
+.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header){align-items:center;margin-bottom:16px;gap:12px}
+.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header) h2{font-size:20px;color:var(--id-ink);margin:4px 0}
+.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header) p{font-size:12px;line-height:1.5}
+.identity-directory-page :is(.teachers-page__count,.students-page__count,.users-page__count){background:#eef4f9;border:1px solid #d7e5ef;border-radius:8px;color:var(--id-ink);font-weight:650;white-space:nowrap}
+.identity-directory-page :is(.teachers-page__search,.students-page__search,.users-page__filters){display:grid;grid-template-columns:minmax(180px,2.2fr) minmax(105px,.8fr) minmax(140px,1fr) auto;gap:12px;align-items:end;background:#f5f8fb;padding:14px;border:1px solid var(--id-line);border-radius:10px;margin-bottom:18px}
+.identity-directory-page .users-page__filters{grid-template-columns:minmax(180px,2fr) repeat(3,minmax(105px,1fr));}
+.identity-directory-page :is(.teachers-page__search,.students-page__search,.users-page__filters)>*{min-width:0;width:auto;max-width:100%}
+.identity-directory-page :is(.teachers-page__search-actions,.students-page__search-actions,.users-page__filter-actions){display:flex;grid-column:auto;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:nowrap;align-self:end}
+.identity-directory-page .users-page__filter-actions{grid-column:1/-1}
+.identity-directory-advanced{grid-column:1/-1;border-top:1px solid #dbe5ee;padding-top:10px;min-width:0}
+.identity-directory-advanced summary,.identity-import-guide summary{cursor:pointer;font-size:13px;font-weight:650;color:#244f75;line-height:1.5;min-height:28px;padding:4px 0;}
+.identity-directory-advanced summary:focus-visible,.identity-import-guide summary:focus-visible{outline:2px solid #2563eb;outline-offset:3px;border-radius:3px}
+.identity-filter-active{font-size:11px;font-weight:600;margin-left:10px;color:#315c82;background:#e4edf6;padding:3px 7px;border-radius:4px}
+.identity-directory-advanced-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding-top:10px}
+.identity-directory-page .ui-field__label,.identity-form-workspace .ui-field__label,.identity-import-workspace .ui-field__label{font-size:12px;font-weight:650;color:#334e68}
+.identity-directory-page .ui-input,.identity-directory-page .ui-select__control,.identity-form-workspace .ui-input,.identity-form-workspace .ui-select__control,.identity-import-workspace .ui-select__control{min-height:42px;font-size:13px;border-radius:7px}
+.identity-directory-page .ui-table-wrapper{border-radius:10px;overflow-x:auto;max-width:100%}
+.identity-directory-page .ui-table{font-size:13px;line-height:1.45}
+.identity-directory-page .ui-table th{font-size:11px;letter-spacing:.025em;background:#edf3f8;color:#38556e;padding:12px}
+.identity-directory-page .ui-table td{padding:13px 12px;border-bottom-color:#e3ebf2}
+.identity-directory-page .ui-table tbody tr:hover{background:#f6f9fc}
+.identity-directory-page .ui-table tbody tr:focus-within{background:#f1f6fb}
+.identity-person{display:flex;gap:10px;align-items:center;min-width:160px}
+.identity-avatar,.identity-entry-mark{display:grid;place-items:center;flex:none;width:38px;height:38px;border:1px solid #cbddeb;background:#e9f1f8;border-radius:10px;font-weight:750;font-size:12px;color:#244f75;letter-spacing:.02em}
+.identity-person-text{min-width:0;display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+.identity-person-text strong{font-size:13px;font-weight:700;color:#173b62}
+.identity-person-text span,.identity-person-text small{font-size:11px;color:#52677b}
+.identity-completeness{display:flex;flex-direction:column;gap:5px;min-width:80px;max-width:130px;color:#40586e;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.identity-meter{width:100%;height:5px;border-radius:6px;background:#e0e8ef;overflow:hidden}
+.identity-meter>span{display:block;height:100%;background:#487ca6;border-radius:6px}
+.identity-completeness.is-complete .identity-meter>span{background:#27845b}
+.identity-completeness-unknown{font-size:11px;color:#52677b}
+.identity-directory-page .ui-badge,.identity-detail-workspace .ui-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:650;white-space:nowrap;line-height:1.3}
+.identity-directory-page .ui-badge--success,.identity-detail-workspace .ui-badge--success{background:#edf8f1;border-color:#c3e4d1;color:#17633e}
+.identity-directory-page .ui-badge--warning,.identity-detail-workspace .ui-badge--warning{background:#fff7e8;border-color:#ead6aa;color:#86540d}
+.identity-directory-page .ui-badge--neutral,.identity-detail-workspace .ui-badge--neutral{background:#f0f4f7;border-color:#d9e3ec;color:#52677b}
+.identity-directory-page .ui-badge--danger,.identity-detail-workspace .ui-badge--danger{background:#fff0f0;border-color:#ecc7c7;color:#9b3434}
+.identity-detail-workspace .ui-badge__dot{width:6px;height:6px;background:currentColor;border-radius:50%}
+.identity-directory-page :is(.teachers-page__pagination,.students-page__pagination,.users-page__pagination){padding-top:14px;margin-top:10px}
+.identity-directory-page .ui-button,.identity-form-workspace .ui-button,.identity-import-workspace .ui-button,.identity-entry-workspace .ui-button,.identity-detail-workspace .ui-button{min-height:36px;font-size:12px;border-radius:7px}
+.identity-directory-page .ui-button:focus-visible,.identity-detail-workspace .ui-button:focus-visible,.identity-import-workspace .ui-button:focus-visible,.identity-entry-workspace .ui-button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+/* Wide, native dialog workspace: header and footer remain outside scroll area. */
+.siakad-workspace-modal.identity-import-workspace{width:min(1120px,calc(100vw - 40px))}
+.siakad-workspace-modal.identity-form-workspace,.siakad-workspace-modal.identity-detail-workspace{width:min(820px,calc(100vw - 40px))}
+.siakad-workspace-modal.identity-entry-workspace{width:min(740px,calc(100vw - 40px))}
+:is(.identity-import-workspace,.identity-form-workspace,.identity-detail-workspace,.identity-entry-workspace) .wm-head{padding:18px 24px;background:#f8fafc}
+:is(.identity-import-workspace,.identity-form-workspace,.identity-detail-workspace,.identity-entry-workspace) .wm-footer{padding:14px 24px;background:#f8fafc;flex-wrap:wrap}
+:is(.identity-import-workspace,.identity-form-workspace,.identity-detail-workspace,.identity-entry-workspace) .wm-body{padding:20px 24px;min-height:0;overflow:auto}
+.identity-form-section{grid-column:1/-1;display:flex;flex-direction:column;gap:4px;border-bottom:1px solid #d9e5ef;padding:10px 0 9px;color:#173b62}
+.identity-form-section:first-child{padding-top:0}
+.identity-form-section strong{font-size:14px;font-weight:700}.identity-form-section span{font-size:12px;color:#52677b}
+.identity-form-workspace :is(.teachers-page__form-grid,.students-page__form-grid){gap:14px 18px}
+.identity-profile-head{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px;border:1px solid #d4e3ef;background:#eff5fa;border-radius:10px;margin-bottom:20px}
+.identity-profile-head .identity-avatar{width:52px;height:52px;font-size:17px;background:#173b62;color:white;border-color:#173b62}
+.identity-profile-head .identity-person-text strong{font-size:17px}.identity-profile-head .identity-person-text span{font-size:12px}
+.identity-profile-head-meta{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.identity-profile-section{margin:20px 0}.identity-profile-section h3{font-size:14px;color:#173b62;margin:0 0 6px;font-weight:750}
+.identity-directory-detail{gap:0 24px}.identity-directory-detail dt{font-size:12px;color:#52677b}.identity-directory-detail dd{font-size:13px;color:#173b62}
+.identity-danger-zone{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid #efd0d0;border-radius:8px;padding:12px;margin-top:22px;background:#fffafa;color:#8f3636}
+.identity-danger-zone strong{font-size:13px}.identity-danger-zone p{margin:5px 0 0;font-size:12px;line-height:1.5;color:#765959}.identity-danger-zone button{flex:none}
+.identity-import-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0 0 15px;border-bottom:1px solid #dbe5ef}
+.identity-import-progress li{display:flex;align-items:center;gap:9px;color:#53677b;font-size:12px;min-width:0}
+.identity-import-progress li>span{display:grid;place-items:center;width:29px;height:29px;border:1px solid #d4e0ea;border-radius:50%;flex:none;background:#f3f6f9;font-weight:700}
+.identity-import-progress .is-current{color:#173b62}.identity-import-progress .is-current>span{background:#173b62;color:#fff;border-color:#173b62}
+.identity-import-progress .is-done>span{background:#e1f4e9;color:#1b6a44;border-color:#b9dfc9}
+.identity-import-guide{border:1px solid #dbe5ef;border-radius:9px;padding:9px 14px;background:#f7fafc}
+.identity-import-guide[open]>*:not(summary){margin:10px 0}
+.identity-import-workspace :is(.teachers-page__file-input,.students-page__file-input){padding:16px;border-color:#9db7ce;border-radius:10px;background:#f5f9fc;font-size:13px;max-width:100%;box-sizing:border-box}
+.identity-import-workspace input[type=file]::file-selector-button{background:#173b62;color:white;border:none;border-radius:6px;padding:9px 12px;font:inherit;margin-right:12px;cursor:pointer}
+.identity-import-workspace :is(.teachers-page__preview-summary,.students-page__preview-summary){grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat){border-radius:9px;padding:12px;background:#f8fafc;border:1px solid #dbe5ef}
+.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat) strong{font-size:22px;font-variant-numeric:tabular-nums}
+.identity-import-workspace :is(.teachers-page__preview-table-wrapper,.students-page__preview-table-wrapper){max-width:100%;overflow-x:auto;border:1px solid #dbe5ef;border-radius:9px}
+.identity-import-workspace :is(.teachers-page__preview-table,.students-page__preview-table){width:100%;min-width:790px;border-collapse:collapse;white-space:normal;font-size:12px;line-height:1.5}
+.identity-import-workspace :is(.teachers-page__preview-table,.students-page__preview-table) th{padding:11px;background:#edf3f8;color:#38556e;font-size:11px;text-align:left;white-space:nowrap}
+.identity-import-workspace :is(.teachers-page__preview-table,.students-page__preview-table) td{padding:11px;vertical-align:top;overflow-wrap:anywhere;white-space:normal;border-bottom:1px solid #e2ebf2}
+.identity-import-workspace :is(.teachers-page__preview-error,.students-page__preview-error){min-width:180px;max-width:320px;white-space:normal;overflow-wrap:anywhere}
+.students-page__preview-status--excluded{background:#eef2f6;color:#52677b}
+.identity-entry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.identity-entry-card{border:1px solid #d6e3ee;border-radius:11px;padding:16px;display:flex;flex-direction:column;gap:10px;background:white;min-width:0}
+.identity-entry-card h3{font-size:16px;margin:0;color:#173b62}.identity-entry-card p{font-size:13px;line-height:1.5;margin:0;color:#52677b;flex:1}
+.identity-entry-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}.identity-entry-actions>*{flex:1}
+.identity-entry-note{border-left:3px solid #89a9c3;background:#f0f5fa;padding:12px 14px;font-size:12px;color:#38556e;line-height:1.55;margin:16px 0 0}
+@media(max-width:1150px){.identity-directory-page :is(.teachers-page__search,.students-page__search,.users-page__filters){grid-template-columns:repeat(2,minmax(0,1fr))}.identity-directory-page :is(.teachers-page__search-actions,.students-page__search-actions,.users-page__filter-actions){grid-column:auto;justify-content:flex-start}.identity-directory-page .ui-page-header{flex-wrap:wrap}.identity-directory-page .ui-page-header__actions{flex-wrap:wrap;min-width:0;max-width:100%}}
+@media(max-width:640px){.identity-directory-page .ui-page-header{align-items:flex-start;gap:12px}.identity-directory-page :is(.teachers-page__search,.students-page__search,.users-page__filters){grid-template-columns:minmax(0,1fr);padding:12px}.identity-directory-page :is(.teachers-page__search-actions,.students-page__search-actions,.users-page__filter-actions)>button{flex:1}.identity-directory-advanced-grid,.identity-entry-grid{grid-template-columns:minmax(0,1fr)}.identity-directory-page .ui-table{min-width:720px}.identity-directory-page.students-page .ui-table{min-width:860px}.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header){flex-direction:row;flex-wrap:wrap}.siakad-workspace-modal:is(.identity-import-workspace,.identity-form-workspace,.identity-detail-workspace,.identity-entry-workspace){width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}:is(.identity-import-workspace,.identity-form-workspace,.identity-detail-workspace,.identity-entry-workspace) :is(.wm-head,.wm-body,.wm-footer){padding:14px}.identity-form-section{grid-column:1/-1}.identity-profile-head,.identity-danger-zone{flex-direction:column;align-items:flex-start}.identity-profile-head-meta{align-items:flex-start}.identity-import-progress li{flex-direction:column;align-items:flex-start;gap:5px;font-size:11px}.identity-import-workspace :is(.teachers-page__preview-summary,.students-page__preview-summary){gap:6px}.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat){padding:8px}.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat) span{font-size:10px}.identity-import-workspace .ui-button,.identity-form-workspace .ui-button,.identity-detail-workspace .ui-button,.identity-entry-workspace .ui-button{min-height:44px}}
+.identity-overview{min-width:0}.identity-overview-caption{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 9px}.identity-overview-caption strong{font-size:13px;color:#173b62}.identity-overview-caption span{font-size:11px;color:#52677b}.identity-overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.identity-overview-item{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 16px;background:#fff;border:1px solid #d6e3ee;border-radius:11px;min-width:0}.identity-overview-item h3{font-size:12px;font-weight:650;color:#52677b;margin:0 0 6px}.identity-overview-item strong{font-size:26px;line-height:1.1;font-weight:750;color:#173b62;font-variant-numeric:tabular-nums}.identity-overview-item p{margin:6px 0 0;color:#52677b;font-size:11px;line-height:1.4}.identity-overview-icon{width:37px;height:37px;display:grid;place-items:center;flex:none;border:1px solid #d6e3ee;border-radius:9px;background:#edf4fa;color:#32638a}.identity-overview-icon svg{width:21px;height:21px}.identity-overview-ready .identity-overview-icon{background:#edf8f1;color:#17633e;border-color:#c3e4d1}.identity-overview-incomplete .identity-overview-icon{background:#fff7e8;color:#86540d;border-color:#ead6aa}@media(max-width:760px){.identity-overview-grid{grid-template-columns:minmax(0,1fr)}.identity-overview-item{padding:12px 14px}.identity-overview-item strong{font-size:23px}}
+/* Compact desktop rhythm and collapsed file settings after preview. */
+.identity-directory-page{gap:14px}.identity-directory-page .ui-page-header{padding:6px 0 10px}.identity-directory-page .ui-page-header__title{font-size:clamp(25px,2.6vw,32px)}.identity-directory-page .ui-page-header__description{margin-top:3px}.identity-overview-caption{margin-bottom:6px}.identity-overview-item{padding:11px 14px}.identity-overview-item strong{font-size:24px}.identity-overview-item h3{margin-bottom:3px}.identity-overview-item p{margin-top:3px}.identity-directory-page :is(.teachers-page__card,.students-page__card,.users-page__card)>.ui-card__body{padding:16px}.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header){margin-bottom:12px}.identity-directory-page :is(.teachers-page__list-header,.students-page__list-header,.users-page__list-header) h2{font-size:18px;margin:2px 0}.identity-directory-page :is(.teachers-page__search,.students-page__search,.users-page__filters){padding:11px;gap:8px 12px;margin-bottom:12px}.identity-directory-advanced{padding-top:5px}.identity-directory-advanced summary{padding:2px 0;min-height:24px}.identity-directory-page .ui-table td{padding:10px 12px}.identity-directory-page .ui-table th{padding:10px 12px}
+.identity-import-settings{border:1px solid #dbe5ef;border-radius:9px;background:#f7fafc;padding:8px 12px;min-width:0}.identity-import-settings summary{display:flex;gap:10px;justify-content:space-between;align-items:baseline;cursor:pointer;color:#244f75;font-size:13px;font-weight:650;padding:4px 0;list-style:none}.identity-import-settings summary::-webkit-details-marker{display:none}.identity-import-settings summary>span:first-child:before{content:'▸';display:inline-block;margin-right:8px}.identity-import-settings[open] summary>span:first-child:before{content:'▾'}.identity-import-settings summary:focus-visible{outline:2px solid #2563eb;outline-offset:2px}.identity-import-filename{font-size:12px;color:#52677b;font-weight:500;overflow-wrap:anywhere;text-align:right;min-width:0}.identity-import-settings-body{display:flex;flex-direction:column;gap:12px;padding-top:10px}.identity-import-workspace .wm-head{padding:13px 22px}.identity-import-workspace .wm-body{padding:16px 22px}.identity-import-workspace .wm-footer{padding:12px 22px}.identity-import-workspace :is(.teachers-page__import-card,.students-page__import-card,.teachers-page__preview,.students-page__preview){gap:12px}.identity-import-progress{padding-bottom:10px}.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat){padding:9px 12px;gap:3px}.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat) strong{font-size:20px}.identity-import-workspace :is(.teachers-page__preview-heading,.students-page__preview-heading) h3{margin:0 0 2px}.identity-import-workspace :is(.teachers-page__preview-heading,.students-page__preview-heading) p{font-size:12px}
+@media(max-width:640px){.identity-directory-page .ui-page-header{padding:6px 0 10px}.identity-directory-page :is(.teachers-page__card,.students-page__card,.users-page__card)>.ui-card__body{padding:12px}.identity-import-workspace :is(.wm-head,.wm-body,.wm-footer){padding:12px}.identity-import-settings summary{flex-wrap:wrap}.identity-import-filename{text-align:left}.identity-import-workspace :is(.teachers-page__preview-stat,.students-page__preview-stat){padding:8px 6px}.identity-overview-item strong{font-size:23px}}
+
+
+/* 2.4B mobile hotfix: constrain the actual viewport, not the full page. */
+.identity-directory-page .ui-table-scroll-shell,
+.identity-directory-page .ui-table-wrapper--guided {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.identity-directory-page .ui-table-wrapper--guided {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+  scrollbar-width: auto;
+}
+.identity-directory-page .ui-table-wrapper--guided:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+@media (max-width: 1023px) {
+  .identity-directory-page .ui-table-scroll-shell > .siakad-hscroll-controls--directory {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    gap: 7px;
+    max-width: 100%;
+    margin: 0 0 8px;
+    border: 1px solid #c8dce9;
+    border-radius: 9px;
+    background: #f0f7fb;
+    color: #28536e;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .identity-directory-page .ui-table-scroll-shell > .siakad-hscroll-controls--directory:last-child {
+    margin: 8px 0 0;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-hint {
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-actions {
+    display: flex;
+    flex: none;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-actions button {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1px solid #b8d3e6;
+    border-radius: 8px;
+    background: #fff;
+    color: #235b7b;
+    font-size: 25px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-actions button:disabled {
+    opacity: .38;
+    cursor: not-allowed;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-actions button:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+  .identity-directory-page .siakad-hscroll-controls--directory .siakad-hscroll-actions .siakad-hscroll-end {
+    font-size: 12px;
+    padding: 0 12px;
+    white-space: nowrap;
+  }
+  .identity-directory-page .ui-table-wrapper--guided .ui-table td:last-child button {
+    min-height: 44px;
+  }
+  .identity-directory-page .ui-table-wrapper--guided .account-select-cell {
+    min-width: 48px;
+  }
+}
+
+/* Final directory refinement: preserve scroll viewport and reachable actions. */
+.identity-import-scroll-shell{min-width:0;max-width:100%}.identity-import-scroll-shell :is(.teachers-page__preview-table-wrapper,.students-page__preview-table-wrapper){overflow-x:auto;overscroll-behavior-x:contain;touch-action:pan-x pan-y;scrollbar-width:auto}.identity-import-scroll-shell [role=region]:focus-visible{outline:2px solid #2563eb;outline-offset:2px}.identity-import-workspace :is(.teachers-page__preview-error,.students-page__preview-error){min-width:230px;max-width:380px}.identity-directory-page .identity-person-text small{line-height:1.5}.identity-directory-page .ui-table td{vertical-align:middle}.identity-profile-section h3{padding-bottom:7px;border-bottom:1px solid #e3ebf3;margin-bottom:0}.identity-profile-section .identity-directory-detail>div{min-width:0}.identity-profile-section dd{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.identity-directory-page .ui-button:hover:not(:disabled){filter:brightness(.97)}
+@media(max-width:640px){.identity-directory-page .ui-page-header__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}.identity-directory-page .ui-page-header__actions .ui-button{min-height:44px;white-space:normal}.identity-directory-page .ui-page-header__actions .ui-button:last-child{grid-column:1/-1}.identity-directory-page :is(.teachers-page__search-actions,.students-page__search-actions,.users-page__filter-actions) .ui-button{min-height:44px}.identity-import-scroll-shell .siakad-hscroll-controls{margin-bottom:8px}.identity-profile-head .identity-person{min-width:0}.identity-profile-head-meta{width:100%;flex-direction:row;flex-wrap:wrap;justify-content:space-between;align-items:center}.identity-directory-detail{grid-template-columns:minmax(0,1fr)}}
+
+@media(max-width:640px){.identity-directory-page .ui-page-header{flex-direction:column;align-items:stretch}.identity-import-workspace .identity-import-scroll-shell .siakad-hscroll-actions button{min-height:44px;min-width:44px}}

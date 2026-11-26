@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import './ActivateAccountPage.css'
+import {isStrongPassword, PASSWORD_POLICY_MESSAGE} from '../../components/security/passwordPolicy.js'
+import PasswordRequirements from '../../components/security/PasswordRequirements.jsx'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -77,6 +79,8 @@ export default function ActivateAccountPage() {
     if (!form.password) {
       errors.password =
         'Password baru wajib diisi.'
+    } else if (!isStrongPassword(form.password)) {
+      errors.password = PASSWORD_POLICY_MESSAGE
     }
 
     if (!form.password_confirmation) {
@@ -457,6 +461,8 @@ export default function ActivateAccountPage() {
                   </small>
                 )}
               </div>
+
+              <PasswordRequirements password={form.password} confirmation={form.password_confirmation}/>
 
               {/* SUBMIT */}
 

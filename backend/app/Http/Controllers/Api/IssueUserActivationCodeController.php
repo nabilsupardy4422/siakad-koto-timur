@@ -8,7 +8,6 @@ use App\Services\UserActivationService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class IssueUserActivationCodeController extends Controller
@@ -20,52 +19,7 @@ class IssueUserActivationCodeController extends Controller
     ): JsonResponse {
         $actor = $request->user();
 
-        $result = DB::transaction(function () use (
-            $user,
-            $actor,
-            $activationService
-        ): ?array {
-            // Mencegah penerbitan ulang bersamaan
-            // dengan proses aktivasi pengguna.
-            $target = User::query()
-                ->with('role')
-                ->lockForUpdate()
-                ->findOrFail($user->id);
-
-            // Hanya Guru/Siswa yang belum aktivasi.
-            if (
-                $target->account_status !== 'active' ||
-                ! $target->requires_activation ||
-                ! in_array(
-                    $target->role->code,
-                    ['GURU', 'SISWA'],
-                    true
-                )
-            ) {
-                return null;
-            }
-
-            $issued = $activationService->issue(
-                $target,
-                (int) $actor->id
-            );
-
-            return [
-                'user_id' => $target->id,
-                'username' => $target->username,
-                'name' => $target->name,
-                'role_code' => $target->role->code,
-                ...$issued,
-            ];
-        });
-
-        if ($result === null) {
-            return ApiResponse::message(
-                'Kode hanya dapat diterbitkan untuk akun Guru/Siswa aktif yang belum diaktivasi.',
-                null,
-                422
-            );
-        }
+        $result = app(BulkAccountController::class)->confirmSingle($request, $user, $activationService);
 
         // Log hanya identitas akun.
         // Jangan mencatat kode aktivasi.

@@ -1,0 +1,13 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {readFileSync,readdirSync} from 'node:fs'
+import {codeMonitor,codeLabel,wibDate,validateCodeDetail} from '../src/pages/users/activationMonitorLogic.js'
+const data={not_issued:0,valid:3,expired:1,locked:0,inconsistent:0}
+const detail={data:{state:'valid',has_active_code:true,can_cancel:true,code_version:'a'.repeat(64),expires_at:'2026-12-03T14:00:00Z'}}
+test('monitor preserves actual zero and rejects absent or malformed counts',()=>{assert.deepEqual(codeMonitor({data:{code_monitor:data}}),data);assert.equal(codeMonitor({data:{}}),null);assert.equal(codeMonitor({data:{code_monitor:{...data,locked:-1}}}),null)})
+test('code state does not imply usable login and unknown is explicit',()=>{assert.equal(codeLabel('valid'),'Kode masih berlaku');assert.match(codeLabel('not_issued'),/dibatalkan/);assert.match(codeLabel('unknown'),/belum diketahui/);assert.equal(wibDate(null),'Belum tersedia');assert.match(wibDate(detail.data.expires_at),/21[.:]00.*WIB/)})
+test('cancel detail must have consistent state and opaque version',()=>{assert.deepEqual(validateCodeDetail(detail),detail.data);assert.throws(()=>validateCodeDetail({data:{...detail.data,has_active_code:false}}));assert.throws(()=>validateCodeDetail({data:{...detail.data,state:'inconsistent'}}));assert.throws(()=>validateCodeDetail({data:{...detail.data,code_version:'bad'}}))})
+const src=p=>readFileSync(new URL('../src/'+p,import.meta.url),'utf8')
+test('single issuance shares bulk PDF and does not render plaintext',()=>{const page=src('pages/users/UsersPage.jsx'),modal=src('pages/users/UserActivationSlipModal.jsx');assert.match(page,/setBulk\(\{action:\s*'issue',\s*ids:\s*\[id\]\}\)/);assert.match(modal,/onClick=\{onIssue\}/);assert.doesNotMatch(modal,/activation_code|localStorage|window\.open/);assert.match(modal,/cancelCode\(user\.id,status\.code_version\)/)})
+test('monitor filter passes through server query and resets selection and exact context',()=>{const page=src('pages/users/UsersPage.jsx');assert.match(page,/code_state:codeFilter/);assert.match(page,/setParams\(\{\}\);setCodeFilter/);assert.match(page,/\[filterKey\]/);assert.match(page,/setMonitor\(codeMonitor\(r\)\)/)})
+test('activation detail module resolves with exact case and no stray filename',()=>{const dir=new URL('../src/pages/users/',import.meta.url);assert.ok(readdirSync(dir).includes('activationMonitorLogic.js'));assert.ok(readdirSync(dir).includes('UserActivationSlipModal.jsx'));for(const file of ['UsersPage.jsx','UserActivationSlipModal.jsx','BulkAccountModal.jsx'])assert.doesNotMatch(src('pages/users/'+file),/^\s*[A-Za-z_$][\w$]*\.jsx\s*;?\s*$/m)})

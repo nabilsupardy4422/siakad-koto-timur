@@ -16,8 +16,12 @@ class StoreTeacherRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'registration_mode' => ['sometimes', 'in:new_account,existing_account'],
+            'username' => ['nullable', 'string', 'max:100', 'prohibited_unless:registration_mode,new_account'],
             'user_id' => [
-            'required',
+            'required_unless:registration_mode,new_account',
+                'prohibited_if:registration_mode,new_account',
+                'nullable',
             'integer',
             'exists:users,id',
             'unique:guru,user_id',
@@ -53,6 +57,9 @@ class StoreTeacherRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('user_id') || ! $this->filled('user_id')) {
+                return;
+            }
             $user = User::with('role')->find($this->input('user_id'));
 
             if ($user !== null && $user->role?->code !== 'GURU') {

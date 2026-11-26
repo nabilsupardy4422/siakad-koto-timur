@@ -23,7 +23,7 @@ class UpdateUserRequest extends FormRequest
                 'sometimes',
                 'required',
                 'string',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'username')->ignore($userId),
             ],
             'name' => [
