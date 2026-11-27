@@ -60,3 +60,5 @@
 .tu-academic-monitoring .tam-status[data-state="Lengkap"],.tu-academic-monitoring .tam-status[data-state="Tercatat"],.tu-academic-monitoring .tam-status[data-state="HADIR"],.tu-academic-monitoring .tam-status[data-state="Valid"]{background:#e7f4ec;color:#226247}
 .tu-academic-monitoring .tam-status[data-state="Anomali"],.tu-academic-monitoring .tam-status[data-state="ALPA"]{background:#fff0f0;color:#942f35}
 .tu-academic-monitoring .tam-status[data-state="Sebagian"],.tu-academic-monitoring .tam-status[data-state="Belum dinilai"],.tu-academic-monitoring .tam-status[data-state="Belum lengkap"],.tu-academic-monitoring .tam-status[data-state="Belum tercatat"]{background:#fff4e2;color:#79551a}
+
+@media(max-width:600px){.tu-academic-monitoring .ks-grade-scroll{display:none}}

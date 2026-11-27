@@ -57,7 +57,7 @@ final class TuGradeDataset
                     $detail[]=['id'=>'missing-'.$comp->id.'-'.$id,...Read::student($m),'class_id'=>(int)$s->kelas_id,'class_name'=>$s->class_name,'subject_name'=>$s->subject_name,'teacher_name'=>$s->teacher_name,'schedule_id'=>(int)$s->id,'component_id'=>(int)$comp->id,'component'=>$comp->nama,'weight'=>(string)$comp->bobot,'score'=>null,'note'=>null,'state'=>'Belum dinilai'];
                 }}
             }
-            $rows=array_values(array_filter($detail,fn($r)=>Read::matches($r,trim($d['search']??''))));
+            $rows=array_values(array_filter($detail,fn($r)=>Read::matches(($c['principal']??false)?array_intersect_key($r,array_flip(['student_name','nisn'])):$r,trim($d['search']??''))));
             usort($rows,fn($a,$b)=>strnatcasecmp($a['student_name'],$b['student_name'])?:($a['component_id']<=>$b['component_id'])?:strcmp($a['id'],$b['id']));
             $summary=['Baris ditemukan'=>count($rows),'Tercatat'=>count(array_filter($rows,fn($r)=>$r['score']!==null)),'Belum dinilai'=>count(array_filter($rows,fn($r)=>$r['state']==='Belum dinilai')),'Anomali'=>count(array_filter($rows,fn($r)=>$r['state']==='Anomali'))];
         }

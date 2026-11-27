@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { academicYearApi } from '../../../services/academicYearApi'
 import { scheduleApi } from '../../../services/scheduleApi'
 import InteractiveTimetable from '../components/InteractiveTimetable'
+import { PrincipalScheduleMatrix, PrincipalScheduleList } from './PrincipalScheduleViews'
 import {
   choosePrincipalPeriod,
   combinePrincipalSchedulePages,
@@ -14,12 +15,12 @@ import {
   principalScheduleSummary,
   principalTimetableDisplaySchedules,
   scrollPrincipalTimetable,
-  sortPrincipalWeekly,
 } from './principalScheduleMonitoring'
 
 import '../styles/principal-schedule.css'
 import '../styles/principal-timetable.css'
 import '../styles/principal-schedule-mobile-scroll.css'
+import '../styles/principal-schedule-scale.css'
 
 const PAGE_SIZE = 100
 const INITIAL_FILTERS = { class_id: '', teacher_id: '', subject_id: '', day: '' }
@@ -39,34 +40,7 @@ function errorText(error, fallback) {
 }
 
 function HistoricalScheduleList({ schedules }) {
-  return (
-    <section className="principal-schedule__historical-panel" aria-label="Daftar jadwal periode tidak aktif">
-      <div className="principal-schedule__table-header">
-        <div>
-          <span className="principal-schedule__eyebrow">RIWAYAT JADWAL</span>
-          <h2>Jadwal mingguan tersimpan</h2>
-          <p>Daftar ini merupakan pola jadwal pada periode terpilih, bukan catatan bahwa pembelajaran telah terlaksana.</p>
-        </div>
-        <span className="principal-schedule__historical-pill">Periode tidak aktif</span>
-      </div>
-      <div className="principal-schedule__table-scroll" role="region" aria-label="Tabel jadwal periode tidak aktif" tabIndex={0}>
-        <table className="principal-schedule__table">
-          <thead><tr><th scope="col">Hari</th><th scope="col">Jam WIB</th><th scope="col">Kelas</th><th scope="col">Mata pelajaran</th><th scope="col">Guru</th></tr></thead>
-          <tbody>
-            {sortPrincipalWeekly(schedules).map(item => (
-              <tr key={item.id}>
-                <td><strong>{DAYS.find(day => day.value === item.hari)?.label}</strong></td>
-                <td>{item.jam_mulai.slice(0, 5)}–{item.jam_selesai.slice(0, 5)}</td>
-                <td>{principalScheduleClassLabel(item)}</td>
-                <td>{item.mapel?.nama || item.mapel?.kode || '—'}</td>
-                <td>{item.guru?.nama_lengkap || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
+  return <PrincipalScheduleList schedules={schedules} historical />
 }
 
 export default function PrincipalSchedule() {
@@ -77,6 +51,7 @@ export default function PrincipalSchedule() {
   const [scheduleState, setScheduleState] = useState({ status: 'idle', rows: [], error: '' })
   const [scheduleRetry, setScheduleRetry] = useState(0)
   const [filters, setFilters] = useState(INITIAL_FILTERS)
+  const [mode, setMode] = useState('matrix')
 
   useEffect(() => {
     let cancelled = false
@@ -85,7 +60,7 @@ export default function PrincipalSchedule() {
       try {
         // GET /academic-years returns an unpaginated collection.
         const response = await academicYearApi.getAll()
-        const rows = parsePrincipalAcademicYears(response)
+        const rows = parsePrincipalAcademicYears(response, true)
         if (cancelled) return
         setYearsState({ status: 'ready', rows, error: '' })
         setPeriodId(current => String(choosePrincipalPeriod(rows, current) ?? ''))
@@ -128,7 +103,7 @@ export default function PrincipalSchedule() {
           }
         }
         const rows = combinePrincipalSchedulePages(pages)
-        if (!cancelled) setScheduleState({ status: 'ready', rows, error: '' })
+        if (!cancelled) setScheduleState({ status: 'ready', rows, periodId: selectedYear.id, error: '' })
       } catch (error) {
         if (!cancelled) setScheduleState({ status: 'error', rows: [], error: errorText(error, 'Gagal memuat jadwal.') })
       }
@@ -137,7 +112,8 @@ export default function PrincipalSchedule() {
     return () => { cancelled = true }
   }, [yearsState.status, selectedYear, scheduleRetry])
 
-  const schedules = scheduleState.status === 'ready' ? scheduleState.rows : []
+  const ready = scheduleState.status === 'ready' && scheduleState.periodId === selectedYear?.id
+  const schedules = ready ? scheduleState.rows : []
   const classOptions = useMemo(() => principalScheduleOptions(schedules,
     item => item.kelas_id, principalScheduleClassLabel), [schedules])
   const teacherOptions = useMemo(() => principalScheduleOptions(schedules,
@@ -148,7 +124,8 @@ export default function PrincipalSchedule() {
   const filteredSchedules = useMemo(() => filterPrincipalSchedules(schedules, filters), [schedules, filters])
   const summary = useMemo(() => principalScheduleSummary(filteredSchedules), [filteredSchedules])
   const timetableSchedules = useMemo(() => principalTimetableDisplaySchedules(filteredSchedules), [filteredSchedules])
-  const isHistory = selectedYear && !selectedYear.is_active
+  const viewKey = `${periodId}:${scheduleRetry}:${yearsRetry}:${JSON.stringify(filters)}`
+  const isHistory = selectedYear && (!selectedYear.is_active || yearsState.rows.filter(y=>y.is_active).length!==1)
 
   function updatePeriod(value) {
     setPeriodId(value)
@@ -167,7 +144,7 @@ export default function PrincipalSchedule() {
       <header className="principal-schedule__header">
         <div className="principal-schedule__header-copy">
           <span className="principal-schedule__eyebrow"><span className="principal-schedule__hero-dot" /> MONITORING AKADEMIK · JADWAL</span>
-          <h1>Jadwal pembelajaran sekolah,<br /><em>jelas untuk setiap kelas.</em></h1>
+          <h1>Monitoring Jadwal Pembelajaran</h1>
           <p>Pantau jadwal resmi berdasarkan semester, kelas, guru, mata pelajaran, dan hari. Tidak ada perubahan data dari halaman ini.</p>
           <span className="principal-schedule__hero-facts">Data jadwal tersimpan <span>•</span> Akses baca saja <span>•</span> Waktu WIB</span>
         </div>
@@ -185,37 +162,37 @@ export default function PrincipalSchedule() {
             <p>Satu pilihan periode sudah mencakup semester; pilihan lainnya hanya menyaring jadwal yang tercatat.</p>
           </div>
           <div className="principal-schedule__filter-actions">
-            <button type="button" onClick={() => setFilters(INITIAL_FILTERS)} disabled={scheduleState.status !== 'ready'}>Reset Filter</button>
+            <button type="button" onClick={() => setFilters(INITIAL_FILTERS)} disabled={!ready}>Reset Filter</button>
             <button type="button" onClick={reload}>Muat Ulang</button>
           </div>
         </div>
         <div className="principal-schedule__filter-grid principal-schedule__filter-grid--v19">
           <label><span>Tahun Akademik / Semester</span>
             <select aria-label="Tahun Akademik / Semester" value={periodId} onChange={event => updatePeriod(event.target.value)} disabled={yearsState.status !== 'ready' || yearsState.rows.length === 0}>
-              {yearsState.rows.length === 0 && <option value="">Belum ada periode</option>}
+              <option value="">Pilih periode</option>
               {yearsState.rows.map(item => <option key={item.id} value={String(item.id)}>{yearLabel(item)}</option>)}
             </select>
           </label>
           <label><span>Kelas</span>
-            <select value={filters.class_id} onChange={event => updateFilter('class_id', event.target.value)} disabled={scheduleState.status !== 'ready'}>
+            <select value={filters.class_id} onChange={event => updateFilter('class_id', event.target.value)} disabled={!ready}>
               <option value="">Semua kelas</option>
               {classOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
           <label><span>Guru</span>
-            <select value={filters.teacher_id} onChange={event => updateFilter('teacher_id', event.target.value)} disabled={scheduleState.status !== 'ready'}>
+            <select value={filters.teacher_id} onChange={event => updateFilter('teacher_id', event.target.value)} disabled={!ready}>
               <option value="">Semua guru</option>
               {teacherOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
           <label><span>Mata Pelajaran</span>
-            <select value={filters.subject_id} onChange={event => updateFilter('subject_id', event.target.value)} disabled={scheduleState.status !== 'ready'}>
+            <select value={filters.subject_id} onChange={event => updateFilter('subject_id', event.target.value)} disabled={!ready}>
               <option value="">Semua mapel</option>
               {subjectOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
           </label>
           <label><span>Hari</span>
-            <select value={filters.day} onChange={event => updateFilter('day', event.target.value)} disabled={scheduleState.status !== 'ready'}>
+            <select value={filters.day} onChange={event => updateFilter('day', event.target.value)} disabled={!ready}>
               <option value="">Semua hari</option>
               {DAYS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
@@ -226,10 +203,11 @@ export default function PrincipalSchedule() {
       {yearsState.status === 'loading' && <div className="principal-schedule__state" role="status"><span className="principal-schedule__spinner" />Memuat periode akademik...</div>}
       {yearsState.status === 'error' && <div className="principal-schedule__notice" role="alert"><strong>Tahun akademik gagal dimuat</strong><p>{yearsState.error}</p><button type="button" onClick={reload}>Coba lagi</button></div>}
       {yearsState.status === 'ready' && yearsState.rows.length === 0 && <div className="principal-schedule__notice"><strong>Belum ada periode akademik</strong><p>Data tahun akademik belum tersedia. Hubungi Tata Usaha.</p></div>}
+      {yearsState.status==='ready'&&yearsState.rows.length>0&&!periodId&&<div className="principal-schedule__notice">Pilih periode secara eksplisit; belum ada periode aktif tunggal.</div>}
       {scheduleState.status === 'loading' && <div className="principal-schedule__state" role="status"><span className="principal-schedule__spinner" />Memuat seluruh halaman jadwal...</div>}
       {scheduleState.status === 'error' && <div className="principal-schedule__notice" role="alert"><strong>Data jadwal gagal dimuat</strong><p>{scheduleState.error}</p><button type="button" onClick={() => setScheduleRetry(n => n + 1)}>Coba lagi</button></div>}
 
-      {scheduleState.status === 'ready' && selectedYear && (
+      {ready && selectedYear && (
         <>
           <section className="principal-schedule__summary" aria-label="Ringkasan jadwal sesuai filter">
             {[
@@ -252,9 +230,16 @@ export default function PrincipalSchedule() {
           {filteredSchedules.length === 0 ? (
             <div className="principal-schedule__empty"><h2>Tidak ada jadwal sesuai filter</h2><p>Belum ada jadwal yang tersimpan untuk pilihan periode dan filter ini.</p><button type="button" onClick={() => setFilters(INITIAL_FILTERS)}>Reset Filter</button></div>
           ) : isHistory ? (
-            <HistoricalScheduleList schedules={filteredSchedules} />
+            <HistoricalScheduleList key={viewKey} schedules={filteredSchedules} />
           ) : (
-            <div ref={timetableAreaRef} className="principal-schedule__mobile-timetable">
+            <>
+            <section className="ps-scale__mode" aria-label="Mode tampilan jadwal">
+              <div><strong>Tampilan jadwal</strong><p>Pilih matriks untuk seluruh sekolah, kalender untuk pola waktu, atau daftar untuk pencarian.</p></div>
+              <div role="group" aria-label="Pilih mode jadwal">{[['matrix','Matriks sekolah'],['calendar','Kalender'],['list','Daftar']].map(([value,label])=><button type="button" key={value} aria-pressed={mode===value} onClick={()=>setMode(value)}>{label}</button>)}</div>
+            </section>
+            {mode==='matrix' ? <PrincipalScheduleMatrix key={viewKey} schedules={filteredSchedules} filterDay={filters.day}/> : mode==='list' ? <PrincipalScheduleList key={viewKey} schedules={filteredSchedules}/> : (
+            <div ref={timetableAreaRef} key={viewKey} className="principal-schedule__mobile-timetable">
+              <p className="ps-scale__calendar-note">Kartu yang bertumpuk secara visual dikelompokkan. Klik kelompok untuk melihat seluruh jadwal di dalamnya.</p>
               <div className="principal-schedule__mobile-scroll-controls" role="group" aria-label="Navigasi horizontal jadwal">
                 <span className="principal-schedule__mobile-scroll-hint">Geser tabel ke samping untuk melihat hari lainnya</span>
                 <div className="principal-schedule__mobile-scroll-actions">
@@ -264,6 +249,8 @@ export default function PrincipalSchedule() {
               </div>
               <InteractiveTimetable role="KEPALA_SEKOLAH" schedules={timetableSchedules} academicYear={selectedYear} />
             </div>
+            )}
+            </>
           )}
         </>
       )}

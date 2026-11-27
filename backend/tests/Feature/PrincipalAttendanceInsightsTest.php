@@ -20,6 +20,8 @@ use Tests\TestCase;
 class PrincipalAttendanceInsightsTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void { parent::setUp(); \Illuminate\Support\Carbon::setTestNow(\Illuminate\Support\Carbon::parse('2027-04-01 10:00:00','Asia/Jakarta')); }
+    protected function tearDown(): void { \Illuminate\Support\Carbon::setTestNow(); parent::tearDown(); }
 
     private function user(string $role): User
     {

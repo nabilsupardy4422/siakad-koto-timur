@@ -101,7 +101,7 @@ test('trend gaps are not connected and valid 0% is a plotted point', () => {
 test('principal API is read-only, scoped by academic year and bounded dates', () => {
   const api = readFileSync(resolve(base, '../src/services/principalAttendanceApi.js'), 'utf8')
   assert.match(api, /apiClient\.get\(`/)
-  assert.match(api, /\/attendance\/recap\?/)
+  assert.match(api, /\/principal\/attendance-summary\?/)
   assert.match(api, /academic_year_id:/)
   assert.match(api, /date_from:/)
   assert.match(api, /date_to:/)
@@ -111,8 +111,9 @@ test('principal API is read-only, scoped by academic year and bounded dates', ()
 
 test('Kepala Sekolah dashboard handles separate loading, retry and no writes', () => {
   const jsx = readFileSync(resolve(base, '../src/pages/dashboard/roles/KepalaSekolahDashboard.jsx'), 'utf8')
-  assert.match(jsx, /normalizePrincipalAttendance\(windows, responses\)/)
+  assert.match(jsx, /normalizePrincipalAttendance\(windows, responses\.map/)
   assert.match(jsx, /principalAttendanceApi\.getMonthlyRecap/)
+  assert.match(jsx, /response\.meta\.date_from!==windows\[index\]\.from/)
   assert.match(jsx, /PrincipalAttendanceAnalytics/)
   assert.match(jsx, /setAnalyticsAttempt/)
   assert.match(jsx, /if \(active\) setAnalytics/)

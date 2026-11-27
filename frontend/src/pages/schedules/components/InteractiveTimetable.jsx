@@ -15,6 +15,8 @@ import {
   startOfWeek,
 } from '../utils/timetableUtils'
 import { calendarSwipeDirection } from '../utils/calendarSwipe'
+import { principalCalendarGroups, scheduleTime } from '../roles/principalScheduleScale'
+import { PrincipalScheduleDetail } from '../roles/PrincipalScheduleViews'
 import '../styles/principal-schedule-mobile-scroll.css'
 
 
@@ -438,6 +440,8 @@ function TimeGrid({
   onSelect,
 }) {
   const gridScrollRef = useRef(null)
+  const [groupDetail, setGroupDetail] = useState(null)
+  const isPrincipal = role === 'KEPALA_SEKOLAH'
   const hasWeekScrollControls = (role === 'KEPALA_SEKOLAH' || role === 'GURU') && view === 'week'
 
   // Scroll the element that actually owns the seven-day grid, not a parent card.
@@ -451,7 +455,10 @@ function TimeGrid({
     region.scrollLeft = Math.max(0, Math.min(maxScroll, region.scrollLeft + oneDay * 2 * direction))
   }
 
-  const bounds = getTimeBounds(schedules)
+  const bounds = isPrincipal && schedules.length ? {
+    start: Math.floor(Math.min(...schedules.map(row=>scheduleTime(row.jam_mulai)))/3600)*60,
+    end: Math.ceil(Math.max(...schedules.map(row=>scheduleTime(row.jam_selesai)))/3600)*60,
+  } : getTimeBounds(schedules)
   const hours = []
 
   for (
@@ -469,8 +476,9 @@ function TimeGrid({
           addDays(startOfWeek(date), index)
         )
 
-  const gridHeight =
-    ((bounds.end - bounds.start) / 60) * HOUR_HEIGHT
+  const groupsByDay = isPrincipal ? displayedDates.map(d=>principalCalendarGroups(getSchedulesForDate(schedules,d),bounds.start,HOUR_HEIGHT)) : []
+  const gridHeight = Math.max(((bounds.end - bounds.start) / 60) * HOUR_HEIGHT,
+    ...groupsByDay.map(groups=>groups.at(-1)?.bottom||0))
 
   const grid = (
     <div
@@ -522,7 +530,7 @@ function TimeGrid({
           </div>
         </div>
 
-        {displayedDates.map((item) => {
+        {displayedDates.map((item, dayIndex) => {
           const daySchedules = getSchedulesForDate(
             schedules,
             item
@@ -563,7 +571,12 @@ function TimeGrid({
                   />
                 ))}
 
-                {daySchedules.map((schedule) => {
+                {isPrincipal ? groupsByDay[dayIndex].map(group => (
+                  <div className="timetable__event-position" key={group.rows[0].id} style={{top:`${group.top}px`,height:`${group.bottom-group.top}px`}}>
+                    {group.rows.length === 1 ? <TimetableCard schedule={group.rows[0]} role={role} onClick={onSelect}/> :
+                      <button type="button" className="timetable__event ps-scale__group" onClick={()=>setGroupDetail(group.rows)} aria-label={`Lihat kelompok ${group.rows.length} jadwal`}><strong>{group.rows.length} jadwal</strong><span>Lihat kelompok</span></button>}
+                  </div>
+                )) : daySchedules.map((schedule) => {
                   const style = getCardStyle(schedule, bounds)
 
                   if (!style) return null
@@ -592,7 +605,8 @@ function TimeGrid({
 
   // Preserve the original grid for Siswa and daily views.
   // The existing Kepala Sekolah controls now also serve Guru (same 7-day grid).
-  if (!hasWeekScrollControls) return grid
+  const groupDialog = groupDetail && <PrincipalScheduleDetail rows={groupDetail} onClose={()=>setGroupDetail(null)}/>
+  if (!hasWeekScrollControls) return <>{grid}{groupDialog}</>
 
   return (
     <div className="timetable__week-scroll-shell">
@@ -604,6 +618,7 @@ function TimeGrid({
         </div>
       </div>
       {grid}
+      {groupDialog}
     </div>
   )
 }

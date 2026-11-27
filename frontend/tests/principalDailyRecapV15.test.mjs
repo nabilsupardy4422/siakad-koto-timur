@@ -77,7 +77,7 @@ test('Kepala Sekolah memakai halaman sendiri; TU dan Guru tidak dimodifikasi', (
   const page = readFileSync(new URL('../src/pages/attendance/roles/KepalaSekolahAttendancePage.jsx', import.meta.url), 'utf8')
   assert.match(routing, /currentRole === 'TU'[\s\S]*<TUAttendancePage/)
   assert.match(routing, /currentRole === 'KEPALA_SEKOLAH'[\s\S]*<KepalaSekolahAttendancePage/)
-  assert.match(page, /attendanceApi\.getClassRecap/)
+  assert.match(page, /attendanceApi\.getPrincipalClassRecap/)
   assert.doesNotMatch(page, /attendanceApi\.(create|update|bulkSave)\s*\(/)
   assert.match(page, /Kelengkapan data bukan persentase kehadiran/)
   assert.match(page, /Belum Tercatat/)

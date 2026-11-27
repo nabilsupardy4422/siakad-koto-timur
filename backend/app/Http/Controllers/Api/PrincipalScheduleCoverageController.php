@@ -22,6 +22,7 @@ class PrincipalScheduleCoverageController extends Controller
     {
         abort_unless($request->user()?->role?->code === 'KEPALA_SEKOLAH', 403);
 
+        abort_if(count(array_diff(array_keys($request->query()), ['academic_year_id','date','class_id']))>0,422,'Filter tidak didukung.');
         $data = $request->validate([
             'academic_year_id' => ['required', 'integer', 'min:1'],
             'date' => ['required', 'date_format:Y-m-d'],
@@ -94,22 +95,9 @@ class PrincipalScheduleCoverageController extends Controller
         }
 
         if ($scheduleIds !== []) {
-            $recorded = DB::table('presensi as p')
-                ->join('jadwal_pelajaran as j', 'j.id', '=', 'p.jadwal_pelajaran_id')
-                ->whereIn('p.jadwal_pelajaran_id', $scheduleIds)
-                ->whereDate('p.tanggal', $date)
-                ->whereIn('p.status', ['HADIR', 'IZIN', 'SAKIT', 'ALPA'])
-                ->whereExists(function ($q) use ($date): void {
-                    $q->selectRaw('1')
-                        ->from('anggota_kelas as ak')
-                        ->whereColumn('ak.kelas_id', 'j.kelas_id')
-                        ->whereColumn('ak.siswa_id', 'p.siswa_id')
-                        ->whereDate('ak.tanggal_mulai', '<=', $date)
-                        ->where(function ($end) use ($date): void {
-                            $end->whereNull('ak.tanggal_selesai')
-                                ->orWhereDate('ak.tanggal_selesai', '>=', $date);
-                        });
-                })
+            $query = DB::table('presensi as p')->join('jadwal_pelajaran as j','j.id','=','p.jadwal_pelajaran_id')->whereIn('p.jadwal_pelajaran_id',$scheduleIds)->whereDate('p.tanggal',$date);
+            \App\Services\PrincipalAcademicIntegrity::attendance($query,$today);
+            $recorded = $query
                 ->select('p.jadwal_pelajaran_id')
                 ->selectRaw('COUNT(DISTINCT p.siswa_id) as recorded_students')
                 ->groupBy('p.jadwal_pelajaran_id')
@@ -192,6 +180,6 @@ class PrincipalScheduleCoverageController extends Controller
                 'unit' => 'weekly_schedule_with_saved_student_records',
                 'is_actual_lesson_confirmation' => false,
             ],
-        ]);
+        ])->header('Cache-Control','private, no-store');
     }
 }

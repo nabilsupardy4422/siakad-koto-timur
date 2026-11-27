@@ -40,6 +40,9 @@ export const attendanceApi = {
   },
 
   // Mengambil rekap presensi kelas untuk TU.
+  getPrincipalClassRecap(params = {}) {
+    return apiClient.get(`/principal/attendance-daily${buildQuery(params)}`)
+  },
   getClassRecap(params = {}) {
     return apiClient.get(
       `/attendance/class-recap${buildQuery(params)}`,

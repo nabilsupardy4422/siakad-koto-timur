@@ -1,0 +1,55 @@
+/* KS V1.1: scoped read-only schedule views. No changes to TU/GURU/SISWA CSS. */
+.principal-schedule .ps-scale__mode,.principal-schedule .ps-scale__panel{min-width:0;max-width:100%;background:#fff;border:1px solid #dce7ed;border-radius:14px;padding:18px;color:#17324d;box-sizing:border-box}
+.principal-schedule .ps-scale__mode{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.principal-schedule .ps-scale__mode p,.principal-schedule .ps-scale__heading p,.principal-schedule .ps-scale__calendar-note{font-size:12px;line-height:1.6;color:#527087;margin:5px 0 0}
+.principal-schedule .ps-scale__mode [role=group],.principal-schedule .ps-scale__days{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.principal-schedule .ps-scale__mode button,.principal-schedule .ps-scale__days button,.principal-schedule .ps-scale__pager button,.principal-schedule .ps-scale__hint button,.principal-schedule .ps-scale__list button,.principal-schedule .ps-scale__dialog button{font:inherit;font-size:12px;font-weight:650;border:1px solid #cfdfe7;background:#fff;color:#24526a;border-radius:8px;padding:10px 12px;min-height:40px;cursor:pointer}
+.principal-schedule .ps-scale__mode button[aria-pressed=true],.principal-schedule .ps-scale__days button[aria-pressed=true]{background:#116c70;color:#fff;border-color:#116c70}
+.principal-schedule .ps-scale__heading{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px}
+.principal-schedule .ps-scale__heading h2,.principal-schedule .ps-scale__dialog h2{font-size:19px;margin:4px 0;color:#17324d;line-height:1.35}
+.principal-schedule .ps-scale__eyebrow{font-size:10px;letter-spacing:.09em;font-weight:750;color:#087b79}
+.principal-schedule .ps-scale__count{background:#eef7f6;color:#12656b;padding:8px 11px;border-radius:7px;font-size:12px;font-weight:700}
+.principal-schedule .ps-scale__hint,.principal-schedule .ps-scale__pager{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:#527087;margin:12px 0}
+.principal-schedule .ps-scale__hint>div,.principal-schedule .ps-scale__pager>div{display:flex;align-items:center;gap:8px}
+.principal-schedule .ps-scale__pager button,.principal-schedule .ps-scale__hint button{font-size:21px;min-width:42px;padding:4px 12px}
+.principal-schedule .ps-scale__matrix-scroll{overflow:auto;max-width:100%;max-height:65vh;border:1px solid #dce7ed;border-radius:10px;overscroll-behavior:contain;touch-action:pan-x pan-y;scrollbar-width:thin}
+.principal-schedule .ps-scale__matrix{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;min-width:100%;font-size:12px}
+.principal-schedule .ps-scale__matrix th,.principal-schedule .ps-scale__matrix td{box-sizing:border-box;border-bottom:1px solid #e0e9ee;border-right:1px solid #e0e9ee;vertical-align:top;text-align:left;padding:8px;width:172px;min-width:172px;max-width:172px;background:#fff;overflow-wrap:anywhere}
+.principal-schedule .ps-scale__matrix thead th{position:sticky;top:0;z-index:2;background:#eaf3f6;padding:13px 9px;font-weight:750;color:#27475e}
+.principal-schedule .ps-scale__matrix tr>th:first-child{position:sticky;left:0;z-index:1;width:82px;min-width:82px;max-width:82px;background:#f0f6f8;color:#35566c;font-variant-numeric:tabular-nums}
+.principal-schedule .ps-scale__matrix thead tr>th:first-child{z-index:3;top:0;background:#dcebee}
+.principal-schedule .ps-scale__event{display:flex;flex-direction:column;text-align:left;gap:5px;width:100%;min-width:0;min-height:76px;padding:9px;border:1px solid #cce4e3;border-left:3px solid #16847f;border-radius:7px;background:#edf7f6;color:#184d54;font:inherit;cursor:pointer;overflow-wrap:anywhere}
+.principal-schedule .ps-scale__event+.ps-scale__event{margin-top:6px}
+.principal-schedule .ps-scale__event:hover{background:#d9efec}
+.principal-schedule .ps-scale__event span,.principal-schedule .ps-scale__event small{color:#426879;font-size:11px;line-height:1.4}
+.principal-schedule .ps-scale__dash{display:block;color:#8da3b1;text-align:center;padding:12px}
+.principal-schedule .ps-scale__search{display:grid;gap:6px;color:#35566c;font-size:12px;font-weight:650;margin-bottom:14px;max-width:440px}
+.principal-schedule .ps-scale__search input{box-sizing:border-box;width:100%;min-height:42px;border:1px solid #cfdfe7;border-radius:8px;padding:10px 12px;font:inherit;color:#17324d;background:#fff}
+.principal-schedule .ps-scale__list{min-width:0;max-width:100%;overflow-x:auto}
+.principal-schedule .ps-scale__list table{width:100%;border-collapse:collapse;table-layout:auto;font-size:12px}
+.principal-schedule .ps-scale__list th,.principal-schedule .ps-scale__list td{padding:10px 8px;text-align:left;border-bottom:1px solid #e4edf2;overflow-wrap:anywhere;vertical-align:middle}
+.principal-schedule .ps-scale__list th{background:#edf4f7;color:#35566c}
+.principal-schedule .ps-scale__empty{padding:20px;background:#f4f8fa;border-radius:8px;color:#527087;font-size:13px}
+.principal-schedule .ps-scale__calendar-note{margin:0 0 10px}
+.principal-schedule .timetable__event.ps-scale__group{background:#dcefeb;border-top-color:#16847f;color:#185a5b;justify-content:center}
+.principal-schedule .ps-scale__dialog{width:min(540px,calc(100% - 28px));max-width:540px;max-height:85vh;box-sizing:border-box;border:1px solid #dce7ed;border-radius:14px;padding:0;background:#fff;color:#17324d;overflow:auto}
+.principal-schedule .ps-scale__dialog::backdrop{background:#172f43a0}
+.principal-schedule .ps-scale__dialog header,.principal-schedule .ps-scale__dialog footer{display:flex;align-items:center;justify-content:space-between;padding:16px;gap:10px;background:#fff;position:sticky;z-index:1;top:0;border-bottom:1px solid #dce7ed}
+.principal-schedule .ps-scale__dialog footer{top:auto;bottom:0;border-top:1px solid #dce7ed;border-bottom:0;justify-content:flex-end;flex-wrap:wrap}
+.principal-schedule .ps-scale__dialog footer .ps-scale__pager{flex:1;margin:0}
+.principal-schedule .ps-scale__dialog-body{padding:8px 16px}
+.principal-schedule .ps-scale__dialog-body article{display:grid;gap:5px;border-bottom:1px solid #e4edf2;padding:12px 0;overflow-wrap:anywhere;font-size:13px}
+.principal-schedule .ps-scale__dialog-body article span{color:#527087;font-size:12px}
+@media(max-width:700px){
+ .principal-schedule .ps-scale__mode,.principal-schedule .ps-scale__panel{padding:12px}
+ .principal-schedule .ps-scale__mode [role=group]{width:100%}
+ .principal-schedule .ps-scale__mode button{flex:1 1 auto;min-height:44px}
+ .principal-schedule .ps-scale__matrix-scroll{max-height:60vh}
+ .principal-schedule .ps-scale__list table,.principal-schedule .ps-scale__list tbody,.principal-schedule .ps-scale__list tr,.principal-schedule .ps-scale__list td{display:block;width:100%;box-sizing:border-box}
+ .principal-schedule .ps-scale__list thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ .principal-schedule .ps-scale__list tr{border:1px solid #dce7ed;border-radius:9px;margin-bottom:9px;padding:8px}
+ .principal-schedule .ps-scale__list td{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px;padding:6px;border:0}
+ .principal-schedule .ps-scale__list td[data-label]::before{content:attr(data-label);color:#527087;font-size:11px;font-weight:650}
+ .principal-schedule .ps-scale__list td:last-child{display:block}
+ .principal-schedule .ps-scale__list button{width:100%;min-height:44px}
+}

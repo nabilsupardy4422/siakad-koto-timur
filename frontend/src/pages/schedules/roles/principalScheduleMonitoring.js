@@ -19,7 +19,7 @@ function activeFlag(value) {
   throw new Error('Status aktif periode akademik tidak valid.')
 }
 
-export function parsePrincipalAcademicYears(response) {
+export function parsePrincipalAcademicYears(response, allowConflict = false) {
   if (!Array.isArray(response?.data)) {
     throw new Error('Daftar tahun akademik tidak sesuai kontrak API.')
   }
@@ -36,7 +36,7 @@ export function parsePrincipalAcademicYears(response) {
     seen.add(id)
     return { ...year, id, tahun_mulai: start, tahun_selesai: end, is_active: activeFlag(year.is_active) }
   })
-  if (years.filter(item => item.is_active).length > 1) {
+  if (!allowConflict && years.filter(item => item.is_active).length > 1) {
     throw new Error('Terdapat lebih dari satu periode aktif. Hubungi Tata Usaha.')
   }
   return years.sort((a, b) => b.tahun_mulai - a.tahun_mulai ||
@@ -45,7 +45,8 @@ export function parsePrincipalAcademicYears(response) {
 
 export function choosePrincipalPeriod(years, currentId) {
   const retained = years.find(year => String(year.id) === String(currentId))
-  return retained?.id ?? years.find(year => year.is_active)?.id ?? years[0]?.id ?? null
+  const active = years.filter(year => year.is_active)
+  return retained?.id ?? (active.length === 1 ? active[0].id : null)
 }
 
 function normalizeTime(value) {

@@ -87,16 +87,29 @@ export function normalizePrincipalDashboard(input) {
     ? data.recent.academic_years.map(normalizedYear).filter((item) => item?.label).slice(0, 5)
     : []
 
+  const strict = Object.hasOwn(data,'active_state')
+  const classes = normalizeClasses(data.charts?.students_by_class)
+  if (strict) {
+    const validDate=typeof data.date==='string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date) && !Number.isNaN(Date.parse(data.date)) && new Date(data.date).toISOString().slice(0,10)===data.date
+    if(!validDate || !['active','none','conflict'].includes(data.active_state) || !Array.isArray(data.charts?.students_by_class) || classes.length!==data.charts.students_by_class.length || data.charts.students_by_class.some(c=>![10,11,12].includes(c.tingkat)||!Number.isSafeInteger(c.student_count)||c.student_count<0) || !Array.isArray(data.warnings) || data.warnings.some(w=>typeof w!=='string') || ['total_guru','total_siswa','total_mapel'].some(k=>nonNegativeInteger(summary[k])===null)) throw new Error('Konteks dashboard tidak konsisten.')
+    if(data.active_state==='active') {
+      if(!year?.id||!year.isActive||!year.label||!year.semester||nonNegativeInteger(summary.total_kelas)!==classes.length||nonNegativeInteger(summary.total_jadwal)===null||nonNegativeInteger(summary.effective_students)===null||summary.effective_students>classes.reduce((n,c)=>n+c.count,0)||summary.effective_students>summary.total_siswa) throw new Error('Statistik periode tidak konsisten.')
+    } else if(year!==null||classes.length||summary.total_kelas!==null||summary.total_jadwal!==null||summary.effective_students!==null||data.coverage!==null) throw new Error('Konteks tanpa periode tidak valid.')
+    if(data.coverage!==null){const keys=['Lengkap','Sebagian','Belum tercatat','Belum selesai','Tanpa siswa'];if([...keys,'Pola jadwal'].some(k=>!Number.isSafeInteger(data.coverage?.[k])||data.coverage[k]<0)||keys.reduce((n,k)=>n+data.coverage[k],0)!==data.coverage['Pola jadwal'])throw new Error('Ringkasan jadwal tidak konsisten.')}
+  }
   return {
+    ...(strict?{date:data.date,activeState:data.active_state,coverage:data.coverage,warnings:data.warnings,levels:[10,11,12].map(level=>({level,count:data.charts.students_by_class.filter(c=>c.tingkat===level).reduce((n,c)=>n+c.student_count,0)}))}:{}),
     metrics: [
       { key: 'guru', label: 'Guru', value: nonNegativeInteger(summary.total_guru), note: 'Seluruh profil guru tercatat' },
-      { key: 'siswa', label: 'Siswa', value: nonNegativeInteger(summary.total_siswa), note: 'Seluruh profil siswa tercatat' },
-      { key: 'kelas', label: 'Kelas', value: nonNegativeInteger(summary.total_kelas), note: year?.label ? 'Pada periode akademik aktif' : 'Dari seluruh periode tercatat' },
-      { key: 'jadwal', label: 'Jadwal', value: nonNegativeInteger(summary.total_jadwal), note: year?.label ? 'Pada periode akademik aktif' : 'Dari seluruh periode tercatat' },
+      { key: 'siswa', label: 'Profil siswa', value: nonNegativeInteger(summary.total_siswa), note: 'Seluruh profil siswa tercatat' },
+      { key: 'kelas', label: 'Kelas', value: nonNegativeInteger(summary.total_kelas), note: year?.label ? 'Pada periode akademik aktif' : strict?'Periode aktif tidak tersedia':'Dari seluruh periode tercatat' },
+      ...(strict?[{key:'effective',label:'Siswa efektif unik',value:nonNegativeInteger(summary.effective_students),note:'Satu siswa dihitung sekali'}]:[]),
+      ...(strict?[{key:'mapel',label:'Mata pelajaran',value:nonNegativeInteger(summary.total_mapel),note:'Katalog seluruh periode'}]:[]),
+      { key: 'jadwal', label: 'Jadwal', value: nonNegativeInteger(summary.total_jadwal), note: year?.label ? 'Pada periode akademik aktif' : strict?'Periode aktif tidak tersedia':'Dari seluruh periode tercatat' },
     ],
     year,
     years,
-    classes: normalizeClasses(data.charts?.students_by_class),
+    classes,
   }
 }
 

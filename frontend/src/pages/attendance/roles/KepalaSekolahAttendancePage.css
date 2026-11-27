@@ -292,3 +292,5 @@
 @media (prefers-reduced-motion: reduce) {
   .principal-attendance__mode-switch button { transition: none; }
 }
+
+.principal-attendance .principal-attendance__hero{min-height:0;background:#173c50;border-radius:14px;padding:24px;box-shadow:none}.principal-attendance .principal-attendance__hero h1{font-size:clamp(25px,3vw,34px);margin:8px 0}.principal-attendance .principal-attendance__hero::before,.principal-attendance .principal-attendance__hero::after{display:none}.principal-attendance .principal-attendance__hero-side{min-width:0}.principal-attendance .principal-attendance__hero-facts{flex-wrap:wrap}@media(max-width:640px){.principal-attendance .principal-attendance__hero{padding:18px;flex-direction:column;gap:12px}}

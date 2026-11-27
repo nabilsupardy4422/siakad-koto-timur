@@ -16,14 +16,17 @@ use Illuminate\Support\Collection;
 class ReportService
 {
     private ?int $rowLimit = null;
+    private bool $actualAttendance = false;
 
     public function build(
         string $reportType,
         User $user,
         array $filters,
-        ?int $rowLimit = null
+        ?int $rowLimit = null,
+        bool $actualAttendance = false
     ): array {
         $this->rowLimit = $rowLimit;
+        $this->actualAttendance = $actualAttendance;
         $filters = ReportAccess::normalize($user, $reportType, $filters);
 
         $report = match ($reportType) {
@@ -635,6 +638,7 @@ class ReportService
 
     private function applyAttendanceScope(Builder $query, User $user, array $filters): void
     {
+        if ($this->actualAttendance) $query->whereDate('presensi.tanggal','<=',today('Asia/Jakarta'));
         $query->whereRaw("HEX(UPPER(presensi.status)) IN ('4841444952','495A494E','53414B4954','414C5041')")
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('presensi as duplicate_record')
                 ->whereColumn('duplicate_record.jadwal_pelajaran_id','presensi.jadwal_pelajaran_id')

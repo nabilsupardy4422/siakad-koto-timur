@@ -14,6 +14,7 @@ import {
   formatCount, isISODate, normalizePrincipalDailyRecap,
   principalCoverage, principalDailyTotals, todayWIB,
 } from './principalDailyRecap'
+import {yearsFrom,defaultYear} from '../../tu-monitoring/monitoringLogic.js'
 import './KepalaSekolahAttendancePage.css'
 
 function responseCollection(payload) {
@@ -132,12 +133,12 @@ export default function KepalaSekolahAttendancePage() {
     async function loadYears() {
       try {
         const response = await academicYearApi.getAll({ per_page: 100 })
-        const years = responseCollection(response).filter(row => row && Number.isSafeInteger(Number(row.id)) && ['GANJIL', 'GENAP'].includes(row.semester))
+        const years = yearsFrom(response)
         if (cancelled) return
         setYearsState({ status: 'ready', rows: years, error: '' })
         setYearId(current => years.some(row => String(row.id) === current)
           ? current
-          : String((years.find(row => [true, 1, '1'].includes(row.is_active)) || years[0])?.id ?? ''))
+          : defaultYear(years))
       } catch (error) {
         if (!cancelled) { setYearId(''); setYearsState({ status: 'error', rows: [], error: getError(error) }) }
       }
@@ -153,14 +154,14 @@ export default function KepalaSekolahAttendancePage() {
 
   useEffect(() => {
     let cancelled = false
-    if (mode !== 'daily' || !selectedYear || !isISODate(date)) {
+    if (mode !== 'daily' || !selectedYear || !isISODate(date) || date>todayWIB()) {
       setRecapState({ status: 'idle', rows: [], error: '' })
       return () => { cancelled = true }
     }
     setRecapState({ status: 'loading', rows: [], error: '' })
     async function load() {
       try {
-        const response = await attendanceApi.getClassRecap({
+        const response = await attendanceApi.getPrincipalClassRecap({
           academic_year_id: selectedYear.id,
           date,
           semester: selectedYear.semester,
@@ -169,7 +170,7 @@ export default function KepalaSekolahAttendancePage() {
           yearId: selectedYear.id, date, semester: selectedYear.semester,
         })
         if (cancelled) return
-        setRecapState({ status: 'ready', rows: normalized.rows, error: '' })
+        setRecapState({ status: 'ready', rows: normalized.rows, warnings: response.meta.warnings || [], context: `${selectedYear.id}:${date}`, error: '' })
       } catch (error) {
         if (!cancelled) setRecapState({ status: 'error', rows: [], error: getError(error) })
       }
@@ -186,24 +187,25 @@ export default function KepalaSekolahAttendancePage() {
     : recapState.rows, [recapState.rows, classId])
   const totals = useMemo(() => principalDailyTotals(filteredRows), [filteredRows])
   const loading = yearsState.status === 'loading' || recapState.status === 'loading'
-  const showData = yearsState.status === 'ready' && recapState.status === 'ready'
+  const showData = yearsState.status === 'ready' && recapState.status === 'ready' && recapState.context === `${selectedYear?.id}:${date}`
 
   return (
     <div className="attendance-page principal-attendance">
       <header className="principal-attendance__hero">
         <div className="principal-attendance__hero-content">
           <span className="principal-attendance__hero-kicker"><span className="principal-attendance__hero-dot" /> PUSAT ANALITIK PRESENSI</span>
-          <h1>Pantau kehadiran sekolah,<br /><em>lebih jelas dan terukur.</em></h1>
+          <h1>Monitoring Presensi</h1>
           <p>Mulai dari ringkasan satu tanggal hingga catatan setiap mata pelajaran sepanjang tahun ajaran.</p>
           <div className="principal-attendance__hero-facts"><span>◈ Data akademik resmi</span><span>◈ Berbasis kelas &amp; jadwal</span><span>◈ WIB</span></div>
         </div>
-        <div className="principal-attendance__hero-side"><span className="principal-attendance__read-only">Monitoring · Baca saja</span><span className="principal-attendance__hero-symbol" aria-hidden="true">▦</span></div>
+        <div className="principal-attendance__hero-side"><span className="principal-attendance__read-only">Monitoring · Baca saja</span></div>
       </header>
       <nav className="principal-attendance__mode-switch" aria-label="Jenis rekap presensi">
-        <button type="button" className={mode === 'daily' ? 'is-active' : ''} onClick={() => setMode('daily')} aria-current={mode === 'daily' ? 'page' : undefined}>
+        <button type="button" className={mode === 'daily' ? 'is-active' : ''} onClick={() => {setMode('daily'); if(date>todayWIB())setDate(todayWIB());setClassId('')}} aria-current={mode === 'daily' ? 'page' : undefined}>
           <strong>Rekap harian</strong><small>Satu siswa per tanggal</small>
         </button>
-        <button type="button" className={mode === 'period' ? 'is-active' : ''} onClick={() => setMode('period')} aria-current={mode === 'period' ? 'page' : undefined}>
+        <button type="button" className={mode === 'coverage' ? 'is-active' : ''} onClick={() => {setMode('coverage');setClassId('')}} aria-current={mode === 'coverage' ? 'page' : undefined}><strong>Pola jadwal</strong><small>Termasuk rencana mendatang</small></button>
+        <button type="button" className={mode === 'period'  ? 'is-active' : ''} onClick={() => setMode('period')} aria-current={mode === 'period' ? 'page' : undefined}>
           <strong>Analisis periode</strong><small>Per mapel &amp; seluruh tahun ajaran</small>
         </button>
       </nav>
@@ -223,12 +225,12 @@ export default function KepalaSekolahAttendancePage() {
             options={yearsState.rows.map(row => ({ value: String(row.id), label: yearLabel(row) }))}
             placeholder="Pilih tahun akademik" disabled={yearsState.status !== 'ready' || !yearsState.rows.length}
             onChange={event => { setClassId(''); setYearId(event.target.value) }} />
-          {mode === 'daily' && <>
+          {mode !== 'period' && <>
             <Input id="principal-attendance-date" label="Tanggal Presensi" type="date" required value={date}
-              onChange={event => setDate(event.target.value)} />
-            <Select id="principal-attendance-class" label="Kelas" value={classId}
+              max={mode==='daily'?todayWIB():undefined} onChange={event => {setClassId('');setDate(event.target.value)}} />
+            {mode==='daily'&&<Select id="principal-attendance-class" label="Kelas" value={classId}
               options={classOptions} placeholder="Semua kelas" disabled={!showData || classOptions.length === 0}
-              onChange={event => setClassId(event.target.value)} />
+              onChange={event => setClassId(event.target.value)} />}
           </>}
         </div>
         {selectedYear && <p className="principal-attendance__semester">Semester terpilih: <strong>{selectedYear.semester}</strong> · Mengikuti tahun akademik yang dipilih.</p>}
@@ -237,9 +239,11 @@ export default function KepalaSekolahAttendancePage() {
         <div className="principal-attendance__message"><ErrorState message={yearsState.error} /><Button variant="secondary" onClick={() => setYearRetry(n => n + 1)}>Coba lagi</Button></div>
       )}
       {yearsState.status === 'ready' && !yearsState.rows.length && <EmptyState title="Belum ada tahun akademik" description="Tata Usaha perlu menetapkan tahun akademik sebelum rekap dapat ditampilkan." />}
+      {yearsState.status==='ready'&&yearsState.rows.length>0&&!selectedYear&&<p role="status">Pilih periode secara eksplisit; periode aktif tidak tersedia atau tidak tunggal.</p>}
       {mode === 'period' && yearsState.status === 'ready' && selectedYear && (
-        <PrincipalPeriodInsights year={selectedYear} />
+        <PrincipalPeriodInsights key={selectedYear.id} year={selectedYear} />
       )}
+      {mode==='coverage'&&selectedYear&&isISODate(date)&&<PrincipalScheduleCoverage key={`${selectedYear.id}:${date}`} year={selectedYear} date={date} classId='' dailyRetry={recapRetry}/> }
       {mode === 'daily' && <>
       {!isISODate(date) && <ErrorState message="Tanggal presensi belum valid. Gunakan format tanggal yang benar." />}
       {recapState.status === 'error' && (
@@ -248,6 +252,7 @@ export default function KepalaSekolahAttendancePage() {
       {loading && <LoadingState />}
       {showData && (
         <>
+          {recapState.warnings?.map(w=><p key={w} role="alert" className="principal-attendance__footnote">{w}</p>)}
           <div className="principal-attendance__metrics">
             <CoveragePanel totals={totals} />
             <div className="principal-attendance__status-grid" aria-label="Status presensi harian">
@@ -260,7 +265,7 @@ export default function KepalaSekolahAttendancePage() {
             </div>
           </div>
           <RecapTable rows={filteredRows} date={date} selectedYear={selectedYear} />
-          <PrincipalScheduleCoverage year={selectedYear} date={date} classId={classId} dailyRetry={recapRetry} />
+          <PrincipalScheduleCoverage key={`${selectedYear.id}:${date}:${classId}`} year={selectedYear} date={date} classId={classId} dailyRetry={recapRetry} />
           <p className="principal-attendance__footnote">
             Total siswa adalah keanggotaan kelas aktif pada tanggal rekap. Alpa hanya berasal dari catatan ALPA; siswa tanpa catatan masuk Belum Tercatat. Rekap harian menerapkan prioritas status ALPA &gt; SAKIT &gt; IZIN &gt; HADIR bila ada lebih dari satu pertemuan pada tanggal yang sama.
           </p>

@@ -15,6 +15,6 @@ export const principalAttendanceApi = {
       date_from: from,
       date_to: to,
     })
-    return apiClient.get(`/attendance/recap?${query.toString()}`)
+    return apiClient.get(`/principal/attendance-summary?${query.toString()}`)
   },
 }

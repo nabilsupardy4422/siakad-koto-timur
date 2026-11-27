@@ -23,10 +23,14 @@ test('academic year API is a complete unpaginated collection', () => {
   assert.throws(() => getCollection({ data: [] }, 1), /pagination akademik/)
 })
 
-test('principal grade page uses the unpaginated academic-year API without a page override', async () => {
+test('principal grade page uses one unpaginated period catalog and server monitoring', async () => {
   const jsx = await readFile(new URL('../src/pages/grades/roles/KepalaSekolahGrades.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /getAcademicYears\(await academicYearApi\.getAll\(\)\)/)
-  assert.match(jsx, /getAllPages\(\(page, perPage\) =>\s*scheduleApi\.getAll/)
+  const shared = await readFile(new URL('../src/pages/tu-monitoring/TuAcademicMonitoring.jsx', import.meta.url), 'utf8')
+  assert.match(jsx, /<TuAcademicMonitoring grade principal/)
+  assert.match(shared, /academicYearApi\.getAll\(\)\.then\(yearsFrom\)/)
+  assert.match(shared, /principal\?'\/principal\/grade-monitoring'/)
+  assert.match(shared, /\(!grade\|\|filters\.class_id\)/)
+  assert.doesNotMatch(shared, /gradeApi\.getGrades|scheduleApi\.getAll/)
 })
 
 test('0 is a real recorded score; missing score stays null', () => {
@@ -77,35 +81,30 @@ test('all API pages are loaded and no silent truncation is permitted', async () 
 })
 
 test('historical scores use stored records and never manufacture current-roster missing slots', async () => {
-  const jsx = await readFile(new URL('../src/pages/grades/roles/KepalaSekolahGrades.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /const historical = !isActivePeriod\(selectedPeriod\)/)
-  assert.match(jsx, /const membersByClass = historical \? \[\]/)
-  assert.match(jsx, /if \(historical\) \{[\s\S]*?for \(const grade of gradeMap\.values\(\)\)/)
-  assert.match(jsx, /Riwayat tidak bisa dipakai untuk menyimpulkan kelengkapan nilai/)
-  assert.match(jsx, /return \(\) => \{ monitoringRequest\.current \+= 1 \}/)
+  const backend=await readFile(new URL('../../backend/app/Services/TuGradeDataset.php',import.meta.url),'utf8')
+  assert.match(backend,/\$slots=\$active\?\$roster->count\(\)\*\$group->count\(\):null/)
+  assert.match(backend,/if\(\$active\)\{abort_if\(\$summary\['Slot saat ini'\]>30000/)
+  assert.match(backend,/Riwayat tercatat/)
+  const shared=await readFile(new URL('../src/pages/tu-monitoring/TuAcademicMonitoring.jsx',import.meta.url),'utf8')
+  assert.match(shared,/Rombel historis menampilkan catatan tersimpan saja/)
+  assert.match(shared,/return\(\)=>\{alive=false\}/)
 })
 
 test('principal grade page remains read only; semester is fixed by selected year', async () => {
-  const jsx = await readFile(new URL('../src/pages/grades/roles/KepalaSekolahGrades.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /<span>Tahun Akademik \/ Semester<\/span>/)
-  assert.match(jsx, /year\.semester \? ` - \${year\.semester}`/)
-  assert.doesNotMatch(jsx, /Semester sesuai tahun akademik/)
-  assert.doesNotMatch(jsx, /kepala-grades__static-field/)
-  assert.doesNotMatch(jsx, /filters\.semester|next\.semester/)
-  assert.match(jsx, /semester: selectedPeriod\.semester/)
-  assert.doesNotMatch(jsx, /gradeApi\.(createGrade|updateGrade|createComponent|updateComponent|deleteComponent)\(/)
-  assert.doesNotMatch(jsx, /attendanceApi\.(store|update|bulkStore)\(/)
-  assert.match(jsx, /KepalaSekolahGrades\.css/)
-  assert.match(jsx, /{historical \? 'Tercatat'/)
+  const jsx=await readFile(new URL('../src/pages/tu-monitoring/TuAcademicMonitoring.jsx',import.meta.url),'utf8')
+  assert.match(jsx,/Tahun Akademik/)
+  assert.match(jsx,/year\.semester/)
+  assert.doesNotMatch(jsx,/filters\.semester|next\.semester/)
+  assert.match(jsx,/apiClient\.get/)
+  assert.doesNotMatch(jsx,/apiClient\.(post|put|delete|patch)\(/)
+  assert.match(jsx,/!principal&&<Panel><ExportPanel/)
 })
 
-test('grade monitoring filter layout has four distinct responsive controls', async () => {
-  const jsx = await readFile(new URL('../src/pages/grades/roles/KepalaSekolahGrades.jsx', import.meta.url), 'utf8')
-  const css = await readFile(new URL('../src/pages/grades/styles/KepalaSekolahGrades.css', import.meta.url), 'utf8')
-  for (const label of ['Tahun Akademik / Semester', 'Tingkat', 'Kelas', 'Mata Pelajaran']) {
-    assert.match(jsx, new RegExp(`<span>${label.replace('/', '\/')}</span>`))
-  }
-  assert.match(css, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/)
-  assert.match(css, /@media \(max-width: 1000px\)/)
-  assert.match(css, /@media \(max-width: 640px\)/)
+test('grade monitoring filters retain distinct responsive controls', async () => {
+  const jsx=await readFile(new URL('../src/pages/tu-monitoring/TuAcademicMonitoring.jsx',import.meta.url),'utf8')
+  const css=await readFile(new URL('../src/pages/tu-monitoring/tu-monitoring.css',import.meta.url),'utf8')
+  for(const text of ['Tahun Akademik','Tingkat','Rombel','Mata pelajaran','Guru','Jadwal','Komponen']) assert(jsx.includes(text))
+  assert.match(css,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/)
+  assert.match(css,/@media\(max-width:850px\)/)
+  assert.match(css,/@media\(max-width:600px\)/)
 })

@@ -232,3 +232,5 @@
   .ks-report__ready-actions { display: grid; grid-template-columns: 1fr; }
   .ks-report__ready-link { width: 100%; }
 }
+
+.ks-report .ks-report__hero{min-height:0;background:#173c50;border-radius:14px;padding:24px;box-shadow:none}.ks-report .ks-report__hero h1{font-size:clamp(25px,3vw,34px);margin:8px 0}.ks-report .ks-report__hero::before,.ks-report .ks-report__hero::after{display:none}.ks-report .ks-report__panel.tu-academic-monitoring{min-width:0}.ks-report .ks-report__hero-note{border-radius:8px;box-shadow:none}@media(max-width:640px){.ks-report .ks-report__hero{padding:18px}}

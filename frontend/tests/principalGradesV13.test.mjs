@@ -50,7 +50,7 @@ test('rerata bukan rapor akhir dan visual hanya dari rentang 0-100', () => {
 test('API analitik nilai hanya GET, wajib periode aktif dan tanpa identitas siswa', () => {
   const api = readFileSync(resolve(base, '../src/services/principalGradeApi.js'), 'utf8')
   assert.match(api, /apiClient.get\(`/)
-  assert.match(api, /grades\/recap\?/)
+  assert.match(api, /principal\/grade-summary\?/)
   assert.match(api, /academic_year_id:/)
   assert.doesNotMatch(api, /apiClient\.(post|put|delete)/)
   assert.doesNotMatch(api, /student_id:/)

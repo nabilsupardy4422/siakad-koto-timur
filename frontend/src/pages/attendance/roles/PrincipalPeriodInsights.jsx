@@ -56,6 +56,7 @@ export default function PrincipalPeriodInsights({ year }) {
   const [state, setState] = useState({ status: 'idle', value: null, message: '' })
   const validRange = scope === 'YEAR' || (isISODate(from) && isISODate(to) && from <= to)
 
+  const requestKey=JSON.stringify([year?.id,scope,from,to,refresh])
   useEffect(() => {
     let cancelled = false
     setClassKey('')
@@ -70,7 +71,7 @@ export default function PrincipalPeriodInsights({ year }) {
         const search = new URLSearchParams(params).toString()
         const response = await apiClient.get(`/attendance/principal-insights?${search}`)
         const normalized = normalizePrincipalPeriodInsights(response, { yearId: year.id, scope, from, to })
-        if (!cancelled) setState({ status: 'ready', value: normalized, message: '' })
+        if (!cancelled) setState({ status: 'ready', value: normalized, message: '', requestKey })
       } catch (error) {
         if (!cancelled) setState({ status: 'error', value: null, message: errorMessage(error) })
       }
@@ -79,7 +80,8 @@ export default function PrincipalPeriodInsights({ year }) {
     return () => { cancelled = true }
   }, [year?.id, scope, from, to, validRange, refresh])
 
-  const allClasses = state.value?.classes || []
+  const ready=state.status==='ready'&&state.requestKey===requestKey
+  const allClasses = ready ? state.value.classes : []
   const classes = useMemo(() => classKey
     ? allClasses.filter(item => item.key === classKey)
     : allClasses, [allClasses, classKey])
@@ -96,7 +98,7 @@ export default function PrincipalPeriodInsights({ year }) {
         <div className="principal-attendance__filter-head">
           <div><span className="principal-attendance__eyebrow">ANALISIS PERIODE</span>
             <h2>Jelajahi kehadiran per mata pelajaran</h2>
-            <p>Pilih rentang tanggal atau seluruh tahun ajaran. Data bersumber dari catatan pertemuan yang benar-benar tersimpan.</p></div>
+            <p>Pilih rentang tanggal atau seluruh tahun ajaran. Data bersumber dari catatan valid sampai hari ini WIB; catatan masa depan dikecualikan.</p></div>
           <button type="button" className="principal-attendance__refresh" disabled={state.status === 'loading' || !year} onClick={() => setRefresh(x => x + 1)}>↻ Perbarui data</button>
         </div>
         <div className="principal-attendance__scope-buttons" role="group" aria-label="Cakupan analisis">
@@ -110,13 +112,13 @@ export default function PrincipalPeriodInsights({ year }) {
             <span className="principal-attendance__hint">Data dibatasi semester {year?.semester?.toLowerCase() || 'terpilih'}.</span>
           </div>
         ) : (
-          <p className="principal-attendance__year-note">Mengambil semua catatan pada semester Ganjil dan Genap {year?.tahun_mulai}/{year?.tahun_selesai} yang tersedia. Filter tanggal tidak membatasi hasil.</p>
+          <p className="principal-attendance__year-note">Mengambil semua catatan pada semester Ganjil dan Genap {year?.tahun_mulai}/{year?.tahun_selesai} yang tersedia. Catatan masa depan tidak termasuk hasil aktual.</p>
         )}
         {!validRange && <p className="principal-attendance__alert" role="alert">Tanggal awal dan akhir wajib valid; tanggal akhir tidak boleh lebih awal.</p>}
       </div>
       {state.status === 'loading' && <div className="principal-attendance__insight-empty" role="status">Memuat catatan presensi periode…</div>}
       {state.status === 'error' && <div className="principal-attendance__insight-empty" role="alert">{state.message}<button type="button" onClick={() => setRefresh(x => x + 1)}>Coba lagi</button></div>}
-      {state.status === 'ready' && (
+      {ready && (
         <>
           {incompleteYear && <div className="principal-attendance__alert" role="status">Baru {state.value.periods[0]?.semester} yang tersedia untuk tahun ajaran ini. Hasil belum mencakup kedua semester.</div>}
           <div className="principal-attendance__period-summary">

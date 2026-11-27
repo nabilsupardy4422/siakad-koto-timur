@@ -79,7 +79,7 @@ test('bar chart hanya menggambar presentasi relatif, tanpa inventarisasi data', 
 
 test('dashboard memakai API baca dan tautan ke modul yang telah ada', () => {
   const jsx = readFileSync(resolve(base, '../src/pages/dashboard/roles/KepalaSekolahDashboard.jsx'), 'utf8')
-  assert.match(jsx, /dashboardApi\.getDashboard\(\)/)
+  assert.match(jsx, /dashboardApi\.getPrincipalDashboard\(\)/)
   assert.match(jsx, /\/app\/attendance/)
   assert.match(jsx, /\/app\/grades/)
   assert.match(jsx, /\/app\/schedules/)

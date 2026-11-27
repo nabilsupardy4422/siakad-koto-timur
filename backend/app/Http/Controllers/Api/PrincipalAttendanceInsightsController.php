@@ -31,6 +31,7 @@ class PrincipalAttendanceInsightsController extends Controller
         );
 
         // Validasi parameter filter.
+        abort_if(count(array_diff(array_keys($request->query()), ['academic_year_id','scope','date_from','date_to','class_id']))>0,422,'Filter tidak didukung.');
         $data = $request->validate([
             'academic_year_id' => [
                 'required',
@@ -73,6 +74,12 @@ class PrincipalAttendanceInsightsController extends Controller
             ->findOrFail($data['academic_year_id']);
 
         $all = $data['scope'] === 'YEAR';
+        foreach (['date_from','date_to'] as $bound) {
+            if (isset($data[$bound])) {
+                $calendarYear = (int) substr($data[$bound],0,4);
+                abort_if($calendarYear < (int)$anchor->tahun_mulai || $calendarYear > (int)$anchor->tahun_selesai,422,'Rentang tanggal di luar tahun kalender periode.');
+            }
+        }
 
         // ID kelas terikat pada satu periode/semester.
         // Filter kelas langsung tidak diizinkan untuk
@@ -169,40 +176,8 @@ class PrincipalAttendanceInsightsController extends Controller
             ->whereIn(
                 'j.tahun_akademik_id',
                 $periods->pluck('id')->all()
-            )
-            ->whereIn(
-                'p.status',
-                ['HADIR', 'IZIN', 'SAKIT', 'ALPA']
-            )
-            ->whereExists(function ($membership): void {
-                // Siswa harus terdaftar pada kelas
-                // ketika presensi tersebut dibuat.
-                $membership
-                    ->selectRaw('1')
-                    ->from('anggota_kelas as ak')
-                    ->whereColumn(
-                        'ak.kelas_id',
-                        'j.kelas_id'
-                    )
-                    ->whereColumn(
-                        'ak.siswa_id',
-                        'p.siswa_id'
-                    )
-                    ->whereColumn(
-                        'ak.tanggal_mulai',
-                        '<=',
-                        'p.tanggal'
-                    )
-                    ->where(function ($end): void {
-                        $end
-                            ->whereNull('ak.tanggal_selesai')
-                            ->orWhereColumn(
-                                'ak.tanggal_selesai',
-                                '>=',
-                                'p.tanggal'
-                            );
-                    });
-            });
+            );
+        \App\Services\PrincipalAcademicIntegrity::attendance($query,now('Asia/Jakarta')->toDateString());
 
         // PERBAIKAN V1.6:
         // Bandingkan bagian tanggal saja,
@@ -239,19 +214,19 @@ class PrincipalAttendanceInsightsController extends Controller
             ])
             ->selectRaw('COUNT(*) as total')
             ->selectRaw(
-                "SUM(CASE WHEN p.status = 'HADIR' "
+                "SUM(CASE WHEN UPPER(p.status) = 'HADIR' "
                 . "THEN 1 ELSE 0 END) as hadir"
             )
             ->selectRaw(
-                "SUM(CASE WHEN p.status = 'IZIN' "
+                "SUM(CASE WHEN UPPER(p.status) = 'IZIN' "
                 . "THEN 1 ELSE 0 END) as izin"
             )
             ->selectRaw(
-                "SUM(CASE WHEN p.status = 'SAKIT' "
+                "SUM(CASE WHEN UPPER(p.status) = 'SAKIT' "
                 . "THEN 1 ELSE 0 END) as sakit"
             )
             ->selectRaw(
-                "SUM(CASE WHEN p.status = 'ALPA' "
+                "SUM(CASE WHEN UPPER(p.status) = 'ALPA' "
                 . "THEN 1 ELSE 0 END) as alpa"
             )
             ->selectRaw(
@@ -353,6 +328,6 @@ class PrincipalAttendanceInsightsController extends Controller
                 'unit' =>
                     'stored_student_meeting_records',
             ],
-        ]);
+        ])->header('Cache-Control','private, no-store');
     }
 }

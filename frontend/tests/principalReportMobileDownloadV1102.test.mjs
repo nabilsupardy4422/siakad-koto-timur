@@ -35,74 +35,46 @@ test('native file share requires both share and canShare and a real supported Fi
   }
 })
 
-test('principal page calls authenticated report download but never synthetic-clicks an anchor', async () => {
-  const jsx = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /reportApi\.downloadReport\(type, params\)/)
-  assert.match(jsx, /makePreparedDownload\(blob, filename, format\)/)
-  assert.doesNotMatch(jsx, /\.click\(\)/)
-  assert.match(jsx, /href=\{prepared\.url\} download=\{prepared\.filename\}/)
-  assert.match(jsx, /Siapkan \$\{format === 'pdf'/)
+const panelPath=new URL('../src/pages/reports/roles/TuReportPreviewPanel.jsx',import.meta.url)
+const pagePath=new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx',import.meta.url)
+test('principal page uses authenticated hash export and never synthetic-clicks an anchor', async () => {
+  const jsx=await readFile(panelPath,'utf8'), page=await readFile(pagePath,'utf8')
+  assert.match(page,/<TuReportPreviewPanel[^>]*principal\//)
+  assert.match(jsx,/apiClient\.download/)
+  assert.match(jsx,/preview_hash:data\.preview_hash/)
+  assert.match(jsx,/makePreparedDownload\(blob,/)
+  assert.doesNotMatch(jsx,/\.click\(\)/)
+  assert.match(jsx,/href=\{ready\.url\} download=\{ready\.filename\}/)
 })
 
 test('PDF offers a real open-link; share runs only on direct button click', async () => {
-  const jsx = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /target="_blank" rel="noopener noreferrer"/)
-  assert.match(jsx, /onClick=\{shareDocument\}/)
-  assert.match(jsx, /navigator\.share\(\{ files: \[makeSharedFile\(prepared\)\]/)
+  const jsx=await readFile(panelPath,'utf8')
+  assert.match(jsx,/target="_blank" rel="noreferrer"/)
+  assert.match(jsx,/onClick=\{\(\)=>navigator\.share\(\{files:\[makeSharedFile\(ready\)\]/)
 })
 
-// Check the actual handler boundaries, not a literal whitespace/line-ending sequence.
-// Windows VS Code may save source as CRLF; both LF and CRLF must be equivalent.
-function sourceBetween(source, start, end) {
-  const from = source.indexOf(start)
-  const to = source.indexOf(end, from + start.length)
-  assert(from >= 0 && to > from, `Could not find ${start} handler`)
-  return source.slice(from, to)
-}
-
-function assertInvalidatesBefore(source, expression, label) {
-  assert.match(source, new RegExp(`discardPrepared\\(\\)\\s*;?\\s*${expression}`), `Missing prepared-file invalidation: ${label}`)
-}
-
-function checkInvalidationHandlers(jsx) {
-  assertInvalidatesBefore(
-    sourceBetween(jsx, 'const changeType = useCallback', 'const changeYear = useCallback'),
-    'setType\\(next\\)', 'report type',
-  )
-  assertInvalidatesBefore(
-    sourceBetween(jsx, 'const changeYear = useCallback', 'const setFilter ='),
-    'setYearId\\(next\\)', 'academic period',
-  )
-  assertInvalidatesBefore(
-    sourceBetween(jsx, 'const setFilter =', 'const fieldOptions ='),
-    'setFilters\\(current\\s*=>', 'individual filter',
-  )
-  assertInvalidatesBefore(jsx, "setFormat\\('pdf'\\)", 'PDF selection')
-  assertInvalidatesBefore(jsx, "setFormat\\('excel'\\)", 'Excel selection')
-  assertInvalidatesBefore(jsx, 'setFilters\\(emptyFilter\\(\\)\\)', 'Reset filter')
-}
-
 test('prepared files are invalidated by year, filter, report type, format, and reset', async () => {
-  const jsx = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx', import.meta.url), 'utf8')
-  checkInvalidationHandlers(jsx)
-  // Regression: a change from LF to Windows CRLF must not break these checks.
-  checkInvalidationHandlers(jsx.replace(/\r?\n/g, '\r\n'))
-  // Removing the actual invalidation call must still cause this test to fail.
-  const broken = jsx.replace(/discardPrepared\(\)\s*;?\s*setType\(next\)/, 'setType(next)')
-  assert.throws(() => checkInvalidationHandlers(broken), /report type/)
+  const jsx=await readFile(panelPath,'utf8'),page=await readFile(pagePath,'utf8')
+  function check(source){assert.match(source,/JSON\.stringify\(\[type,params,enabled,principal\]\)/);assert.match(source,/<Preview key=\{key\}/);assert.match(source,/clearFile\(\);setFormat\(e\.target\.value\)/)}
+  check(jsx);check(jsx.replace(/\r?\n/g,'\r\n'))
+  assert.throws(()=>check(jsx.replace('<Preview key={key}','<Preview')))
+  assert.match(page,/setType\(next\);setFilters\(emptyFilter\(\)\)/)
+  assert.match(page,/setYearId\(next\);setFilters\(emptyFilter\(\)\)/)
+  assert.match(page,/makePrincipalExportParams\(type,yearId,filters/)
 })
 
 test('object URLs are cleaned up, and message never pretends a download finished', async () => {
-  const jsx = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx', import.meta.url), 'utf8')
-  assert.match(jsx, /URL\.revokeObjectURL\(previous\.url\)/)
-  assert.match(jsx, /URL\.revokeObjectURL\(preparedRef\.current\.url\)/)
-  assert.doesNotMatch(jsx, /Unduhan .* dimulai/)
+  const jsx=await readFile(panelPath,'utf8')
+  assert.match(jsx,/URL\.revokeObjectURL\(url\.current\)/)
+  assert.match(jsx,/useEffect\(\(\)=>\(\)=>\{generation\.current\+\+/)
+  assert.doesNotMatch(jsx,/Unduhan .* dimulai/)
 })
 
 test('mobile ready actions are responsive and usable by touch and keyboard', async () => {
-  const css = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.css', import.meta.url), 'utf8')
-  assert.match(css, /\.ks-report__ready-actions/)
-  assert.match(css, /min-height: 44px/)
-  assert.match(css, /@media\(max-width: 600px\)/)
-  assert.match(css, /\.ks-report__ready-link:focus-visible/)
+  const css=await readFile(new URL('../src/pages/reports/roles/tu-reports.css',import.meta.url),'utf8')
+  const shared=await readFile(new URL('../src/pages/tu-monitoring/tu-monitoring.css',import.meta.url),'utf8')
+  assert.match(css,/\.tur-preview \.tam-actions\{flex-wrap:wrap\}/)
+  assert.match(css,/min-height:42px/)
+  assert.match(shared,/@media\(max-width:600px\)/)
+  assert.match(shared,/focus-visible/)
 })

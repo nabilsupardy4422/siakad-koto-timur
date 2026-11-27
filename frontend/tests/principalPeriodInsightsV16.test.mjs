@@ -63,7 +63,7 @@ test('dua semester digabung hanya jika metadata valid; tanpa mengarang semester 
 test('kode menjaga dashboard harian terpisah, tanpa menambahkan operasi tulis', () => {
   const page = readFileSync(new URL('../src/pages/attendance/roles/KepalaSekolahAttendancePage.jsx', import.meta.url), 'utf8')
   const period = readFileSync(new URL('../src/pages/attendance/roles/PrincipalPeriodInsights.jsx', import.meta.url), 'utf8')
-  assert.match(page, /attendanceApi\.getClassRecap/)
+  assert.match(page, /attendanceApi\.getPrincipalClassRecap/)
   assert.match(page, /mode === 'daily'/)
   assert.match(page, /mode === 'period'/)
   assert.match(period, /apiClient\.get\(`\/attendance\/principal-insights/)

@@ -65,6 +65,7 @@ export default function PrincipalScheduleCoverage({ year, date, classId = '', da
             <div className="principal-attendance__track" role="progressbar" aria-label="Jadwal selesai dengan catatan" aria-valuemin={0} aria-valuemax={100} aria-valuenow={rate === null ? undefined : Math.round(rate)}>
               <span style={{ width: `${rate ?? 0}%` }} />
             </div>
+            <p>Lengkap seluruh siswa: {pct(stats.evaluated ? 100*stats.complete/stats.evaluated : null)}</p>
             <small>Belum membuktikan semua siswa sudah diabsen atau pelajaran benar-benar berlangsung.</small>
           </div>
           <div className="principal-attendance__schedule-stats">

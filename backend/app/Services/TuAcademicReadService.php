@@ -12,7 +12,15 @@ final class TuAcademicReadService
 {
     public static function context(Request $request, bool $attendance): array
     {
-        abort_unless($request->user()?->role?->code === 'TU', 403);
+        return self::validatedContext($request, $attendance, 'TU');
+    }
+    public static function principalContext(Request $request, bool $attendance): array
+    {
+        return self::validatedContext($request, $attendance, 'KEPALA_SEKOLAH');
+    }
+    private static function validatedContext(Request $request, bool $attendance, string $role): array
+    {
+        abort_unless($request->user()?->role?->code === $role, 403);
         $rules = [
             'academic_year_id'=>'required|integer|min:1', 'class_id'=>'nullable|integer|min:1',
             'level'=>'nullable|in:10,11,12', 'subject_id'=>'nullable|integer|min:1',
@@ -26,12 +34,20 @@ final class TuAcademicReadService
         abort_if(count(array_diff(array_keys($request->query()),array_keys($rules)))>0,422,'Filter tidak didukung.');
         if($d['view']==='catalog') abort_if(count(array_diff(array_keys($d),['academic_year_id','view']))>0,422,'Katalog hanya menerima periode.');
         if($d['view']!=='detail') abort_if(isset($d['search'])||isset($d['component_id']),422,'Pencarian siswa dan komponen hanya untuk detail.');
-        return self::contextFor($request->user(),$d,$attendance);
+        return self::forRole($request->user(),$d,$attendance,$role);
     }
     /** Call only with validated, type-specific filters. */
     public static function contextFor(\App\Models\User $user,array $d,bool $attendance): array
     {
-        abort_unless($user->role?->code==='TU',403);
+        return self::forRole($user,$d,$attendance,'TU');
+    }
+    public static function principalContextFor(\App\Models\User $user,array $d,bool $attendance): array
+    {
+        return self::forRole($user,$d,$attendance,'KEPALA_SEKOLAH');
+    }
+    private static function forRole(\App\Models\User $user,array $d,bool $attendance,string $role): array
+    {
+        abort_unless($user->role?->code===$role,403);
         $year=TahunAkademik::findOrFail($d['academic_year_id']);
         $now=Carbon::now('Asia/Jakarta');
         $date=$attendance?($d['date']??$now->toDateString()):$now->toDateString();

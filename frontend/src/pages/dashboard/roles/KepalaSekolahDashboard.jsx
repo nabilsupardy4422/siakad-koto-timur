@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiClient } from '../../../services/apiClient'
+import { monitoringFrom } from '../../tu-monitoring/monitoringLogic.js'
 import { dashboardApi } from '../../../services/dashboardApi'
 import { principalAttendanceApi } from '../../../services/principalAttendanceApi'
 import { principalGradeApi } from '../../../services/principalGradeApi'
@@ -23,6 +25,8 @@ function VisualIcon({ name, size = 20 }) {
     guru: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-2a5.5 5.5 0 0 1 11 0v2" /><path d="M16.5 5a3 3 0 0 1 0 6M17 14a4.5 4.5 0 0 1 3.5 4.5V20" /></>,
     siswa: <><path d="m2 9 10-5 10 5-10 5-10-5Z" /><path d="M6 11.5V16c4 3.1 8 3.1 12 0v-4.5M22 9v6" /></>,
     kelas: <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 4v17M3 10h18M12 15h5" /></>,
+    mapel: <><path d="M3 5h7a2 2 0 0 1 2 2v14a3 3 0 0 0-3-3H3zM21 5h-7a2 2 0 0 0-2 2v14a3 3 0 0 1 3-3h6z"/></>,
+    effective: <><circle cx="12" cy="7" r="3"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></>,
     jadwal: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18M8 15h3M8 18h5" /></>,
     presensi: <><path d="M4 19V5M4 19h16" /><path d="m8 15 4-5 3 3 5-7" /><path d="M17 6h3v3" /></>,
     nilai: <><path d="M4 20h16M7 17V9M12 17V5M17 17v-6" /><circle cx="7" cy="7" r="1" /></>,
@@ -93,9 +97,12 @@ function MetricCard({ metric }) {
   )
 }
 
-function DistributionPanel({ classes, studentMetric }) {
-  const displayedClasses = classes.slice(0, 8)
-  const maxCount = displayedClasses[0]?.count ?? 0
+function DistributionPanel({ classes, studentMetric, levels=[] }) {
+  const [page,setPage]=useState(1)
+  const last=Math.max(1,Math.ceil(classes.length/8))
+  const current=Math.min(page,last)
+  const displayedClasses = classes.slice((current-1)*8,current*8)
+  const maxCount = classes[0]?.count ?? 0
   const scope = principalEnrollmentScope(displayedClasses, studentMetric)
 
   return (
@@ -104,7 +111,7 @@ function DistributionPanel({ classes, studentMetric }) {
         <div>
           <span className="principal-v1__eyebrow">DISTRIBUSI AKADEMIK</span>
           <h2 id="principal-v1-class-title">Sebaran anggota kelas aktif</h2>
-          <p>Jumlah anggota dengan keanggotaan yang belum diakhiri, sesuai data kelas dari API.</p>
+          <p>Siswa efektif distinct per rombel pada tanggal acuan WIB.</p>
         </div>
         {classes.length > 0 && <span className="principal-v1__panel-count">{classes.length} kelas</span>}
       </div>
@@ -116,6 +123,7 @@ function DistributionPanel({ classes, studentMetric }) {
         </div>
       ) : (
         <>
+          <div className="principal-v1__level-grid" aria-label="Distribusi per tingkat">{levels.map(v=><div key={v.level}><small>Tingkat {v.level}</small><strong>{formatPrincipalNumber(v.count)}</strong></div>)}</div>
           <div className="principal-v1__bar-list">
             {displayedClasses.map((item) => (
               <div className="principal-v1__bar-row" key={item.id}>
@@ -127,6 +135,7 @@ function DistributionPanel({ classes, studentMetric }) {
               </div>
             ))}
           </div>
+          {last>1&&<div className="principal-v1__pages"><button type="button" disabled={current===1} onClick={()=>setPage(current-1)}>Sebelumnya</button><span>{current} / {last}</span><button type="button" disabled={current===last} onClick={()=>setPage(current+1)}>Berikutnya</button></div>}
           {scope && (
             <div className="principal-v1__enrollment-scope" role="note" aria-label="Perbandingan satuan data profil siswa dan anggota kelas">
               <div>
@@ -140,7 +149,7 @@ function DistributionPanel({ classes, studentMetric }) {
             </div>
           )}
           <p className="principal-v1__footnote">
-            {classes.length > 8 ? `Menampilkan 8 dari ${classes.length} kelas dengan anggota terbanyak.` : 'Seluruh kelas yang tersedia ditampilkan.'}
+            {classes.length > 8 ? `Halaman ${current} dari ${last} · ${classes.length} rombel.` : 'Seluruh kelas yang tersedia ditampilkan.'}
             {' '}Jumlah profil siswa dan keanggotaan kelas berasal dari unit hitung berbeda.
             Selisih kedua angka bukan bukti jumlah siswa tanpa kelas; pemeriksaan penempatan memerlukan data anggota kelas berdasarkan periode.
           </p>
@@ -371,7 +380,7 @@ function PeriodPanel({ year }) {
       </div>
       {!hasPeriod && (
         <p className="principal-v1__period-warning">
-          Belum ada tahun akademik aktif. Ringkasan kelas, jadwal, dan distribusi mungkin mencakup beberapa periode.
+          Periode aktif tidak tersedia atau bertabrakan. Statistik periode tidak dihitung.
         </p>
       )}
       <p className="principal-v1__period-helper">
@@ -380,6 +389,28 @@ function PeriodPanel({ year }) {
       </p>
     </section>
   )
+}
+
+function GradeCoveragePanel({ year, classes, date }) {
+  const [classId,setClassId]=useState('')
+  const [state,setState]=useState({key:'',status:'idle',summary:null,error:''})
+  const [retry,setRetry]=useState(0)
+  const key=`${year.id}:${classId}:${date}:${retry}`
+  useEffect(()=>{
+    let alive=true
+    if(!classId)return ()=>{alive=false}
+    const params={academic_year_id:String(year.id),view:'coverage',class_id:classId,page:'1'}
+    setState({key,status:'loading',summary:null,error:''})
+    apiClient.get(`/principal/grade-monitoring?${new URLSearchParams(params)}`).then(response=>{
+      const parsed=monitoringFrom(response,params,{id:year.id,semester:year.semester.toUpperCase()},true)
+      if(!parsed.meta.active||parsed.meta.date!==date)throw new Error('Periode berubah. Muat ulang dashboard.')
+      if(alive)setState({key,status:'ready',summary:parsed.summary,error:''})
+    }).catch(error=>{if(alive)setState({key,status:'error',summary:null,error:error?.message||'Gagal memuat penilaian.'})})
+    return ()=>{alive=false}
+  },[key])
+  const current=state.key===key?state:null
+  const s=current?.summary;const rate=s&&s['Slot saat ini']>0?100*s['Terisi saat ini']/s['Slot saat ini']:null
+  return <section className="principal-v1__panel"><div className="principal-v1__panel-head"><div><span className="principal-v1__eyebrow">KELENGKAPAN PENILAIAN</span><h2>Pantau rombel</h2><p>Slot saat ini, bukan nilai akhir atau kinerja guru.</p></div><Link to="/app/grades">Lihat penilaian</Link></div><label className="principal-v1__grade-select">Rombel<select value={classId} onChange={e=>setClassId(e.target.value)}><option value="">Pilih rombel</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{!classId?<p>Pilih rombel untuk melihat kelengkapan nilai.</p>:!current||current.status==='loading'?<p role="status">Memuat penilaian…</p>:current.status==='error'?<div role="alert">{current.error} <button type="button" className="principal-v1__retry" onClick={()=>setRetry(n=>n+1)}>Coba lagi</button></div>:s&&<><p>{rate===null?'Belum ada slot yang dapat dihitung.':`${rate.toLocaleString('id-ID',{maximumFractionDigits:1})}% slot terisi`}</p><div className="principal-v1__coverage-grid">{['Slot saat ini','Terisi saat ini','Belum dinilai','Slot anomali','Catatan valid'].map(k=><div key={k}><small>{k}</small><strong>{formatPrincipalNumber(s[k])}</strong></div>)}</div></>}</section>
 }
 
 export default function KepalaSekolahDashboard() {
@@ -394,8 +425,8 @@ export default function KepalaSekolahDashboard() {
     let active = true
     setState({ loading: true, data: null, error: null })
 
-    dashboardApi.getDashboard()
-      .then((response) => normalizePrincipalDashboard(response))
+    dashboardApi.getPrincipalDashboard()
+      .then((response) => { if (!Object.hasOwn(response?.data||{},'active_state')) throw new Error('Kontrak dashboard baru tidak tersedia.'); return normalizePrincipalDashboard(response) })
       .then((data) => {
         if (active) setState({ loading: false, data, error: null })
       })
@@ -415,13 +446,13 @@ export default function KepalaSekolahDashboard() {
     }
 
     setAnalytics({ loading: true, data: null, error: null })
-    const windows = principalAttendanceMonths()
+    const windows = principalAttendanceMonths(new Date(`${state.data.date}T12:00:00+07:00`))
     Promise.all(windows.map((month) => principalAttendanceApi.getMonthlyRecap({
       academicYearId: yearId,
       from: month.from,
       to: month.to,
     })))
-      .then((responses) => normalizePrincipalAttendance(windows, responses))
+      .then((responses) => normalizePrincipalAttendance(windows, responses.map((response,index)=>{if(response?.meta?.academic_year_id!==yearId||response.meta.date_from!==windows[index].from||response.meta.date_to!==windows[index].to||response.meta.date!==state.data.date)throw new Error('Konteks presensi berubah. Muat ulang.');return response})))
       .then((data) => {
         if (active) setAnalytics({ loading: false, data, error: null })
       })
@@ -430,7 +461,7 @@ export default function KepalaSekolahDashboard() {
       })
 
     return () => { active = false }
-  }, [yearId, analyticsAttempt])
+  }, [yearId, state.data?.date, attempt, analyticsAttempt])
 
 
   useEffect(() => {
@@ -442,7 +473,7 @@ export default function KepalaSekolahDashboard() {
 
     setGradeState({ loading: true, data: null, error: null })
     principalGradeApi.getRecap({ academicYearId: yearId })
-      .then(normalizePrincipalGradeRecap)
+      .then(response=>{if(response?.meta?.academic_year_id!==yearId||response.meta.date!==state.data.date)throw new Error('Konteks nilai berubah. Muat ulang.');return normalizePrincipalGradeRecap(response)})
       .then((data) => {
         if (active) setGradeState({ loading: false, data, error: null })
       })
@@ -451,7 +482,7 @@ export default function KepalaSekolahDashboard() {
       })
 
     return () => { active = false }
-  }, [yearId, gradeAttempt])
+  }, [yearId, state.data?.date, attempt, gradeAttempt])
 
   if (state.loading) return <LoadingDashboard />
   if (state.error || !state.data) {
@@ -465,18 +496,12 @@ export default function KepalaSekolahDashboard() {
       <header className="principal-v1__hero">
         <div className="principal-v1__hero-text">
           <span className="principal-v1__hero-kicker"><span aria-hidden="true" /> PUSAT MONITORING AKADEMIK</span>
-          <h1>Satu pandangan untuk<br /><em>seluruh kegiatan sekolah.</em></h1>
-          <p>Pantau data inti, perkembangan kelas, dan akses laporan dalam satu ruang kerja Kepala Sekolah.</p>
+          <h1>Dashboard Kepala Sekolah</h1>
+          <p>Ikhtisar akademik · {state.data.date} WIB · {state.data.activeState==='conflict'?'Konflik periode aktif':year?.label?`${year.label} · ${year.semester}`:'Belum ada periode aktif'}</p>
           <div className="principal-v1__hero-actions">
-            <Link to="/app/reports" className="principal-v1__primary-link">Buka laporan sekolah <VisualIcon name="arrow" size={17} /></Link>
+            <button type="button" className="principal-v1__primary-link" onClick={()=>{setAttempt(v=>v+1);setAnalytics({loading:true,data:null,error:null});setGradeState({loading:true,data:null,error:null})}}><VisualIcon name="refresh" size={17}/> Muat ulang</button>
             <span className="principal-v1__read-only"><VisualIcon name="shield" size={17} /> Mode monitoring · baca saja</span>
           </div>
-        </div>
-        <div className="principal-v1__hero-visual" aria-hidden="true">
-          <div className="principal-v1__orbit principal-v1__orbit--one" />
-          <div className="principal-v1__orbit principal-v1__orbit--two" />
-          <div className="principal-v1__orbit principal-v1__orbit--three" />
-          <div className="principal-v1__hero-mark"><VisualIcon name="kelas" size={48} /></div>
         </div>
       </header>
 
@@ -495,16 +520,19 @@ export default function KepalaSekolahDashboard() {
       </section>
 
       <div className="principal-v1__insights-grid">
-        <DistributionPanel classes={classes} studentMetric={metrics.find((item) => item.key === 'siswa')} />
+        <DistributionPanel classes={classes} levels={state.data.levels} studentMetric={metrics.find((item) => item.key === 'siswa')} />
         <PeriodPanel year={year} />
       </div>
 
+      {state.data.warnings?.map(w=><p key={w} className="principal-v1__period-warning" role="alert">{w}</p>)}
+      {state.data.coverage&&<section className="principal-v1__panel"><div className="principal-v1__panel-head"><div><span className="principal-v1__eyebrow">PERHATIAN MANAJEMEN</span><h2>Kelengkapan pencatatan hari ini</h2><p>Pola jadwal selesai dengan roster, bukan penilaian kinerja atau bukti KBM.</p></div><Link to="/app/attendance">Lihat presensi</Link></div><p>{(()=>{const c=state.data.coverage;const n=c.Lengkap+c.Sebagian+c['Belum tercatat'];return n?`${(100*c.Lengkap/n).toLocaleString('id-ID',{maximumFractionDigits:1})}% · ${c.Lengkap} dari ${n} jadwal selesai lengkap`:'Belum ada jadwal selesai dengan siswa.'})()}</p><div className="principal-v1__coverage-grid">{['Lengkap','Sebagian','Belum tercatat','Belum selesai','Tanpa siswa'].map(k=><div key={k}><small>{k}</small><strong>{state.data.coverage[k]}</strong></div>)}</div></section>}
       <PrincipalAttendanceAnalytics
         year={year}
         state={analytics}
         onRetry={() => setAnalyticsAttempt((value) => value + 1)}
       />
 
+      {year&&<GradeCoveragePanel key={`${year.id}:${state.data.date}:${attempt}`} year={year} classes={classes} date={state.data.date}/>}
       <PrincipalGradeAnalytics
         year={year}
         state={gradeState}

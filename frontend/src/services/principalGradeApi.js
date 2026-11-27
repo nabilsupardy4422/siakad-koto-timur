@@ -11,6 +11,6 @@ export const principalGradeApi = {
       academic_year_id: String(academicYearId),
     })
 
-    return apiClient.get(`/grades/recap?${query.toString()}`)
+    return apiClient.get(`/principal/grade-summary?${query.toString()}`)
   },
 }

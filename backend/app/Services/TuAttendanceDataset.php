@@ -24,7 +24,7 @@ final class TuAttendanceDataset
         $records=Read::bounded(DB::table('presensi as p')->join('siswa as s','s.id','=','p.siswa_id')->whereIn('p.jadwal_pelajaran_id',$scoped->pluck('id'))->whereDate('p.tanggal',$date)->select('p.*','s.nama_lengkap','s.nisn','s.nipd','s.nis')->orderBy('p.id'),30000);
         $bySchedule=$scoped->keyBy('id');$valid=[];$details=[];
         $duplicate=$records->groupBy(fn($r)=>$r->jadwal_pelajaran_id.':'.$r->siswa_id)->filter(fn($g)=>$g->count()>1);
-        foreach($records as $r){$s=$bySchedule[$r->jadwal_pelajaran_id];$key=$s->id.':'.$r->siswa_id;$ok=isset($roster[$s->kelas_id][$r->siswa_id])&&in_array(strtoupper((string)$r->status),['HADIR','IZIN','SAKIT','ALPA'],true)&&!isset($duplicate[$key]);
+        foreach($records as $r){$s=$bySchedule[$r->jadwal_pelajaran_id];$key=$s->id.':'.$r->siswa_id;$ok=(!($c['actual_only']??false)||$date<=$now->toDateString())&&isset($roster[$s->kelas_id][$r->siswa_id])&&in_array(strtoupper((string)$r->status),['HADIR','IZIN','SAKIT','ALPA'],true)&&!isset($duplicate[$key]);
             if($ok)$valid[$s->id][$r->siswa_id]=strtoupper((string)$r->status);else $warnings[]='Ada catatan di luar roster, status tidak valid, atau duplikat; tidak dihitung pada rekap.';
             $details[]=['id'=>(int)$r->id,...Read::student($r),'class_id'=>(int)$s->kelas_id,'class_name'=>$s->class_name,'subject_name'=>$s->subject_name,'teacher_name'=>$s->teacher_name,'schedule_id'=>(int)$s->id,'date'=>$date,'status'=>$ok?strtoupper((string)$r->status):$r->status,'note'=>$r->catatan,'integrity'=>$ok?'Valid':'Anomali'];
         }
