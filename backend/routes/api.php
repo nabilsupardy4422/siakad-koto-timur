@@ -95,6 +95,8 @@ Route::middleware([
     Route::get('/principal/attendance-summary', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'attendance'])->middleware('role:KEPALA_SEKOLAH');
     Route::get('/principal/grade-summary', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'grades'])->middleware('role:KEPALA_SEKOLAH');
     Route::get('/principal/grade-monitoring', \App\Http\Controllers\Api\PrincipalGradeMonitoringController::class)->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/student/reports/{reportType}/preview', [ReportController::class,'preview'])->middleware('role:SISWA')->name('student.reports.preview');
+    Route::get('/student/reports/{reportType}/export', [ReportController::class,'index'])->middleware('role:SISWA')->name('student.reports.export');
     Route::get('/principal/reports/{reportType}/preview', [\App\Http\Controllers\Api\PrincipalReportWorkspaceController::class,'preview'])->middleware('role:KEPALA_SEKOLAH');
     Route::get('/principal/reports/{reportType}/export', [\App\Http\Controllers\Api\PrincipalReportWorkspaceController::class,'export'])->middleware('role:KEPALA_SEKOLAH');
     Route::get('/tu/dashboard-workspace', \App\Http\Controllers\Api\TuDashboardController::class)->middleware('role:TU');

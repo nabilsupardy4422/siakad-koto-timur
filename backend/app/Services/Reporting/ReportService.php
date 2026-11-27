@@ -410,7 +410,7 @@ class ReportService
         );
 
         $rows = $this->boundedGet($query->orderByDesc('tanggal')->orderBy('jadwal_pelajaran_id')->orderBy('siswa_id'))
-            ->map(function (Presensi $attendance): array {
+            ->map(function (Presensi $attendance) use ($filters): array {
                 $schedule = $attendance->jadwalPelajaran;
                 return [
                     'tanggal' => $attendance->tanggal?->format('Y-m-d'),
@@ -423,7 +423,7 @@ class ReportService
                     'guru' => $schedule?->guru?->nama_lengkap,
                     'jam_mulai' => $schedule?->jam_mulai,
                     'jam_selesai' => $schedule?->jam_selesai,
-                    'status' => $attendance->status,
+                    'status' => $filters['scope'] === 'own' ? strtoupper($attendance->status) : $attendance->status,
                     'catatan' => $attendance->catatan,
                     ...$this->period($schedule?->tahunAkademik),
                 ];
@@ -638,7 +638,7 @@ class ReportService
 
     private function applyAttendanceScope(Builder $query, User $user, array $filters): void
     {
-        if ($this->actualAttendance) $query->whereDate('presensi.tanggal','<=',today('Asia/Jakarta'));
+        if ($this->actualAttendance || $filters['scope'] === 'own') $query->whereDate('presensi.tanggal','<=',today('Asia/Jakarta'));
         $query->whereRaw("HEX(UPPER(presensi.status)) IN ('4841444952','495A494E','53414B4954','414C5041')")
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('presensi as duplicate_record')
                 ->whereColumn('duplicate_record.jadwal_pelajaran_id','presensi.jadwal_pelajaran_id')

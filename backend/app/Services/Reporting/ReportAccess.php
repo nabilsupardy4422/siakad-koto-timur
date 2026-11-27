@@ -75,6 +75,10 @@ final class ReportAccess
         self::require(! isset($filters['semester']) || strcasecmp($filters['semester'], $year->semester) === 0);
         if (isset($filters['semester'])) $filters['semester'] = $year->semester;
         $classes = self::classIds($user, $filters);
+        if ($scope === 'own' && $year->is_active) {
+            self::require(TahunAkademik::where('is_active', true)->count() === 1);
+            self::require(\App\Support\StudentScheduleAccess::resolve((int) $user->siswa->id, $year)['status'] !== 'ambiguous');
+        }
         if ($scope === 'homeroom') {
             self::require($classes->isNotEmpty());
         }
@@ -125,7 +129,8 @@ final class ReportAccess
                 ->where('tahun_akademik_id', $year)->pluck('kelas_id'),
             'homeroom' => HomeroomReadAccess::currentAssignments((int) $user->guru->id, $year)->pluck('kelas_id'),
             'own' => AnggotaKelas::query()->where('siswa_id', $user->siswa->id)
-                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))->pluck('kelas_id'),
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
+                ->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai','>=','tanggal_mulai'))->pluck('kelas_id'),
             default => collect(),
         };
         return Kelas::query()->where('tahun_akademik_id', $year)->whereIn('id', $ids)
@@ -154,6 +159,7 @@ final class ReportAccess
         if (isset($filters['academic_year_id'])) {
             $query->whereHas('kelas', fn (Builder $q) => $q->where('tahun_akademik_id', $filters['academic_year_id']));
         }
+        if ($filters['scope'] === 'own') $query->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai','>=','tanggal_mulai'));
         if ($activeOnly) {
             $query->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
                 ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today('Asia/Jakarta')));

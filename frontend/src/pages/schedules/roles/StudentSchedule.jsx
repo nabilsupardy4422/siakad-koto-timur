@@ -1,3 +1,4 @@
+import TeacherListPager,{useTeacherPage} from '../../../components/ui/TeacherListPager.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { scheduleApi } from '../../../services/scheduleApi'
 import {
@@ -77,6 +78,11 @@ export default function StudentSchedule() {
   const colored = useMemo(() => Object.fromEntries(subjects.map((s, i) => [s.id, SUBJECT_PALETTE[i % SUBJECT_PALETTE.length]])), [subjects])
   const filtered = schedules.filter(s => subject === 'all' || String(s.mapel_id) === subject)
   const daily = filtered.filter(s => weekday(s) === day)
+  const dailyPage=useTeacherPage(daily,`${day}:${subject}:${reload}`,20)
+  const [weekPage,setWeekPage]=useState(1)
+  useEffect(()=>setWeekPage(1),[subject,reload])
+  const weekLast=Math.max(1,...WEEK_DAYS.map((_,i)=>Math.ceil(filtered.filter(s=>weekday(s)===i).length/20)))
+  const weekCurrent=Math.min(weekPage,weekLast)
   const now = wibNow()
   const next = nextWeeklyClass(schedules, now)
   const openDetail = useCallback((row) => setDetail(row), [])
@@ -108,14 +114,14 @@ export default function StudentSchedule() {
             <select value={subject} onChange={e => setSubject(e.target.value)}><option value="all">Semua mata pelajaran</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
             <span>{filtered.length} jadwal dalam cakupan</span></div>
           {schedules.length === 0 ? <div className="ssv2-empty"><Icon name="calendar" size={27}/><h3>Jadwal kelas belum diatur</h3><p>Tata Usaha belum menetapkan jadwal rutin untuk kelas ini.</p></div> : mode === 'week' ?
-            <div className="ssv2-week-shell">
+            <div className="ssv2-week-shell">{weekLast>1&&<nav className="teacher-list-pager" aria-label="Halaman jadwal mingguan"><button type="button" disabled={weekCurrent<=1} onClick={()=>setWeekPage(weekCurrent-1)}>Sebelumnya</button><span>Halaman {weekCurrent} / {weekLast}</span><button type="button" disabled={weekCurrent>=weekLast} onClick={()=>setWeekPage(weekCurrent+1)}>Berikutnya</button></nav>}
               <HorizontalScrollControls scrollRef={weekScrollRef} label="Geser jadwal Senin hingga Minggu" stepSelector=".ssv2-week-day" />
               <div className="ssv2-week" ref={weekScrollRef} role="region" tabIndex={0} aria-label="Jadwal rutin mingguan, dapat digeser horizontal">
               {WEEK_DAYS.map((key, index) => {
                 const entries = filtered.filter(s => weekday(s) === index)
                 return <div className={'ssv2-week-day' + (now.weekday === index ? ' today' : '')} key={key}>
                   <div className="ssv2-day-heading"><strong>{DAY_LABELS[index]}</strong><small>{entries.length} pelajaran{index === now.weekday ? ' · hari ini' : ''}</small></div>
-                  <div className="ssv2-day-body">{entries.length ? entries.map(row => <button type="button" className="ssv2-lesson" key={row.id} style={{ '--lesson-color': colored[String(row.mapel_id)] }} onClick={() => openDetail(row)}>
+                  <div className="ssv2-day-body">{entries.length ? entries.slice((weekCurrent-1)*20,weekCurrent*20).map(row => <button type="button" className="ssv2-lesson" key={row.id} style={{ '--lesson-color': colored[String(row.mapel_id)] }} onClick={() => openDetail(row)}>
                     <span>{displayClock(row.jam_mulai)}–{displayClock(row.jam_selesai)}</span><strong>{subjectOf(row)}</strong><small>{teacherOf(row)}</small>
                   </button>) : <p className="ssv2-no-day">Tidak ada jadwal</p>}</div>
                 </div>
@@ -123,8 +129,8 @@ export default function StudentSchedule() {
               </div>
             </div> : <><div className="ssv2-day-tabs" aria-label="Pilih hari">
               {DAY_LABELS.map((label, i) => <button key={label} type="button" onClick={() => setDay(i)} className={i === day ? 'is-current' : ''} aria-pressed={i === day}>{label.slice(0, 3)}</button>)}</div>
-              <div className="ssv2-day-agenda"><h3>{DAY_LABELS[day]} <span>· {daily.length} pelajaran</span></h3>
-                {daily.length ? daily.map(row => <button className="ssv2-agenda-lesson" key={row.id} type="button" onClick={() => openDetail(row)}>
+              <div className="ssv2-day-agenda"><TeacherListPager data={dailyPage} label="jadwal"/><h3>{DAY_LABELS[day]} <span>· {daily.length} pelajaran</span></h3>
+                {daily.length ? dailyPage.rows.map(row => <button className="ssv2-agenda-lesson" key={row.id} type="button" onClick={() => openDetail(row)}>
                   <span className="ssv2-agenda-clock">{displayClock(row.jam_mulai)}<small>{displayClock(row.jam_selesai)}</small></span><span className="ssv2-agenda-info"><strong>{subjectOf(row)}</strong><small>{teacherOf(row)} · {classroom(context)}</small></span><Icon name="arrow" size={19}/>
                 </button>) : <p className="ssv2-no-lesson">Tidak ada pelajaran rutin pada hari ini.</p>}</div></>}
           <div className="ssv2-legend">{subjects.map(sub => <span key={sub.id}><i style={{ background: colored[sub.id] }}/>{sub.title}</span>)}</div>

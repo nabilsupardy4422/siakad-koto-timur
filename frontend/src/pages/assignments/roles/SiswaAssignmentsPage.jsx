@@ -3,6 +3,11 @@ import { assignmentApi } from "../../../services/assignmentApi";
 import { parseWorkspace, assignmentState, summarizeAssignments } from "./studentAssignmentsView";
 import { appendFilesToSelection } from "./studentAssignmentFiles";
 import "../styles/SiswaAssignmentsPage.css";
+import {apiClient} from '../../../services/apiClient';
+import {subjectKey,assignmentPageCheck,submissionReadback} from '../../../utils/studentWorkspace.js';
+import TeacherListPager,{useTeacherPage} from '../../../components/ui/TeacherListPager.jsx';
+import PreparedStudentFile,{usePreparedStudentFile} from '../../../components/ui/PreparedStudentFile.jsx';
+import {useTeacherDraftWarning} from '../../../utils/useTeacherDraftWarning.js';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 10;
@@ -213,6 +218,12 @@ export default function SiswaAssignmentsPage() {
   const [formError, setFormError] = useState("");
 
   const requestGeneration = useRef(0);
+  const writeLock=useRef(false);
+  const [uncertain,setUncertain]=useState(false);
+  const [checking,setChecking]=useState(false);
+  const dirty=Boolean(activeAssignment)&&(answer!==(submissions[activeAssignment.id]?.jawaban||'')||selectedFiles.length>0);
+  useTeacherDraftWarning(dirty||saving||uncertain);
+  const fileState=usePreparedStudentFile(`${activeAssignment?.id??''}:${search}:${filter}:${selectedSubject}`);
   const [context, setContext] = useState(null);
   const loadAssignments = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -222,6 +233,7 @@ export default function SiswaAssignmentsPage() {
       let page = 1;
       let lastPage = 1;
       let expectedTotal = null;
+      let snapshot=null;
       let expectedYear = null;
       let expectedClass = null;
       let resolvedContext = null;
@@ -232,6 +244,8 @@ export default function SiswaAssignmentsPage() {
         const parsed = parseWorkspace(await assignmentApi.getStudentWorkspace({page, per_page: 100}));
         if (generation !== requestGeneration.current) return;
         const {data, meta} = parsed;
+        snapshot=assignmentPageCheck(data,meta,page,snapshot);
+        if(page===1)resolvedContext={yearId:data.academic_year_id,className:data.class?.name??null};
         if (expectedTotal === null) {
           expectedTotal = meta.total;
           expectedYear = data.academic_year_id;
@@ -248,7 +262,7 @@ export default function SiswaAssignmentsPage() {
         if (page > lastPage && allAssignments.length !== expectedTotal) {
           throw new Error("Jumlah tugas tidak sesuai metadata dari server.");
         }
-        if (page === 1) resolvedContext = {yearId: expectedYear, className: data.class?.name ?? null};
+
       } while (page <= lastPage);
       if (generation !== requestGeneration.current) return;
       if (new Set(allAssignments.map(a => a.id)).size !== allAssignments.length) {
@@ -295,9 +309,7 @@ export default function SiswaAssignmentsPage() {
   }
 
   const subjectOptions = useMemo(() => {
-    const subjects = assignments.map(getSubjectName);
-
-    return [...new Set(subjects)].sort((a, b) => a.localeCompare(b, "id"));
+    return [...new Map(assignments.map(a=>[subjectKey(a),{key:subjectKey(a),name:getSubjectName(a)}])).values()].sort((a,b)=>a.name.localeCompare(b.name,"id"));
   }, [assignments]);
 
   const visibleAssignments = useMemo(() => {
@@ -318,7 +330,7 @@ export default function SiswaAssignmentsPage() {
         return false;
       }
 
-      if (selectedSubject !== "semua" && subjectName !== selectedSubject) {
+      if (selectedSubject !== "semua" && subjectKey(assignment) !== selectedSubject) {
         return false;
       }
 
@@ -334,7 +346,8 @@ export default function SiswaAssignmentsPage() {
       if (filter === "dikumpulkan") {
         return status.type === "submitted" || status.type === "late-submitted";
       }
-      if (filter === "terlambat") return status.type === "overdue" || status.type === "late-submitted";
+      if (filter === "terlambat") return status.type === "late-submitted";
+      if (filter === "overdue") return status.type === "overdue";
 
       return true;
     });
@@ -345,11 +358,14 @@ export default function SiswaAssignmentsPage() {
     [assignments, submissions]
   );
 
+  const paging=useTeacherPage(visibleAssignments,`${search}:${filter}:${selectedSubject}`,12);
+  const overdue=assignments.filter(a=>getStatus(a,submissions[a.id]).type==='overdue').length;
+  const lateSubmitted=assignments.filter(a=>getStatus(a,submissions[a.id]).type==='late-submitted').length;
   const groupedAssignments = useMemo(() => {
     const groups = new Map();
 
-    visibleAssignments.forEach((assignment) => {
-      const subject = getSubjectName(assignment);
+    paging.rows.forEach((assignment) => {
+      const subject = subjectKey(assignment);
 
       if (!groups.has(subject)) {
         groups.set(subject, []);
@@ -361,12 +377,13 @@ export default function SiswaAssignmentsPage() {
     return Array.from(groups.entries())
       .sort(([a], [b]) => a.localeCompare(b, "id"))
       .map(([subject, items]) => ({
-        subject,
+        subject:getSubjectName(items[0]), key:subject,
         assignments: items,
       }));
-  }, [visibleAssignments]);
+  }, [paging.rows]);
 
   function openSubmissionForm(assignment) {
+    if(loading||pageError)return;
     const submission = submissions[assignment.id];
 
     if (submission?._loadError) {
@@ -384,7 +401,7 @@ export default function SiswaAssignmentsPage() {
       return;
     }
 
-    setActiveAssignment(assignment);
+    fileState.clear();setUncertain(false);setActiveAssignment(assignment);
     setAnswer(submission?.jawaban || "");
     setSelectedFiles([]);
     setFormError("");
@@ -392,9 +409,9 @@ export default function SiswaAssignmentsPage() {
   }
 
   function closeSubmissionForm() {
-    if (saving) return;
-
-    setActiveAssignment(null);
+    if (saving||checking) return;
+    if ((dirty||uncertain)&&!window.confirm("Jawaban belum tersimpan atau belum terverifikasi. Tutup dan buang draft?")) return;
+    fileState.clear();if(uncertain)loadAssignments();setUncertain(false);setActiveAssignment(null);
     setAnswer("");
     setSelectedFiles([]);
     setFormError("");
@@ -426,92 +443,29 @@ export default function SiswaAssignmentsPage() {
   }
 
   async function handleViewSubmissionAttachment(file) {
-    if (!file?.id) {
-      setPageError(
-        "ID lampiran tidak tersedia. Muat ulang data submission terlebih dahulu."
-      );
-      return;
-    }
-
-    const openedWindow = window.open("about:blank", "_blank");
-
-    if (!openedWindow) {
-      setPageError(
-        "Browser memblokir tab baru. Izinkan pop-up, lalu coba kembali."
-      );
-      return;
-    }
-
-    let objectUrl = null;
-
-    try {
-      const result = await assignmentApi.viewSubmissionAttachment(file.id);
-
-      objectUrl = URL.createObjectURL(result.blob);
-      openedWindow.location.href = objectUrl;
-
-      window.setTimeout(() => {
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-      }, 60000);
-    } catch (error) {
-      openedWindow.close();
-
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-
-      setPageError(getErrorMessage(error));
-    }
+    if(!file?.id)return setPageError("ID lampiran tidak tersedia.");
+    await fileState.prepare(()=>apiClient.download(`/submission-attachments/${file.id}/download`),file.name||'lampiran-jawaban');
   }
-
-  async function handleDownloadSubmissionAttachment(file) {
-    if (!file?.id) {
-      setPageError(
-        "ID lampiran tidak tersedia. Muat ulang data submission terlebih dahulu."
-      );
-      return;
-    }
-
-    try {
-      await assignmentApi.downloadSubmissionAttachment(
-        file.id,
-        file.name || "lampiran-jawaban"
-      );
-    } catch (error) {
-      setPageError(getErrorMessage(error));
-    }
+  async function handleDownloadSubmissionAttachment(file) {return handleViewSubmissionAttachment(file);}
+  async function handleDownloadAssignment(assignment,file=null) {
+    const path=file?.id?`/assignment-attachments/${file.id}/download`:`/assignments/${assignment.id}/download`;
+    await fileState.prepare(()=>apiClient.download(path),file?.name||assignment.file?.name||'lampiran-tugas');
   }
-
-  async function handleDownloadAssignment(assignment, file = null) {
-    try {
-      // Lampiran baru menggunakan ID dari tabel assignment_lampiran.
-      if (file?.id && typeof assignmentApi.downloadAssignmentAttachment === "function") {
-        await assignmentApi.downloadAssignmentAttachment(
-          file.id,
-          file.name || "lampiran-tugas"
-        );
-        return;
-      }
-
-      // Fallback untuk lampiran legacy yang masih berada di kolom assignment.file.
-      if (!file?.id) {
-        await assignmentApi.download(
-          assignment.id,
-          file?.name || assignment.file?.name || "lampiran-tugas"
-        );
-        return;
-      }
-
-      throw new Error(
-        "Fungsi unduh lampiran tugas belum tersedia di assignmentApi.js."
-      );
-    } catch (error) {
-      setPageError(getErrorMessage(error));
-    }
+  async function checkSubmission(){
+    if(!activeAssignment||checking)return;
+    setChecking(true);
+    try{
+      const latest=submissionReadback(await assignmentApi.getSubmissions(activeAssignment.id),activeAssignment.id);
+      if(latest){setSubmissions(old=>({...old,[activeAssignment.id]:latest}));setFormError('Server memiliki jawaban tercatat. Bandingkan jawaban dan lampiran terakhir. Tutup formulir dan muat ulang sebelum revisi; draft tidak dikirim ulang otomatis.');}
+      else if(!submissions[activeAssignment.id]) {setUncertain(false);setFormError('Server belum mencatat pengumpulan. Periksa kembali sebelum mencoba kirim.');} else {setFormError('Catatan revisi sebelumnya tidak ditemukan. Hubungi sekolah sebelum mengirim ulang.');}
+    }catch(e){setFormError(e.message||'Verifikasi belum berhasil. Jangan kirim ulang.');}
+    finally{setChecking(false)}
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!activeAssignment) return;
+    if (!activeAssignment || writeLock.current || uncertain || checking) return;
 
     const existing = submissions[activeAssignment.id];
     const isRevision = Boolean(existing && !existing._loadError);
@@ -560,17 +514,15 @@ export default function SiswaAssignmentsPage() {
       formData.append("files[]", file);
     });
 
+    writeLock.current=true;
     setSaving(true);
     setFormError("");
     setNotice("");
     setPageError("");
 
     try {
-      if (isRevision) {
-        await assignmentApi.updateSubmissionWithFile(existing.id, formData);
-      } else {
-        await assignmentApi.submitWithFile(activeAssignment.id, formData);
-      }
+      const response = isRevision ? await assignmentApi.updateSubmissionWithFile(existing.id, formData) : await assignmentApi.submitWithFile(activeAssignment.id, formData);
+      if(!response?.data?.id || Number(response.data.assignment_id)!==Number(activeAssignment.id) || (isRevision && Number(response.data.id)!==Number(existing.id))) throw new Error('Status respons belum pasti.');
 
       setNotice(
         isRevision
@@ -578,15 +530,16 @@ export default function SiswaAssignmentsPage() {
           : "Tugas berhasil dikumpulkan."
       );
 
-      setActiveAssignment(null);
+      fileState.clear();setUncertain(false);setActiveAssignment(null);
       setAnswer("");
       setSelectedFiles([]);
 
       await loadAssignments();
     } catch (error) {
-      setFormError(getErrorMessage(error));
+      if(!error.status||error.status>=500||[408,409,429].includes(error.status)){setUncertain(true);setFormError("Status pengiriman belum pasti. Verifikasi catatan server sebelum mengirim ulang.");}
+      else setFormError(getErrorMessage(error));
     } finally {
-      setSaving(false);
+      writeLock.current=false;setSaving(false);
     }
   }
 
@@ -648,7 +601,7 @@ export default function SiswaAssignmentsPage() {
         <button
           className="siswa-assignments__refresh"
           type="button"
-          onClick={loadAssignments}
+          onClick={()=>{fileState.clear();loadAssignments()}}
           disabled={loading || saving}
         >
           {loading ? "Memuat..." : "Muat ulang"}
@@ -670,7 +623,7 @@ export default function SiswaAssignmentsPage() {
       {pageError && (
         <div className="siswa-assignments__alert siswa-assignments__alert--error">
           <span>{pageError}</span>
-          <button type="button" onClick={loadAssignments}>
+          <button type="button" onClick={()=>{fileState.clear();loadAssignments()}}>
             Coba lagi
           </button>
         </div>
@@ -688,7 +641,7 @@ export default function SiswaAssignmentsPage() {
 
         <article className="siswa-assignment-summary__card siswa-assignment-summary__card--pending">
           <span>Belum Dikumpulkan</span>
-          <strong>{assignmentSummary.pending}</strong>
+          <strong>{assignmentSummary.pending+overdue}</strong>
           <small>Perlu diselesaikan</small>
         </article>
 
@@ -699,12 +652,13 @@ export default function SiswaAssignmentsPage() {
         </article>
 
         <article className="siswa-assignment-summary__card siswa-assignment-summary__card--late">
-          <span>Terlambat</span>
-          <strong>{assignmentSummary.late}</strong>
-          <small>Belum dikirim lewat tenggat atau terkirim terlambat</small>
+          <span>Tenggat terlewat</span>
+          <strong>{overdue}</strong>
+          <small>{lateSubmitted} tugas dikumpulkan terlambat (termasuk sudah dikumpulkan)</small>
         </article>
       </section>}
 
+      {!activeAssignment&&<PreparedStudentFile state={fileState}/>}
       {!pageError && <section className="siswa-assignments__toolbar">
         <label className="siswa-assignments__search">
           <span>Cari tugas atau mata pelajaran</span>
@@ -724,8 +678,8 @@ export default function SiswaAssignmentsPage() {
           >
             <option value="semua">Semua mata pelajaran</option>
             {subjectOptions.map((subject) => (
-              <option key={subject} value={subject}>
-                {subject}
+              <option key={subject.key} value={subject.key}>
+                {subject.name}
               </option>
             ))}
           </select>
@@ -740,7 +694,7 @@ export default function SiswaAssignmentsPage() {
             <option value="semua">Semua tugas</option>
             <option value="belum">Belum dikumpulkan</option>
             <option value="dikumpulkan">Sudah dikumpulkan</option>
-            <option value="terlambat">Terlambat</option>
+            <option value="terlambat">Dikumpulkan terlambat</option><option value="overdue">Tenggat terlewat — belum dikumpulkan</option>
           </select>
         </label>
 
@@ -781,14 +735,14 @@ export default function SiswaAssignmentsPage() {
       ) : (
         <div className="siswa-assignment-groups" aria-label="Daftar mata pelajaran">
           {groupedAssignments.map((group) => {
-            const isCollapsed = !Boolean(collapsedSubjects[group.subject]);
+            const isCollapsed = !Boolean(collapsedSubjects[group.key]);
 
             return (
-              <section className={`siswa-assignment-group${isCollapsed ? "" : " is-open"}`} key={group.subject}>
+              <section className={`siswa-assignment-group${isCollapsed ? "" : " is-open"}`} key={group.key}>
                 <button
                   type="button"
                   className="siswa-assignment-group__header siswa-assignment-group__toggle"
-                  onClick={() => toggleSubject(group.subject)}
+                  onClick={() => toggleSubject(group.key)}
                   aria-expanded={!isCollapsed}
                 >
                   <div
@@ -808,7 +762,7 @@ export default function SiswaAssignmentsPage() {
                   </div>
 
                   <span className="siswa-assignment-group__count">
-                    {group.assignments.length} tugas · {group.assignments.filter(a => Boolean(submissions[a.id])).length} dikumpulkan
+                    {group.assignments.length} tugas pada halaman ini · {group.assignments.filter(a => Boolean(submissions[a.id])).length} dikumpulkan
                   </span>
 
                   <span
@@ -969,7 +923,7 @@ export default function SiswaAssignmentsPage() {
                               type="button"
                               className="siswa-assignment-card__primary"
                               disabled={
-                                Boolean(submission?._loadError) ||
+                                loading || Boolean(submission?._loadError) ||
                                 revisionLocked
                               }
                               onClick={() => openSubmissionForm(assignment)}
@@ -992,6 +946,8 @@ export default function SiswaAssignmentsPage() {
         </div>
       )}
 
+
+      {!loading&&!pageError&&<TeacherListPager data={{...paging,setPage:n=>{fileState.clear();paging.setPage(n)}}} label="tugas"/>}
       {activeAssignment && (
         <div
           className="siswa-assignment-modal"
@@ -1120,6 +1076,8 @@ export default function SiswaAssignmentsPage() {
                 )}
               </div>
 
+              <PreparedStudentFile state={fileState}/>
+              {uncertain&&<button type="button" disabled={checking||saving} onClick={checkSubmission}>{checking?"Memeriksa…":"Verifikasi catatan pengumpulan"}</button>}
               {formError && (
                 <div className="siswa-assignment-modal__error" role="alert">
                   <span aria-hidden="true">!</span> {formError}
@@ -1146,7 +1104,7 @@ export default function SiswaAssignmentsPage() {
                 <button
                   type="submit"
                   disabled={
-                    saving ||
+                    saving || uncertain || checking ||
                     Boolean(
                       submissions[activeAssignment.id] &&
                         !submissions[activeAssignment.id]._loadError &&

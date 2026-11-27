@@ -60,11 +60,12 @@ test('attendance dates validate calendar correctness and end-before-start', () =
   assert.throws(() => makePrincipalExportParams('attendance', '3', { date_from: '2026-11-25', date_to: '2026-11-01' }, 'pdf', current), /mendahului/)
 })
 
-test('report page has an isolated principal branch while TU, Siswa, Guru remain unchanged', async () => {
+test('report page routes each role to its dedicated workspace', async () => {
   const page = await readFile(new URL('../src/pages/reports/ReportsPage.jsx', import.meta.url), 'utf8')
   assert.match(page, /roleCode === 'GURU'\) return <GuruReports key=\{user.id\}/)
   assert.match(page, /roleCode === 'KEPALA_SEKOLAH'\) return <KepalaSekolahReports key=\{user.id\}/)
-  assert.match(page, /<ReportFilters\s/)
+  assert.match(page, /roleCode === 'SISWA'\) return <SiswaReports key=\{user.id\}/)
+  assert.match(page, /roleCode === 'TU'\) return <TuReports key=\{user.id\}/)
   const source = await readFile(new URL('../src/pages/reports/roles/KepalaSekolahReports.jsx', import.meta.url), 'utf8')
   assert.match(source, /<TuReportPreviewPanel[^>]*principal\//)
   assert.doesNotMatch(source, /reportApi\.preview\(/)

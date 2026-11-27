@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom'
 import { studentDashboardWorkspaceApi } from '../../../services/studentDashboardWorkspaceApi'
 import { formatDeadline, formatWibDate, parseStudentDashboard } from './studentDashboardView'
 import './SiswaDashboard.css'
+import {useAuth} from '../../../context/useAuth'
+import {todayFocus,progress} from '../../../utils/studentWorkspace.js'
+import {wibNow} from '../../schedules/roles/studentScheduleScope.js'
 
 const quickLinks = [
   { url: '/app/schedules', label: 'Jadwal', icon: '▦', description: 'Lihat jadwal pelajaran lengkap' },
@@ -11,6 +14,7 @@ const quickLinks = [
   { url: '/app/materials', label: 'Bahan ajar', icon: '▣', description: 'Akses materi terbaru kelas' },
   { url: '/app/assignments', label: 'Tugas', icon: '◫', description: 'Lihat dan kumpulkan tugas' },
   { url: '/app/report-cards', label: 'Rapor', icon: '▧', description: 'Dokumen rapor resmi' },
+  { url: '/app/reports', label: 'Laporan', icon: '▤', description: 'Dokumen akademik pribadi' },
 ]
 
 function StatCard({ tone = 'blue', eyebrow, value, helper, footer }) {
@@ -28,6 +32,7 @@ function StatCard({ tone = 'blue', eyebrow, value, helper, footer }) {
 }
 
 export default function SiswaDashboard() {
+  const {permissions=[]}=useAuth()
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -63,11 +68,11 @@ export default function SiswaDashboard() {
   const subjects = dashboard?.subjects || []
   const materials = dashboard?.recent_materials || []
 
-  const nextClass = today[0] || null
+  const now = wibNow()
+  const nextClass = todayFocus(today,dashboard?.as_of,now)
 
   const completionRate = useMemo(() => {
-    if (!tasks.total) return 0
-    return Math.round((tasks.submitted / tasks.total) * 100)
+    return progress(tasks.total,tasks.submitted)
   }, [tasks.total, tasks.submitted])
 
   const focusSubject = useMemo(() => {
@@ -96,16 +101,16 @@ export default function SiswaDashboard() {
           <aside className="sd-hero-side">
             <div className="sd-hero-actions">
               <button className="sd-refresh" type="button" onClick={reload} disabled={loading}>{loading ? 'Memuat…' : '↻ Perbarui data'}</button>
-              <Link className="sd-ghost-link" to="/app/schedules">Lihat jadwal</Link>
+              {permissions.includes("schedules.view")&&<Link className="sd-ghost-link" to="/app/schedules">Lihat jadwal</Link>}
             </div>
             <div className="sd-spotlight-card">
               <div className="sd-spotlight-head">
-                <span className="sd-mini-label">FOKUS HARI INI</span>
+                <span className="sd-mini-label">{nextClass ? (Number(nextClass.start.slice(0,2))*60+Number(nextClass.start.slice(3,5))<=now.minute ? "SEDANG TERJADWAL" : "JADWAL BERIKUTNYA") : "FOKUS HARI INI"}</span>
                 <span className={`sd-status-pill ${active ? 'is-active' : 'is-idle'}`}>{active ? 'Penempatan aktif' : 'Belum aktif'}</span>
               </div>
               {active ? (
                 <>
-                  <div className="sd-spotlight-title">{nextClass ? nextClass.subject : 'Tidak ada jadwal kelas hari ini'}</div>
+                  <div className="sd-spotlight-title">{nextClass ? nextClass.subject : today.length ? 'Tidak ada sesi tersisa hari ini' : 'Tidak ada jadwal kelas hari ini'}</div>
                   <p className="sd-spotlight-copy">
                     {nextClass
                       ? `${nextClass.start}–${nextClass.end} WIB · ${nextClass.teacher || 'Guru belum tersedia'}`
@@ -114,9 +119,9 @@ export default function SiswaDashboard() {
                   <div className="sd-progress-block">
                     <div className="sd-progress-meta">
                       <span>Progres tugas</span>
-                      <strong>{completionRate}%</strong>
+                      <strong>{completionRate===null?'—':`${completionRate}%`}</strong>
                     </div>
-                    <div className="sd-progress-bar" aria-hidden="true"><span style={{ width: `${completionRate}%` }} /></div>
+                    {completionRate!==null&&<div className="sd-progress-bar" aria-hidden="true"><span style={{ width: `${completionRate}%` }} /></div>}
                     <small>{tasks.submitted} dari {tasks.total} tugas sudah kamu kumpulkan</small>
                   </div>
                 </>
@@ -304,7 +309,7 @@ export default function SiswaDashboard() {
                     </div>
                   </div>
                   <div className="sd-quick-grid">
-                    {quickLinks.map(link => (
+                    {quickLinks.filter(link=>permissions.includes(({ '/app/report-cards':'report_cards.view' })[link.url]??`${link.url.split('/').pop()}.view`)).map(link => (
                       <Link to={link.url} key={link.url} className="sd-quick-card">
                         <span className="sd-quick-icon" aria-hidden="true">{link.icon}</span>
                         <strong>{link.label}</strong>

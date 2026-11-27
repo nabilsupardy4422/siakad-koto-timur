@@ -1252,4 +1252,40 @@ class ReportTest extends TestCase
         $this->getJson($url.'&page=2')->assertOk()->assertJsonCount(2,'data.rows')->assertJsonPath('data.preview_hash',$hash);
         $this->getJson($url.'&page=3')->assertUnprocessable();$this->travelBack();
     }
+    public function test_student_personal_preview_five_types_hash_export_and_role_guards(): void
+    {
+        $f = $this->scopedReportingFixture();
+        $q = 'academic_year_id='.$f['year']->id;
+        $this->actingAs($f['student']['user']);
+        foreach (['students','schedules','attendance','grades','semester-recap'] as $type) {
+            $preview = '/api/student/reports/'.$type.'/preview?'.$q;
+            $this->getJson($preview)->assertOk()->assertJsonPath('data.metadata.scope','Data akademik pribadi')->assertJsonPath('data.effective_filters.scope','own');
+        }
+        $preview = '/api/student/reports/grades/preview?'.$q;
+        $export = '/api/student/reports/grades/export?'.$q;
+        $hash = $this->getJson($preview)->assertOk()->assertJsonPath('data.total',2)->json('data.preview_hash');
+        foreach (['pdf','excel'] as $format) $this->get($export.'&format='.$format.'&preview_hash='.$hash)->assertOk();
+        $this->getJson($preview.'&student_id='.$f['outsider']['student']->id)->assertUnprocessable();
+        $this->getJson($preview.'&scope=school')->assertUnprocessable();
+        $this->getJson($export.'&format=pdf')->assertUnprocessable();
+        Nilai::where('siswa_id',$f['student']['student']->id)->update(['nilai'=>0]);
+        $this->getJson($export.'&format=pdf&preview_hash='.$hash)->assertStatus(409);
+        $this->getJson('/api/student/reports/teachers/preview?'.$q)->assertForbidden();
+        $this->actingAs($f['owner']['user'])->getJson($preview)->assertForbidden();
+    }
+
+    public function test_student_personal_attendance_excludes_future_and_empty_requires_confirmation(): void
+    {
+        $f = $this->scopedReportingFixture();
+        Presensi::create(['jadwal_pelajaran_id'=>$f['own']->id,'siswa_id'=>$f['student']['student']->id,'tanggal'=>today('Asia/Jakarta')->addDay(),'status'=>'ALPA']);
+        $q='academic_year_id='.$f['year']->id;
+        $this->actingAs($f['student']['user']);
+        $base='/api/student/reports/attendance/';
+        $this->getJson($base.'preview?'.$q)->assertOk()->assertJsonPath('data.total',2);
+        $q.='&date_from=2000-01-01&date_to=2000-01-02';
+        $hash=$this->getJson($base.'preview?'.$q)->assertOk()->assertJsonPath('data.total',0)->json('data.preview_hash');
+        $url=$base.'export?'.$q.'&format=excel&preview_hash='.$hash;
+        $this->getJson($url)->assertUnprocessable();
+        $this->get($url.'&confirm_empty=1')->assertOk();
+    }
 }

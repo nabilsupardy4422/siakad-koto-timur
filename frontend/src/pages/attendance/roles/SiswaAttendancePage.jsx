@@ -1,3 +1,6 @@
+import '../../../components/ui/student-workspace.css'
+import {verifyAttendanceWorkspace} from '../../../utils/studentWorkspace.js'
+import {teacherDay} from '../../../utils/teacherDay.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { attendanceApi } from '../../../services/attendanceApi'
 import './SiswaAttendancePageV2.css'
@@ -51,9 +54,9 @@ export default function SiswaAttendancePage() {
         if (!response?.data || !Array.isArray(response.data.subjects) || !Array.isArray(response.data.history)) {
           throw new Error('Format data presensi tidak sesuai. Silakan muat ulang halaman.')
         }
-        setResult(response)
+        setResult(verifyAttendanceWorkspace(response,subjectId,page))
       })
-      .catch(err => { if (current) { setError(err?.payload?.message || err?.message || 'Gagal memuat presensi.') } })
+      .catch(err => { if (current) { setResult(null);setError(err?.payload?.message || err?.message || 'Gagal memuat presensi.') } })
       .finally(() => { if (current) setBusy(false) })
     return () => { current = false }
   }, [subjectId, page, dates, retry])
@@ -64,7 +67,7 @@ export default function SiswaAttendancePage() {
   const meta = result?.meta
   const totals = useMemo(() => totalSummary(subjects), [subjects])
   const attendanceRatio = presentPercentage(totals)
-  const invalidRange = isInvalidDateRange(fromDraft, toDraft)
+  const invalidRange = isInvalidDateRange(fromDraft, toDraft) || [fromDraft,toDraft].some(d=>d&&d>teacherDay())
   const [viewMode, setViewMode] = useState('subjects')
   const showDetails = viewMode === 'details' && Boolean(chosen)
 
@@ -125,8 +128,8 @@ export default function SiswaAttendancePage() {
         <section className="sa-premium-toolbar" aria-label="Filter tanggal">
           <div className="sa-premium-toolbar-heading"><strong>Filter riwayat</strong><span>Opsional · berdasarkan tanggal catatan</span></div>
           <form className="sa-premium-filter" onSubmit={applyFilters}>
-            <label>Dari<input aria-label="Dari tanggal" type="date" value={fromDraft} onChange={event => setFromDraft(event.target.value)}/></label>
-            <label>Sampai<input aria-label="Sampai tanggal" type="date" value={toDraft} onChange={event => setToDraft(event.target.value)}/></label>
+            <label>Dari<input aria-label="Dari tanggal" type="date" max={teacherDay()} value={fromDraft} onChange={event => setFromDraft(event.target.value)}/></label>
+            <label>Sampai<input aria-label="Sampai tanggal" type="date" max={teacherDay()} value={toDraft} onChange={event => setToDraft(event.target.value)}/></label>
             <button className="sa-premium-apply" disabled={invalidRange || busy} type="submit">Terapkan <Icon name="arrow" size={15}/></button>
             <button className="sa-premium-reset" type="button" onClick={resetFilters}>Reset</button>
           </form>
@@ -150,9 +153,9 @@ export default function SiswaAttendancePage() {
               <div className="sa-premium-teacher-hint"><Icon name="info" size={15}/> Jadwal berasal dari data resmi kelasmu.</div>
             </section>
             <section className="sa-premium-panel sa-premium-history-panel"><div className="sa-premium-panel-head"><div><h3>Riwayat kehadiran</h3></div><span className="sa-premium-history-count">{meta?.total ?? getSummary(chosen).total ?? 0} catatan</span></div>
-              {result.data.history.length ? <div className="sa-premium-table-shell">
+              {result.data.history.length ? <><div className="student-mobile-cards">{result.data.history.map(row=><article key={row.id}><strong>{formatDate(row.date)} · {STATUS[row.status]||row.status}</strong><p>{row.teacher} · {timeText(row.start)}–{timeText(row.end)}</p><p>{row.note||"Tidak ada catatan tambahan"}</p></article>)}</div><div className="sa-premium-table-shell student-desktop-table">
                 <HorizontalScrollControls scrollRef={historyScrollRef} label="Geser tabel riwayat kehadiran hingga kolom Catatan" stepSelector="th" />
-                <div className="sa-premium-table-wrap" ref={historyScrollRef} role="region" tabIndex={0} aria-label="Tabel riwayat kehadiran, geser horizontal"><table><thead><tr><th>Tanggal</th><th>Guru pengampu</th><th>Jam</th><th>Status</th><th>Catatan</th></tr></thead><tbody>{result.data.history.map(row => <tr key={row.id}><td>{formatDate(row.date)}</td><td>{row.teacher}</td><td>{timeText(row.start)}–{timeText(row.end)}</td><td><span className={`sa-premium-pill sa-premium-pill-${String(row.status).toLowerCase()}`}>{STATUS[row.status] || row.status}</span></td><td>{row.note || '—'}</td></tr>)}</tbody></table></div></div> : <div className="sa-premium-history-empty"><div className="sa-premium-history-empty-icon"><Icon name="calendar" size={24}/></div><strong>Belum ada catatan kehadiran</strong><p>Guru belum mencatat presensi untuk mapel dan rentang waktu ini. Tidak adanya catatan bukan berarti Alpa.</p></div>}
+                <div className="sa-premium-table-wrap" ref={historyScrollRef} role="region" tabIndex={0} aria-label="Tabel riwayat kehadiran, geser horizontal"><table><thead><tr><th>Tanggal</th><th>Guru pengampu</th><th>Jam</th><th>Status</th><th>Catatan</th></tr></thead><tbody>{result.data.history.map(row => <tr key={row.id}><td>{formatDate(row.date)}</td><td>{row.teacher}</td><td>{timeText(row.start)}–{timeText(row.end)}</td><td><span className={`sa-premium-pill sa-premium-pill-${String(row.status).toLowerCase()}`}>{STATUS[row.status] || row.status}</span></td><td>{row.note || '—'}</td></tr>)}</tbody></table></div></div></> : <div className="sa-premium-history-empty"><div className="sa-premium-history-empty-icon"><Icon name="calendar" size={24}/></div><strong>Belum ada catatan kehadiran</strong><p>Guru belum mencatat presensi untuk mapel dan rentang waktu ini. Tidak adanya catatan bukan berarti Alpa.</p></div>}
               {meta && meta.last_page > 1 && <div className="sa-premium-pagination"><span>Halaman {meta.current_page} dari {meta.last_page}</span><div><button disabled={page <= 1 || busy} type="button" onClick={() => setPage(n => Math.max(1, n - 1))}>Sebelumnya</button><button disabled={page >= meta.last_page || busy} type="button" onClick={() => setPage(n => n + 1)}>Berikutnya</button></div></div>}
             </section>
           </div>

@@ -36,7 +36,7 @@ test('API failure does not impersonate an empty task state', () => {
   assert.match(jsx, /setContext\(null\)/);
 });
 test('subject groups initially collapsed and expand on request', () => {
-  assert.match(jsx, /const isCollapsed = !Boolean\(collapsedSubjects\[group.subject\]\)/);
+  assert.match(jsx, /const isCollapsed = !Boolean\(collapsedSubjects\[group.key\]\)/);
 });
 
 const helperCode=readFileSync(resolve(root,'studentAssignmentFiles.js'),'utf8');
