@@ -1170,4 +1170,86 @@ class ReportTest extends TestCase
         $this->getJson('/api/reports/context')->assertOk()->assertJsonCount(0, 'data.homeroom.classes');
         $this->getJson('/api/reports/grades/preview?scope=teaching')->assertOk()->assertJsonPath('data.total', 1);
     }
+
+    public function test_tu_mixed_case_attendance_same_monitor_and_legacy_reports(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$tu=$this->createUser('TU','Mixed');$this->actingAs($tu);
+        Presensi::where('jadwal_pelajaran_id',$f['own']->id)->where('siswa_id',$f['student']['student']->id)->update(['status'=>'HADIR']);
+        Presensi::where('jadwal_pelajaran_id',$f['other']->id)->update(['status'=>'izin']);
+        $filters=['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id];
+        $daily=$filters+['date'=>'2026-11-27'];
+        $this->getJson('/api/tu/attendance-monitoring?'.http_build_query($daily+['view'=>'daily']))->assertOk()->assertJsonPath('data.rows.0.izin',1);
+        $this->getJson('/api/tu/reports/attendance-daily/preview?'.http_build_query($daily))->assertOk()->assertJsonPath('data.rows.0.izin',1);
+        $this->getJson('/api/tu/reports/attendance/preview?'.http_build_query($filters))->assertOk()->assertJsonPath('data.total',2);
+        $this->getJson('/api/tu/reports/semester-recap/preview?'.http_build_query($filters))->assertOk()->assertJsonPath('data.rows.0.hadir',1)->assertJsonPath('data.rows.0.izin',1);
+        $this->travelBack();
+    }
+    public function test_tu_monthly_counts_meetings_not_days_and_includes_zero_roster(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$tu=$this->createUser('TU','Month');$this->actingAs($tu);
+        $blank=$this->createStudent('NoMeetings');$this->addStudentToClass($blank['student'],$f['class']);
+        $filters=['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id,'month'=>'2026-11'];
+        $url='/api/tu/reports/attendance-monthly/preview?'.http_build_query($filters);
+        $data=$this->getJson($url)->assertOk()->assertJsonPath('data.total',2)->json('data.rows');
+        $rows=collect($data)->keyBy('nis');$this->assertSame(2,$rows[$f['student']['student']->nis]['total']);$this->assertNull($rows[$blank['student']->nis]['percentage']);
+        $this->getJson('/api/tu/reports/attendance-monthly/preview?'.http_build_query(array_replace($filters,['month'=>'2026-12'])))->assertUnprocessable();
+        $this->travelBack();
+    }
+    public function test_tu_grade_reports_match_monitoring_and_preserve_zero(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$this->actingAs($this->createUser('TU','GradeNew'));
+        Nilai::where('siswa_id',$f['student']['student']->id)->update(['nilai'=>0]);
+        $filters=['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id];
+        $q=http_build_query($filters);$monitor=$this->getJson('/api/tu/grade-monitoring?'.$q.'&view=coverage')->assertOk()->json('data.summary');
+        $this->getJson('/api/tu/reports/grade-coverage/preview?'.$q)->assertOk()->assertJsonPath('data.summary.Terisi saat ini',$monitor['Terisi saat ini']);
+        $this->getJson('/api/tu/reports/grade-components/preview?'.$q)->assertOk()->assertJsonPath('data.total',2)->assertJsonPath('data.rows.0.recorded',1);
+        $this->assertEquals(0,$this->getJson('/api/tu/reports/grades/preview?'.$q)->assertOk()->json('data.rows.0.nilai'));
+        $this->getJson('/api/tu/reports/grade-coverage/preview?academic_year_id='.$f['year']->id)->assertUnprocessable();
+        $this->travelBack();
+    }
+    public function test_tu_preview_hash_scope_and_both_formats(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$this->actingAs($this->createUser('TU','NewHash'));
+        $filters=['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id,'date'=>'2026-11-27'];$q=http_build_query($filters);
+        $preview='/api/tu/reports/attendance-daily/preview?'.$q;$export='/api/tu/reports/attendance-daily/export?'.$q;
+        $hash=$this->getJson($preview)->assertOk()->json('data.preview_hash');
+        $this->getJson($preview.'&teacher_id='.$f['owner']['guru']->id)->assertUnprocessable();
+        $this->getJson($export.'&format=excel')->assertUnprocessable();
+        foreach(['excel','pdf'] as $format)$this->get($export.'&format='.$format.'&preview_hash='.$hash)->assertOk();
+        Presensi::where('siswa_id',$f['student']['student']->id)->update(['status'=>'ALPA']);
+        foreach(['excel','pdf'] as $format)$this->getJson($export.'&format='.$format.'&preview_hash='.$hash)->assertStatus(409);
+        $this->actingAs($f['owner']['user']);$this->getJson($preview)->assertForbidden();
+        $this->travelBack();
+    }
+    public function test_tu_empty_requires_explicit_confirmation_and_options_scope(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$this->actingAs($this->createUser('TU','Empty'));
+        $filters=['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id];$q=http_build_query($filters);
+        $this->getJson('/api/tu/reports/student-options?'.$q)->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.student_id',$f['student']['student']->id);
+        $this->getJson('/api/tu/reports/grades/preview?'.$q.'&student_id='.$f['outsider']['student']->id)->assertUnprocessable();
+        $q.='&date_from=2026-11-01&date_to=2026-11-01';$hash=$this->getJson('/api/tu/reports/attendance/preview?'.$q)->assertOk()->assertJsonPath('data.total',0)->json('data.preview_hash');
+        $url='/api/tu/reports/attendance/export?'.$q.'&format=excel&preview_hash='.$hash;
+        $this->getJson($url)->assertUnprocessable();$this->get($url.'&confirm_empty=1')->assertOk();
+        $this->travelBack();
+    }
+
+    public function test_tu_coverage_and_daily_full_preview_pagination(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 10:00:00','Asia/Jakarta'));
+        $f=$this->scopedReportingFixture();$this->actingAs($this->createUser('TU','Coverage'));
+        $f['own']->update(['hari'=>'JUMAT']);$f['other']->update(['hari'=>'JUMAT','jam_mulai'=>'12:00','jam_selesai'=>'13:00']);
+        $q=http_build_query(['academic_year_id'=>$f['year']->id,'class_id'=>$f['class']->id,'date'=>'2026-11-27']);
+        $summary=$this->getJson('/api/tu/attendance-monitoring?'.$q.'&view=coverage')->assertOk()->json('data.summary');
+        $this->getJson('/api/tu/reports/attendance-coverage/preview?'.$q)->assertOk()->assertJsonPath('data.summary.Lengkap',$summary['Lengkap'])->assertJsonPath('data.summary.Belum selesai',1);
+        for($i=0;$i<8;$i++)$this->createClass($f['year'],'Tambahan '.$i);
+        $q=http_build_query(['academic_year_id'=>$f['year']->id,'date'=>'2026-11-27']);$url='/api/tu/reports/attendance-daily/preview?'.$q;
+        $hash=$this->getJson($url)->assertOk()->assertJsonCount(8,'data.rows')->assertJsonPath('data.total',10)->json('data.preview_hash');
+        $this->getJson($url.'&page=2')->assertOk()->assertJsonCount(2,'data.rows')->assertJsonPath('data.preview_hash',$hash);
+        $this->getJson($url.'&page=3')->assertUnprocessable();$this->travelBack();
+    }
 }

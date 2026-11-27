@@ -15,11 +15,15 @@ use Illuminate\Support\Collection;
 
 class ReportService
 {
+    private ?int $rowLimit = null;
+
     public function build(
         string $reportType,
         User $user,
-        array $filters
+        array $filters,
+        ?int $rowLimit = null
     ): array {
+        $this->rowLimit = $rowLimit;
         $filters = ReportAccess::normalize($user, $reportType, $filters);
 
         $report = match ($reportType) {
@@ -76,7 +80,7 @@ class ReportService
             $filters
         );
 
-        $rows = $query->orderBy('nama_lengkap')->orderBy('id')->get()
+        $rows = $this->boundedGet($query->orderBy('nama_lengkap')->orderBy('id'))
             ->flatMap(function (Siswa $student): array {
                 $memberships = $student->anggotaKelas->sortByDesc('tanggal_mulai')->unique('kelas_id');
                 if ($memberships->isEmpty()) $memberships = collect([null]);
@@ -164,14 +168,12 @@ class ReportService
 
         if ($user->role?->code === 'KEPALA_SEKOLAH') {
             return $this->result('Laporan Data Guru', ['NIP', 'Nama Guru'],
-                $query->latest('id')->get(['nip', 'nama_lengkap'])->map(fn (Guru $teacher) => [
+                $this->boundedGet($query->latest('id'), ['nip', 'nama_lengkap'])->map(fn (Guru $teacher) => [
                     'nip' => $teacher->nip, 'nama_guru' => $teacher->nama_lengkap,
                 ]));
         }
 
-        $rows = $query
-            ->latest('id')
-            ->get()
+        $rows = $this->boundedGet($query->latest('id'))
             ->map(fn (Guru $teacher): array => [
                 'id' => $teacher->id,
                 'nip' => $teacher->nip,
@@ -207,10 +209,7 @@ class ReportService
                 )
             );
 
-        $rows = $query
-            ->orderBy('tingkat')
-            ->orderBy('nama')
-            ->get()
+        $rows = $this->boundedGet($query->orderBy('tingkat')->orderBy('nama')->orderBy('id'))
             ->map(fn (Kelas $class): array => [
                 'id' => $class->id,
                 'nama_kelas' => $class->nama,
@@ -294,10 +293,9 @@ class ReportService
             $filters
         );
 
-        $rows = $query
+        $rows = $this->boundedGet($query
             ->orderByRaw("CASE LOWER(hari) WHEN 'senin' THEN 1 WHEN 'selasa' THEN 2 WHEN 'rabu' THEN 3 WHEN 'kamis' THEN 4 WHEN 'jumat' THEN 5 WHEN 'sabtu' THEN 6 WHEN 'minggu' THEN 7 ELSE 8 END")
-            ->orderBy('jam_mulai')->orderBy('id')
-            ->get()
+            ->orderBy('jam_mulai')->orderBy('id'))
             ->map(fn (JadwalPelajaran $schedule): array => [
                 'hari' => $schedule->hari,
                 'jam_mulai' => $schedule->jam_mulai,
@@ -408,7 +406,7 @@ class ReportService
             $filters
         );
 
-        $rows = $query->orderByDesc('tanggal')->orderBy('jadwal_pelajaran_id')->orderBy('siswa_id')->get()
+        $rows = $this->boundedGet($query->orderByDesc('tanggal')->orderBy('jadwal_pelajaran_id')->orderBy('siswa_id'))
             ->map(function (Presensi $attendance): array {
                 $schedule = $attendance->jadwalPelajaran;
                 return [
@@ -502,7 +500,7 @@ class ReportService
             $filters
         );
 
-        $rows = $query->orderBy('siswa_id')->orderBy('komponen_nilai_id')->get()
+        $rows = $this->boundedGet($query->orderBy('siswa_id')->orderBy('komponen_nilai_id'))
             ->map(function (Nilai $grade): array {
                 $component = $grade->komponenNilai;
                 $schedule = $component?->jadwalPelajaran;
@@ -536,19 +534,20 @@ class ReportService
         // A row represents one student in one class (which belongs to exactly one period).
         // Started historical memberships remain reportable. Future memberships do not.
         $membershipQuery = AnggotaKelas::query()->with(['siswa', 'kelas.tahunAkademik'])
-            ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'));
+            ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
+            ->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereRaw('DATE(tanggal_selesai) >= DATE(tanggal_mulai)'));
         ReportAccess::membership($membershipQuery, $user, $filters, false);
         if ($filters['scope'] === 'own') $membershipQuery->where('siswa_id', $user->siswa->id);
         if (isset($filters['student_id'])) $membershipQuery->where('siswa_id', $filters['student_id']);
         if (isset($filters['semester'])) {
             $membershipQuery->whereHas('kelas.tahunAkademik', fn (Builder $q) => $q->where('semester', $filters['semester']));
         }
-        $memberships = $membershipQuery->orderBy('kelas_id')->orderBy('siswa_id')->get()
+        $memberships = $this->boundedGet($membershipQuery->orderBy('kelas_id')->orderBy('siswa_id')->orderBy('id'))
             ->unique(fn (AnggotaKelas $m) => $m->kelas_id . ':' . $m->siswa_id);
 
         // Batch aggregate; no per-student query. Apply the same scope and integrity rules as detail reports.
         $attendance = Presensi::query()->join('jadwal_pelajaran as r_schedule', 'r_schedule.id', '=', 'presensi.jadwal_pelajaran_id')
-            ->selectRaw('presensi.siswa_id, r_schedule.kelas_id, presensi.status, COUNT(*) as jumlah');
+            ->selectRaw('presensi.siswa_id, r_schedule.kelas_id, LOWER(presensi.status) as status, COUNT(*) as jumlah');
         $grades = Nilai::query()->join('komponen_nilai as r_component', 'r_component.id', '=', 'nilai.komponen_nilai_id')
             ->join('jadwal_pelajaran as r_schedule', 'r_schedule.id', '=', 'r_component.jadwal_pelajaran_id')
             ->selectRaw('nilai.siswa_id, r_schedule.kelas_id, COUNT(nilai.nilai) as jumlah, AVG(nilai.nilai) as rata');
@@ -565,7 +564,7 @@ class ReportService
         $this->applyAttendanceScope($attendanceIds, $user, $filters);
         $gradeIds = Nilai::query()->select('nilai.id');
         $this->applyGradeScope($gradeIds, $user, $filters);
-        $attendance = $attendance->whereIn('presensi.id', $attendanceIds)->groupBy('presensi.siswa_id', 'r_schedule.kelas_id', 'presensi.status')->get()
+        $attendance = $attendance->whereIn('presensi.id', $attendanceIds)->groupBy('presensi.siswa_id', 'r_schedule.kelas_id')->groupByRaw('LOWER(presensi.status)')->get()
             ->groupBy(fn ($r) => $r->kelas_id . ':' . $r->siswa_id);
         $grades = $grades->whereIn('nilai.id', $gradeIds)->groupBy('nilai.siswa_id', 'r_schedule.kelas_id')->get()
             ->keyBy(fn ($r) => $r->kelas_id . ':' . $r->siswa_id);
@@ -601,6 +600,13 @@ class ReportService
         ], $rows);
     }
 
+    private function boundedGet(Builder $query, array $columns=['*']): Collection
+    {
+        if ($this->rowLimit !== null) $query->limit($this->rowLimit+1);
+        $rows=$query->get($columns);
+        abort_if($this->rowLimit!==null && $rows->count()>$this->rowLimit,422,'Persempit filter laporan.');
+        return $rows;
+    }
     private function period($year): array
     {
         return [
@@ -629,7 +635,12 @@ class ReportService
 
     private function applyAttendanceScope(Builder $query, User $user, array $filters): void
     {
-        $query->whereIn('presensi.status', ['hadir', 'izin', 'sakit', 'alpa']);
+        $query->whereRaw("HEX(UPPER(presensi.status)) IN ('4841444952','495A494E','53414B4954','414C5041')")
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('presensi as duplicate_record')
+                ->whereColumn('duplicate_record.jadwal_pelajaran_id','presensi.jadwal_pelajaran_id')
+                ->whereColumn('duplicate_record.siswa_id','presensi.siswa_id')
+                ->whereColumn('duplicate_record.id','<>','presensi.id')
+                ->whereRaw('DATE(duplicate_record.tanggal) = DATE(presensi.tanggal)'));
         $query->whereHas('jadwalPelajaran', fn (Builder $q) => $this->consistentSchedule($q));
         if ($filters['scope'] === 'own') $query->where('siswa_id', $user->siswa->id);
         if ($filters['scope'] !== 'school') {
@@ -641,9 +652,9 @@ class ReportService
                 ->join('jadwal_pelajaran as schedule', 'schedule.kelas_id', '=', 'member.kelas_id')
                 ->whereColumn('schedule.id', 'presensi.jadwal_pelajaran_id')
                 ->whereColumn('member.siswa_id', 'presensi.siswa_id')
-                ->whereColumn('member.tanggal_mulai', '<=', 'presensi.tanggal')
+                ->whereRaw('DATE(member.tanggal_mulai) <= DATE(presensi.tanggal)')
                 ->whereDate('member.tanggal_mulai', '<=', today('Asia/Jakarta'))
-                ->where(fn ($q) => $q->whereNull('member.tanggal_selesai')->orWhereColumn('member.tanggal_selesai', '>=', 'presensi.tanggal'));
+                ->where(fn ($q) => $q->whereNull('member.tanggal_selesai')->orWhereRaw('DATE(member.tanggal_selesai) >= DATE(presensi.tanggal)'));
         });
     }
 
@@ -654,6 +665,9 @@ class ReportService
         if ($filters['scope'] !== 'school') {
             $query->whereHas('komponenNilai.jadwalPelajaran', fn (Builder $q) => $q->whereIn('id', ReportAccess::schedules($user, $filters)->select('id')));
         }
+        $query->whereBetween('nilai.nilai',[0,100])->whereNotExists(fn ($q) => $q->selectRaw('1')->from('nilai as duplicate_record')
+            ->whereColumn('duplicate_record.komponen_nilai_id','nilai.komponen_nilai_id')
+            ->whereColumn('duplicate_record.siswa_id','nilai.siswa_id')->whereColumn('duplicate_record.id','<>','nilai.id'));
         // Grade records have no assessment date; include started memberships in this class only.
         $query->whereExists(function ($q): void {
             $q->selectRaw('1')->from('anggota_kelas as member')
@@ -661,7 +675,8 @@ class ReportService
                 ->join('komponen_nilai as component', 'component.jadwal_pelajaran_id', '=', 'schedule.id')
                 ->whereColumn('component.id', 'nilai.komponen_nilai_id')
                 ->whereColumn('member.siswa_id', 'nilai.siswa_id')
-                ->whereDate('member.tanggal_mulai', '<=', today('Asia/Jakarta'));
+                ->whereDate('member.tanggal_mulai', '<=', today('Asia/Jakarta'))
+                ->where(fn ($q) => $q->whereNull('member.tanggal_selesai')->orWhereRaw('DATE(member.tanggal_selesai) >= DATE(member.tanggal_mulai)'));
         });
     }
 

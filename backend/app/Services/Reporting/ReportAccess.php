@@ -20,7 +20,8 @@ final class ReportAccess
     public static function allowsType(User $user, string $type): bool
     {
         return in_array($type, match ($user->role?->code) {
-            'TU', 'KEPALA_SEKOLAH' => self::TYPES,
+            'TU' => [...self::TYPES, 'attendance-daily','attendance-monthly','attendance-coverage','grade-coverage','grade-components'],
+            'KEPALA_SEKOLAH' => self::TYPES,
             'GURU' => ['students', 'schedules', 'attendance', 'grades', 'semester-recap'],
             // students is a personal identity report here, never a roster.
             'SISWA' => ['students', 'schedules', 'attendance', 'grades', 'semester-recap'],

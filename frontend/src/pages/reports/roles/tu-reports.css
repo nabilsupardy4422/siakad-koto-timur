@@ -1,0 +1,12 @@
+.tur-workspace .tur-catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px}.tur-catalog button{border:1px solid #d8e2ed;border-radius:10px;background:#fff;text-align:left;display:flex;flex-direction:column;gap:6px;padding:14px;color:#173b62;min-height:75px;cursor:pointer}.tur-catalog button[aria-pressed=true]{border-color:#285f98;background:#eaf2fa;box-shadow:inset 0 0 0 1px #285f98}.tur-catalog small{color:#5c7186;font-size:.78rem}.tur-meta{background:#eff5fa;padding:14px;border-radius:8px;display:grid;gap:6px;overflow-wrap:anywhere;color:#173b62;margin:14px 0}.tur-meta span,.tur-meta p{font-size:.88rem;margin:0}.tur-preview{min-width:0}.tur-preview .tam-heading h2{font-size:1.05rem}.tur-empty{display:flex;gap:10px;align-items:center;padding:12px;background:#fff7df;border-radius:8px}.tur-empty input{width:18px;height:18px;flex:none}.tur-preview a{display:inline-flex;align-items:center;min-height:42px;color:#23588c;text-decoration:underline}.tur-workspace h2{font-size:1.1rem;color:#173b62}.tur-preview .tam-table-scroll{margin-top:12px}.tur-preview .tam-table-scroll td{white-space:normal;min-width:90px}.tur-preview .tam-table-scroll th{white-space:normal}.tur-preview .tam-actions{flex-wrap:wrap}.tur-workspace .tam-field input{min-width:0;width:100%;box-sizing:border-box}@media(max-width:480px){.tur-workspace .tur-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.tur-catalog button{padding:10px;min-height:70px;overflow-wrap:anywhere}.tur-catalog strong{font-size:.86rem}.tur-preview .tam-heading{align-items:flex-start;flex-direction:column}.tur-preview .tam-actions{align-items:stretch}.tur-meta{padding:10px}}
+
+/* TU preview only: visible label/value pairs when the shared table becomes cards. */
+.tur-preview .tur-cell-label{display:none}
+.tur-preview .tur-cell-value{min-width:0;overflow-wrap:anywhere}
+@media(max-width:600px){
+  .tu-academic-monitoring .tur-preview .tam-table-scroll td{min-width:0;grid-template-columns:minmax(0,44%) minmax(0,1fr);align-items:start;gap:10px;padding:8px 6px}
+  .tu-academic-monitoring .tur-preview .tam-table-scroll td::before{content:none;display:none}
+  .tur-preview .tur-cell-label{display:block;min-width:0;font-size:12px;font-weight:650;line-height:1.45;color:#53697e;overflow-wrap:anywhere}
+  .tur-preview .tur-cell-value{display:block;line-height:1.45;color:#183650;font-weight:500;text-align:left}
+  .tu-academic-monitoring .tur-preview .tam-table-scroll tbody tr{padding:8px 10px}
+}

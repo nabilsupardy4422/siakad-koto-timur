@@ -63,7 +63,7 @@ class ReportExport extends DefaultValueBinder implements FromArray, WithHeadings
             foreach ($this->headings as $i => $heading) {
                 $col = Coordinate::stringFromColumnIndex($i + 1);
                 $width = match ($heading) {
-                    'ID' => 9, 'NIS','NISN' => 17, 'NIP' => 23,
+                    'ID' => 9, 'NIS','NISN','NIPD' => 17, 'NIP' => 23,
                     'Nama Siswa','Siswa','Nama Guru','Guru','Mata Pelajaran','Email' => 30,
                     'Catatan' => 38, 'Komponen','Username','Status Keanggotaan' => 23,
                     'Tahun Akademik','Tanggal Mulai','Tanggal Selesai','Tanggal' => 18,
@@ -75,8 +75,8 @@ class ReportExport extends DefaultValueBinder implements FromArray, WithHeadings
                 $sheet->getColumnDimension($col)->setWidth($width);
                 if ($end >= self::DATA_ROW) {
                     $range = $col.self::DATA_ROW.':'.$col.$end;
-                    if (in_array($heading, ['NIS','NISN','NIP'], true)) $sheet->getStyle($range)->getNumberFormat()->setFormatCode('@');
-                    if (in_array($heading, ['Bobot','Nilai Tercatat','Rata-rata Komponen (Tanpa Bobot)','Hadir dari Catatan (%)'], true)) {
+                    if (in_array($heading, ['NIS','NISN','NIP','NIPD'], true)) $sheet->getStyle($range)->getNumberFormat()->setFormatCode('@');
+                    if (in_array($heading, ['Bobot','Total Bobot Jadwal','Nilai Tercatat','Rata-rata Komponen (Tanpa Bobot)','Hadir dari Catatan (%)'], true)) {
                         $sheet->getStyle($range)->getNumberFormat()->setFormatCode('0.00');
                     }
                 }

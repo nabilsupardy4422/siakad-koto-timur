@@ -1,439 +1,72 @@
+import {useEffect,useState} from 'react'
+import {Link} from 'react-router-dom'
+import {apiClient} from '../../../services/apiClient'
+import navigation from '../../../Config/navigation'
+import {selectVisibleSidebarItems} from '../../../app/sidebarNavigation'
+import SchedulePicker from '../../schedules/components/SchedulePicker.jsx'
+import {contextFrom,distributionFrom,accountsFrom,waliFrom,attendanceFrom,gradeFrom,raporFrom,ratio,levelTotals} from './tuDashboardLogic.js'
 import './TUDashboard.css'
+import './TUDashboardV12.css'
 
-function getDisplayName(user) {
-  return user?.name || user?.username || 'Pengguna'
+const workspace='/tu/dashboard-workspace'
+const request=(path,params={})=>apiClient.get(path+(Object.keys(params).length?'?'+new URLSearchParams(params):''))
+const fmt=v=>v===null||v===undefined?'—':v.toLocaleString('id-ID')
+const yearLabel=y=>`${y.tahun_mulai}/${y.tahun_selesai}`
+const dateLabel=date=>new Intl.DateTimeFormat('id-ID',{dateStyle:'long',timeZone:'Asia/Jakarta'}).format(new Date(`${date}T00:00:00+07:00`))
+const icons={students:'M4 20v-2a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v2M9.5 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M17 4a3 3 0 0 1 0 6m1 4a4 4 0 0 1 3 4v2',teachers:'M5 21v-3a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v3M12 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7',classes:'M3 10l9-7 9 7v11H3zM9 21v-7h6v7',subjects:'M4 4h6a2 2 0 0 1 2 2v15a3 3 0 0 0-3-2H4zM20 4h-6a2 2 0 0 0-2 2v15a3 3 0 0 1 3-2h5z',calendar:'M4 5h16v16H4zM4 10h16M8 3v4m8-4v4M8 14h2m4 0h2m-8 4h2',check:'M5 3h14v18H5zM8 8h8M8 14l3 3 5-6',chart:'M4 4v16h16M8 15l4-5 3 3 5-7',file:'M6 3h8l4 4v14H6zM14 3v5h4M9 13h6m-6 4h6',shield:'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6',refresh:'M20 8a8 8 0 1 0 0 8M20 3v5h-5',arrow:'M5 12h14m-5-5 5 5-5 5',alert:'M12 3 2 21h20zM12 9v5m0 3h.01'}
+function Icon({name,size=20}){return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icons[name]||icons.file}/></svg>}
+const pathIcon={'academic-years':'calendar',teachers:'teachers',students:'students',subjects:'subjects',classes:'classes','class-members':'students','homeroom-assignments':'teachers',schedules:'calendar',attendance:'check',grades:'chart','report-cards':'file',reports:'file',users:'shield'}
+function useRead(key,load){
+  const [attempt,setAttempt]=useState(0),[state,setState]=useState({token:null});
+  const token=key===null?null:JSON.stringify([key,attempt]);
+  // Reset on every key transition, including A → B → A; never reuse a prior snapshot.
+  if(state.token!==token)setState({token});
+  useEffect(()=>{if(token===null)return;let live=true;Promise.resolve().then(load).then(data=>{if(live)setState({token,data})},error=>{if(live)setState({token,error:error?.message||'Data gagal dimuat.'})});return()=>{live=false}},[token]);
+  const current=state.token===token?state:{};
+  return {data:current.data??null,error:current.error??null,loading:token!==null&&!current.data&&!current.error,retry:()=>setAttempt(x=>x+1)}
 }
-
-function getRoleName(user, dashboard) {
-  return (
-    dashboard?.role_name ||
-    dashboard?.role_label ||
-    user?.role?.label ||
-    user?.role?.name ||
-    'Tata Usaha'
-  )
-}
-
-function formatAcademicYear(academicYear) {
-  if (!academicYear) {
-    return null
-  }
-
-  if (
-    academicYear.tahun_mulai != null &&
-    academicYear.tahun_selesai != null
-  ) {
-    return `${academicYear.tahun_mulai}/${academicYear.tahun_selesai}`
-  }
-
-  if (academicYear.tahun_ajaran) {
-    return academicYear.tahun_ajaran
-  }
-
-  if (academicYear.name) {
-    return academicYear.name
-  }
-
-  return null
-}
-
-function formatSemester(academicYear) {
-  if (!academicYear?.semester) {
-    return null
-  }
-
-  const semester = String(academicYear.semester).toLowerCase()
-
-  if (semester === '1' || semester === 'ganjil') {
-    return 'Ganjil'
-  }
-
-  if (semester === '2' || semester === 'genap') {
-    return 'Genap'
-  }
-
-  return academicYear.semester
-}
-
-function getSemesterOrder(semester) {
-  const normalized = String(semester ?? '').toLowerCase()
-
-  if (normalized === 'genap' || normalized === '2') {
-    return 2
-  }
-
-  if (normalized === 'ganjil' || normalized === '1') {
-    return 1
-  }
-
-  return 0
-}
-
-function sortAcademicYears(academicYears) {
-  return [...academicYears].sort((a, b) => {
-    const endYearDifference =
-      Number(b?.tahun_selesai ?? 0) -
-      Number(a?.tahun_selesai ?? 0)
-
-    if (endYearDifference !== 0) {
-      return endYearDifference
-    }
-
-    const startYearDifference =
-      Number(b?.tahun_mulai ?? 0) -
-      Number(a?.tahun_mulai ?? 0)
-
-    if (startYearDifference !== 0) {
-      return startYearDifference
-    }
-
-    const semesterDifference =
-      getSemesterOrder(b?.semester) -
-      getSemesterOrder(a?.semester)
-
-    if (semesterDifference !== 0) {
-      return semesterDifference
-    }
-
-    return Number(b?.id ?? 0) - Number(a?.id ?? 0)
-  })
-}
-
-function getStudentClassName(item) {
-  return (
-    item?.class_name ||
-    item?.kelas?.nama ||
-    item?.nama_kelas ||
-    item?.nama ||
-    'Kelas'
-  )
-}
-
-function getStudentClassCount(item) {
-  return (
-    item?.student_count ??
-    item?.jumlah_siswa ??
-    item?.total_siswa ??
-    item?.siswa_count ??
-    item?.count ??
-    0
-  )
-}
-
-function ActivityIcon({ type }) {
-  const commonProps = {
-    width: 21,
-    height: 21,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.7,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    'aria-hidden': true,
-  }
-
-  if (type === 'teacher') {
-    return (
-      <svg {...commonProps}>
-        <circle cx="12" cy="8" r="3.5" />
-        <path d="M5 20c.8-3.2 3.1-5 7-5s6.2 1.8 7 5" />
-      </svg>
-    )
-  }
-
-  if (type === 'student') {
-    return (
-      <svg {...commonProps}>
-        <circle cx="9" cy="8" r="3" />
-        <path d="M3.5 20c.6-3 2.4-4.5 5.5-4.5s4.9 1.5 5.5 4.5" />
-        <path d="M15 5.5a3 3 0 0 1 0 5.8" />
-        <path d="M17 15.8c2.2.5 3.5 1.8 4 4.2" />
-      </svg>
-    )
-  }
-
-  if (type === 'class') {
-    return (
-      <svg {...commonProps}>
-        <rect x="4" y="4" width="16" height="16" rx="2" />
-        <path d="M8 8h8M8 12h8M8 16h5" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg {...commonProps}>
-      <path d="M4 19V5M4 19h17" />
-      <path d="m7 15 4-4 3 2 5-7" />
-    </svg>
-  )
-}
-
-function SummaryCard({ type, label, value, description }) {
-  return (
-    <article className="dashboard-activity-card">
-      <div className="dashboard-activity-card__top">
-        <div className="dashboard-activity-card__icon">
-          <ActivityIcon type={type} />
-        </div>
-      </div>
-
-      <div className="dashboard-activity-card__content">
-        <span className="dashboard-activity-card__label">
-          {label}
-        </span>
-
-        <h3>{value}</h3>
-
-        <p>{description}</p>
-      </div>
-    </article>
-  )
-}
-
-export default function TUDashboard({ user, dashboard }) {
-  const displayName = getDisplayName(user)
-  const roleName = getRoleName(user, dashboard)
-
-  const summary = dashboard?.summary || {}
-  const charts = dashboard?.charts || {}
-  const recent = dashboard?.recent || {}
-
-  const activeAcademicYear =
-    summary?.active_academic_year || null
-
-  const academicYearLabel =
-    formatAcademicYear(activeAcademicYear)
-
-  const semesterLabel =
-    formatSemester(activeAcademicYear)
-
-  const studentsByClass = Array.isArray(charts?.students_by_class)
-    ? charts.students_by_class
-    : []
-
-  const recentAcademicYears = Array.isArray(recent?.academic_years)
-    ? sortAcademicYears(recent.academic_years)
-    : []
-
-  return (
-    <section className="dashboard-page">
-      <header className="dashboard-hero">
-        <div className="dashboard-hero__main">
-          <div className="dashboard-hero__eyebrow">
-            <span />
-            Dashboard
-          </div>
-
-          <h1>
-            Selamat datang,
-            <br />
-            <strong>{displayName}</strong>
-          </h1>
-
-          <p>
-            Kelola informasi dan aktivitas akademik
-            sekolah dari satu ruang kerja.
-          </p>
-        </div>
-
-        <div className="dashboard-hero__role">
-          <span>AKSES SAAT INI</span>
-          <strong>{roleName}</strong>
-        </div>
-      </header>
-
-      <section className="dashboard-period">
-        <div className="dashboard-period__heading">
-          <span>PERIODE AKADEMIK</span>
-          <h2>Konteks data</h2>
-        </div>
-
-        <div className="dashboard-period__values">
-          <div className="dashboard-period__value">
-            <span>Tahun Akademik</span>
-            <strong>{academicYearLabel || 'Belum tersedia'}</strong>
-          </div>
-
-          <div className="dashboard-period__separator" />
-
-          <div className="dashboard-period__value">
-            <span>Semester</span>
-            <strong>{semesterLabel || 'Belum dipilih'}</strong>
-          </div>
-        </div>
-
-        <div className="dashboard-period__state">
-          <span />
-          {activeAcademicYear
-            ? 'Periode akademik aktif'
-            : 'Periode belum ditentukan'}
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <div className="dashboard-section__header">
-          <div>
-            <span className="dashboard-section__eyebrow">
-              RINGKASAN
-            </span>
-            <h2>Data akademik</h2>
-          </div>
-
-          <p>
-            Ringkasan data akademik berdasarkan akses {roleName}.
-          </p>
-        </div>
-
-        <div className="dashboard-activity-grid">
-          <SummaryCard
-            type="teacher"
-            label="GURU"
-            value={summary?.total_guru ?? 0}
-            description="Total guru yang tercatat."
-          />
-
-          <SummaryCard
-            type="student"
-            label="SISWA"
-            value={summary?.total_siswa ?? 0}
-            description="Total siswa yang tercatat."
-          />
-
-          <SummaryCard
-            type="class"
-            label="KELAS"
-            value={summary?.total_kelas ?? 0}
-            description="Total kelas pada konteks akademik."
-          />
-
-          <SummaryCard
-            type="subject"
-            label="MATA PELAJARAN"
-            value={summary?.total_mata_pelajaran ?? 0}
-            description="Total mata pelajaran yang tersedia."
-          />
-        </div>
-      </section>
-
-      <section className="dashboard-section">
-        <div className="dashboard-section__header">
-          <div>
-            <span className="dashboard-section__eyebrow">
-              DISTRIBUSI SISWA
-            </span>
-            <h2>Siswa per kelas</h2>
-          </div>
-
-          <p>
-            Jumlah siswa aktif berdasarkan kelas pada
-            konteks akademik yang tersedia.
-          </p>
-        </div>
-
-        <div className="dashboard-list">
-          {studentsByClass.length === 0 ? (
-            <div className="dashboard-empty">
-              <div className="dashboard-empty__mark">
-                <span />
-              </div>
-
-              <div>
-                <strong>Belum ada data kelas</strong>
-                <p>
-                  Distribusi siswa per kelas akan muncul
-                  setelah data kelas dan siswa tersedia.
-                </p>
-              </div>
-            </div>
-          ) : (
-            studentsByClass.map((item, index) => (
-              <div
-                className="dashboard-list__item"
-                key={
-                  item?.class_id ??
-                  item?.kelas?.id ??
-                  item?.kelas_id ??
-                  item?.id ??
-                  `${getStudentClassName(item)}-${index}`
-                }
-              >
-                <div>
-                  <strong>{getStudentClassName(item)}</strong>
-                  <span>
-                    {item?.tingkat != null
-                      ? `Tingkat ${item.tingkat} · `
-                      : ''}
-                    Siswa aktif
-                  </span>
-                </div>
-
-                <strong>{getStudentClassCount(item)}</strong>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="dashboard-section dashboard-section--recent">
-        <div className="dashboard-section__header">
-          <div>
-            <span className="dashboard-section__eyebrow">
-              RIWAYAT AKADEMIK
-            </span>
-            <h2>Tahun akademik terbaru</h2>
-          </div>
-
-          <p>
-            Lima tahun akademik terbaru yang tersedia
-            pada sistem.
-          </p>
-        </div>
-
-        <div className="dashboard-list">
-          {recentAcademicYears.length === 0 ? (
-            <div className="dashboard-empty">
-              <div className="dashboard-empty__mark">
-                <span />
-              </div>
-
-              <div>
-                <strong>Belum ada tahun akademik</strong>
-                <p>
-                  Data tahun akademik akan muncul
-                  setelah periode akademik tersedia.
-                </p>
-              </div>
-            </div>
-          ) : (
-            recentAcademicYears.map((academicYear, index) => (
-              <div
-                className="dashboard-list__item"
-                key={
-                  academicYear?.id ??
-                  `${formatAcademicYear(academicYear)}-${index}`
-                }
-              >
-                <div>
-                  <strong>
-                    {formatAcademicYear(academicYear) ||
-                      'Tahun akademik'}
-                  </strong>
-
-                  <span>
-                    Semester {formatSemester(academicYear) || '-'}
-                  </span>
-                </div>
-
-                <span>
-                  {academicYear?.is_active ? 'Aktif' : 'Tidak aktif'}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-    </section>
-  )
+function Feedback({state,empty='Data belum tersedia.'}){return state.loading?<p className="tud-feedback" role="status">Memuat data…</p>:state.error?<div className="tud-error" role="alert"><span>{state.error}</span><button type="button" onClick={state.retry}>Coba lagi</button></div>:<p className="tud-feedback">{empty}</p>}
+function Panel({title,note,icon,link,children}){return <section className="tud-panel"><div className="tud-panel-head"><div className="tud-panel-title"><span className="tud-icon"><Icon name={icon}/></span><div><h2>{title}</h2><p>{note}</p></div></div>{link&&<Link className="tud-link" to={link} aria-label={`Buka ${title}`}><Icon name="arrow" size={17}/></Link>}</div>{children}</section>}
+function Stats({items}){return <dl className="tud-stats">{items.map(([label,value,tone])=><div key={label}><dt>{label}</dt><dd className={tone||''}>{fmt(value)}</dd></div>)}</dl>}
+function Progress({value,label}){return <div className="tud-progress"><div><span>{label}</span><strong>{value===null?'—':`${value.toLocaleString('id-ID',{maximumFractionDigits:1})}%`}</strong></div><div className="tud-track" role="img" aria-label={`${label}: ${value===null?'tidak tersedia':value.toFixed(1)+' persen'}`}><span style={{width:`${value??0}%`}}/></div>{value===null&&<small>Tidak ada denominator yang dapat dihitung.</small>}</div>}
+function Warnings({items=[]}){return items.length>0&&<div className="tud-warning" role="status">{[...new Set(items)].map(w=><p key={w}><Icon name="alert" size={16}/>{w}</p>)}</div>}
+function Metric({label,value,description,icon,to}){const content=<><span className="tud-icon"><Icon name={icon}/></span><span className="tud-metric-label">{label}</span><strong>{fmt(value)}</strong><small>{description}</small></>;return to?<Link className="tud-metric" to={to}>{content}</Link>:<article className="tud-metric">{content}</article>}
+function Distribution({data}){const [level,setLevel]=useState('all'),[page,setPage]=useState(1);const rows=data.classes.filter(r=>level==='all'||String(r.level)===level);const last=Math.max(1,Math.ceil(rows.length/6)),current=Math.min(page,last),max=Math.max(1,...levelTotals(data.classes).map(r=>r.students));return <><div className="tud-bars">{levelTotals(data.classes).map(r=><div key={r.level}><div><span>Tingkat {r.level}</span><strong>{fmt(r.students)}</strong></div><div className="tud-bar"><span style={{width:`${r.students/max*100}%`}}/></div></div>)}</div><div className="tud-distribution-head"><h3>Per rombel</h3><label><span>Tingkat</span><select value={level} onChange={e=>{setLevel(e.target.value);setPage(1)}}><option value="all">Semua</option>{[10,11,12].map(x=><option key={x} value={x}>{x}</option>)}</select></label></div>{rows.length?<ul className="tud-class-list">{rows.slice((current-1)*6,current*6).map(r=><li key={r.id}><span><strong>{r.name}</strong><small>Tingkat {r.level}</small></span><strong>{fmt(r.students)} <small>siswa</small></strong></li>)}</ul>:<p className="tud-feedback">Tidak ada rombel pada cakupan ini.</p>}{last>1&&<div className="tud-pagination"><button type="button" disabled={current===1} onClick={()=>setPage(current-1)}>Sebelumnya</button><span>{current}/{last} · {rows.length} rombel</span><button type="button" disabled={current===last} onClick={()=>setPage(current+1)}>Berikutnya</button></div>}<Warnings items={[data.invalid_intervals?`${data.invalid_intervals} interval keanggotaan tidak valid dikecualikan.`:null,data.duplicate_effective?`${data.duplicate_effective} siswa memiliki keanggotaan efektif ganda; ${data.cross_class} lintas rombel.`:null].filter(Boolean)}/><p className="tud-caption">Grafik menjumlah siswa per rombel ({fmt(data.memberships)}); siswa unik sekolah: {fmt(data.unique_students)}.</p></>}
+
+export default function TUDashboard({user,permissions=[]}){
+ const [reload,setReload]=useState(0),[gradeClass,setGradeClass]=useState(''),[reportType,setReportType]=useState('AKHIR_SEMESTER');
+ const links=selectVisibleSidebarItems(navigation,'TU',permissions,[]).filter(x=>x.path&&x.path!=='/app/dashboard');const route=name=>links.find(x=>x.path===`/app/${name}`)?.path;
+ const base=useRead([user.id,reload],()=>request(workspace,{section:'context'}).then(contextFrom));const c=base.data,period=c?.period,context=period?{academic_year_id:period.id,date:c.date}:null;const contextKey=context?[user.id,reload,period.id,c.date]:null;
+ const dist=useRead(contextKey,()=>request(workspace,{section:'distribution',...context}).then(r=>distributionFrom(r,c)));
+ const accounts=useRead(route('users')?[user.id,reload]:null,()=>request('/users/activation-summary').then(accountsFrom));
+ const wali=useRead(contextKey,()=>request(workspace,{section:'homeroom',...context}).then(r=>waliFrom(r,c)));
+ const dayParams={...context,view:'daily',page:1},coverageParams={...context,view:'coverage',page:1};
+ const daily=useRead(contextKey&&route('attendance')?contextKey:null,()=>request('/tu/attendance-monitoring',dayParams).then(r=>attendanceFrom(r,c,dayParams)));
+ const coverage=useRead(contextKey&&route('attendance')?contextKey:null,()=>request('/tu/attendance-monitoring',coverageParams).then(r=>attendanceFrom(r,c,coverageParams)));
+ const classes=dist.data?.classes||[],chosen=classes.find(x=>String(x.id)===gradeClass);const gradeParams={academic_year_id:period?.id,class_id:chosen?.id,view:'coverage',page:1};
+ const grades=useRead(contextKey&&chosen&&route('grades')?[...contextKey,chosen.id]:null,()=>request('/tu/grade-monitoring',gradeParams).then(r=>gradeFrom(r,c,gradeParams)));
+ const raporParams={academic_year_id:period?.id,type:reportType,view:'coverage',page:1};const rapor=useRead(contextKey&&route('report-cards')?[...contextKey,reportType]:null,()=>request('/tu/report-card-workspace',raporParams).then(r=>raporFrom(r,c,raporParams)));
+ const ds=dist.data,as=accounts.data,ws=wali.data?.summary,ps=daily.data?.summary,cs=coverage.data?.summary,gs=grades.data?.summary,rs=rapor.data?.summary;
+ const mismatch=ds&&((ws&&ws.total!==ds.classes.length)||(ps&&ps['Total siswa per rombel']!==ds.memberships)||(rs&&rs['Target siswa']!==ds.unique_students));
+ const attention=[['Wali kelas belum ditetapkan',ws?.unassigned,'rombel','homeroom-assignments'],['Konflik penugasan wali kelas',ws?.conflict,'rombel','homeroom-assignments'],['Akun menunggu aktivasi',as?.pending,'akun global','users'],['Status akun tidak dikenal',as?.unknown,'akun global','users'],['Jadwal selesai belum lengkap',cs?cs.Sebagian+cs['Belum tercatat']:null,'pola jadwal','attendance'],['Slot nilai belum dinilai',gs?.['Belum dinilai'],'slot · '+(chosen?.name||''),'grades'],['Slot nilai anomali',gs?.['Slot anomali'],'slot · '+(chosen?.name||''),'grades'],['Rapor belum diunggah',rs?.['Belum diunggah'],'siswa · '+(reportType==='AKHIR_SEMESTER'?'akhir semester':'mid semester'),'report-cards'],['Rapor dicabut / file hilang',rs?rs.Dicabut+rs['File hilang']:null,'siswa · jenis terpilih','report-cards']].filter(x=>x[1]>0&&route(x[3]));
+ const incomplete=base.loading||base.error||!period||!ds||!ws||!as||!ps||!cs||!gs||!rs||mismatch;
+ function refresh(){setGradeClass('');setReload(x=>x+1)}
+ const noContext=c?.active_state==='conflict'?'Terdapat lebih dari satu periode aktif. Periksa Tahun Akademik.':'Belum ada periode aktif. Tentukan periode melalui Tahun Akademik.';
+ const periodEmpty=!period?'Periode aktif tunggal diperlukan.':undefined;
+ return <main className="tud-v12" aria-label="Dashboard Tata Usaha">
+ <header className="tud-header"><div><span className="tud-eyebrow">RUANG KERJA / TATA USAHA</span><h1>Dashboard Tata Usaha</h1><p>Selamat datang, {user.name||user.username||'petugas TU'}. Pantau administrasi akademik dari satu tempat.</p></div><button type="button" className="tud-refresh" onClick={refresh}><Icon name="refresh" size={17}/> Muat ulang</button></header>
+ <section className="tud-context"><div className="tud-context-main"><span className="tud-context-icon"><Icon name="calendar" size={27}/></span><div><span>PERIODE AKADEMIK</span><h2>{period?`${yearLabel(period)} · ${period.semester==='GANJIL'?'Ganjil':'Genap'}`:base.loading?'Memuat periode…':'Periode belum tersedia'}</h2><p>{c?`${dateLabel(c.date)} · WIB`:'Tanggal acuan server belum tersedia'}</p></div></div><div className="tud-context-side"><span className={`tud-period-state ${period?'is-active':''}`}>{period?'● Aktif':base.loading?'Memuat':base.error?'Tidak tersedia':c?.active_state==='conflict'?'Konflik periode':'Belum aktif'}</span>{route('academic-years')&&<Link to={route('academic-years')}>Kelola periode <Icon name="arrow" size={16}/></Link>}</div></section>
+ {base.error&&<Feedback state={base}/>}{c&&!period&&<Warnings items={[noContext]}/>}{mismatch&&<Warnings items={['Ringkasan antarpanel berubah atau berbeda. Muat ulang untuk memeriksa konteks terbaru.']}/>}
+ <div className="tud-section-label"><h2>Ringkasan akademik</h2><span>Global & periode aktif</span></div><section className="tud-metrics"><Metric label="Profil siswa" value={c?.master.students} description="Master · semua periode" icon="students" to={route('students')}/><Metric label="Profil guru" value={c?.master.teachers} description="Master · semua periode" icon="teachers" to={route('teachers')}/><Metric label="Rombel periode aktif" value={ds?.classes.length} description="Termasuk rombel kosong" icon="classes" to={route('classes')}/><Metric label="Mata pelajaran" value={c?.master.subjects} description="Master · semua periode" icon="subjects" to={route('subjects')}/><Metric label="Siswa efektif unik" value={ds?.unique_students} description="Keanggotaan pada tanggal WIB" icon="students" to={route('class-members')}/></section>
+ <div className="tud-grid tud-main-grid"><Panel title="Distribusi siswa" note="Jumlah siswa efektif per rombel dan tingkat" icon="chart" link={route('classes')}>{ds?<Distribution data={ds}/>:<Feedback state={dist} empty={periodEmpty}/>}</Panel><Panel title="Perhatian administrasi" note="Indikator aktual, bukan penilaian kinerja" icon="alert">{attention.length?<ul className="tud-attention">{attention.map(([label,value,unit,name])=><li key={label}><Link to={route(name)}><span><strong>{label}</strong><small>{unit}</small></span><b>{fmt(value)}</b><Icon name="arrow" size={16}/></Link></li>)}</ul>:<p className="tud-feedback">{incomplete?'Belum semua indikator dapat diperiksa.':'Tidak ada indikator perhatian pada cakupan yang diperiksa.'}</p>}{incomplete&&<p className="tud-caption">Cakupan belum lengkap: periksa panel yang belum dimuat, tidak tersedia, atau belum dipilih.</p>}</Panel></div>
+ <div className="tud-section-label"><h2>Monitoring operasional</h2><span>Data modul terkait</span></div><div className="tud-grid">
+ <Panel title="Wali kelas" note="Penugasan pada periode aktif" icon="teachers" link={route('homeroom-assignments')}>{ws?<><Progress value={ratio(ws.effective,ws.total)} label="Rombel dengan penugasan efektif"/><Stats items={[["Efektif",ws.effective,'good'],['Terjadwal',ws.scheduled],['Belum ditetapkan',ws.unassigned,'warn'],['Konflik',ws.conflict,'warn']]}/></>:<Feedback state={wali} empty={periodEmpty}/>}</Panel>
+ {route('users')&&<Panel title="Kesiapan akun" note="Seluruh akun · cakupan global" icon="shield" link={route('users')}>{as?<><Progress value={ratio(as.ready,as.total)} label="Akun siap digunakan"/><Stats items={[["Siap",as.ready,'good'],['Menunggu aktivasi',as.pending,'warn'],['Nonaktif',as.inactive],['Tidak dikenal',as.unknown,'warn']]}/><p className="tud-caption">Total {fmt(as.total)} akun. Status siap tidak berarti pengguna telah login.</p></>:<Feedback state={accounts}/>}</Panel>}
+ {route('attendance')&&<Panel title="Presensi harian" note="Siswa per rombel · prioritas status V8.0" icon="check" link={route('attendance')}>{ps?<><Stats items={Object.entries(ps)}/><Warnings items={daily.data.warnings}/><p className="tud-caption">Belum ada data tidak dianggap Alpa.</p></>:<Feedback state={daily} empty={periodEmpty}/>}</Panel>}
+ {route('attendance')&&<Panel title="Kelengkapan input presensi" note="Pola jadwal pada tanggal WIB" icon="calendar" link={route('attendance')}>{cs?<><Progress value={ratio(cs.Lengkap,cs.Lengkap+cs.Sebagian+cs['Belum tercatat'])} label="Jadwal selesai dengan input lengkap"/><Stats items={Object.entries(cs)}/><Warnings items={coverage.data.warnings}/><p className="tud-caption">Bukan bukti pembelajaran terlaksana. Jadwal belum selesai dan tanpa siswa tidak masuk denominator.</p></>:<Feedback state={coverage} empty={periodEmpty}/>}</Panel>}
+ {route('grades')&&<Panel title="Kelengkapan penilaian" note="Slot komponen pada rombel terpilih" icon="chart" link={route('grades')}><SchedulePicker label="Rombel" name="gradeClass" value={chosen?gradeClass:''} placeholder="Pilih rombel" options={classes.map(x=>({value:String(x.id),label:`${x.name} · Tingkat ${x.level}`,description:`#${x.id}`}))} disabled={!ds||!classes.length} onChange={e=>setGradeClass(e.target.value)}/>{gs?<><Progress value={ratio(gs['Terisi saat ini'],gs['Slot saat ini'])} label="Slot terisi valid"/><Stats items={Object.entries(gs)}/><Warnings items={grades.data.warnings}/><p className="tud-caption">Nilai nol sah. Catatan historis bukan slot saat ini. Tidak menghitung nilai akhir rapor.</p></>:<Feedback state={grades} empty={!period?periodEmpty:'Pilih rombel untuk memeriksa kelengkapan nilai.'}/>}</Panel>}
+ {route('report-cards')&&<Panel title="Distribusi rapor" note="Dokumen tersedia, bukan bukti telah dibuka siswa" icon="file" link={route('report-cards')}><label className="tud-select-label">Jenis rapor<select value={reportType} onChange={e=>setReportType(e.target.value)}><option value="MID_SEMESTER">Mid semester</option><option value="AKHIR_SEMESTER">Akhir semester</option></select></label>{rs?<><Progress value={ratio(rs.Tersedia,rs['Target siswa'])} label="Dokumen tersedia dari target unik"/><Stats items={Object.entries(rs)}/><Warnings items={rapor.data.warnings}/><p className="tud-caption">Belum diunggah tidak berarti melewati tenggat. Dokumen di luar target terpisah.</p></>:<Feedback state={rapor} empty={periodEmpty}/>}</Panel>}
+ </div>
+ <div className="tud-grid tud-footer-grid"><Panel title="Akses cepat" note="Pintasan sesuai kewenangan akun" icon="classes"><div className="tud-shortcuts">{links.map(x=><Link key={x.path} to={x.path}><span className="tud-icon"><Icon name={pathIcon[x.path.split('/').at(-1)]}/></span><strong>{x.label}</strong><Icon name="arrow" size={14}/></Link>)}</div></Panel><Panel title="Periode terbaru" note="Maksimal lima periode, urutan ID terbaru" icon="calendar" link={route('academic-years')}>{c?<ul className="tud-class-list">{c.recent.map(y=><li key={y.id}><span><strong>{yearLabel(y)}</strong><small>{y.semester}</small></span><span className={y.is_active?'good':''}>{y.is_active?'Aktif':'Tidak aktif'}</span></li>)}{!c.recent.length&&<li>Belum ada periode akademik.</li>}</ul>:<Feedback state={base}/>}</Panel></div>
+ <footer className="tud-footnote">SIAKAD · Administrasi akademik &nbsp; / &nbsp; Ringkasan baca-saja, muat ulang untuk data terbaru.</footer></main>
 }

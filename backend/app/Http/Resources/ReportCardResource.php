@@ -22,6 +22,7 @@ class ReportCardResource extends JsonResource
                 'name' => $this->siswa?->nama_lengkap,
                 'nis' => $this->siswa?->nis,
                 'nisn' => $this->siswa?->nisn,
+                'nipd' => $this->siswa?->nipd,
             ],
 
             'academic_year' => [
@@ -33,6 +34,8 @@ class ReportCardResource extends JsonResource
             ],
 
             'type' => $this->jenis_rapor,
+            'version' => (int)$this->document_version,
+            'distribution_status' => $this->distribution_status,
 
             'file' => [
                 'name' => $this->file_name,

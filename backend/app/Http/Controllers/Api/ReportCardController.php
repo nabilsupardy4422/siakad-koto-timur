@@ -11,7 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use App\Services\ReportCardDistribution;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ReportCardController extends Controller
@@ -38,7 +39,7 @@ class ReportCardController extends Controller
                 ], 403);
             }
 
-            $query->where('siswa_id', $studentId);
+            $query->where('siswa_id', $studentId)->where('distribution_status','active');
         }
 
         if ($request->filled('academic_year_id')) {
@@ -82,9 +83,7 @@ class ReportCardController extends Controller
             ->latest('id')
             ->paginate($perPage);
 
-        return ReportCardResource::collection(
-            $reportCards
-        );
+        return ReportCardResource::collection($reportCards)->response()->header('Cache-Control','private, no-store');
     }
 
     public function store(
@@ -92,47 +91,7 @@ class ReportCardController extends Controller
     ) {
         Gate::authorize('create', Rapor::class);
 
-        $file = $request->file('file');
-
-        $academicYearId = $request->integer(
-            'tahun_akademik_id'
-        );
-
-        $studentId = $request->integer(
-            'siswa_id'
-        );
-
-        $extension = $file->getClientOriginalExtension();
-
-        $fileName = Str::uuid()
-            .'.'
-            .$extension;
-
-        $directory =
-            'report-cards/'
-            .$academicYearId
-            .'/'
-            .$studentId;
-
-        $filePath = $file->storeAs(
-            $directory,
-            $fileName,
-            'local'
-        );
-
-        $reportCard = Rapor::create([
-            'siswa_id' => $studentId,
-            'tahun_akademik_id' => $academicYearId,
-            'jenis_rapor' => $request->string(
-                'jenis_rapor'
-            )->toString(),
-            'file_path' => $filePath,
-            'file_name' => $file->getClientOriginalName(),
-            'file_mime_type' => $file->getClientMimeType(),
-            'file_size' => $file->getSize(),
-            'uploaded_by' => $request->user()->id,
-            'uploaded_at' => now(),
-        ]);
+        $reportCard = ReportCardDistribution::store($request->validated(), $request->file('file'), (int)$request->user()->id);
 
         $reportCard->load([
             'siswa',
@@ -142,7 +101,7 @@ class ReportCardController extends Controller
 
         return (new ReportCardResource($reportCard))
             ->response()
-            ->setStatusCode(201);
+            ->setStatusCode(201)->header('Cache-Control','private, no-store');
     }
 
     public function show(
@@ -159,9 +118,7 @@ class ReportCardController extends Controller
             'uploadedBy',
         ]);
 
-        return new ReportCardResource(
-            $reportCard
-        );
+        return (new ReportCardResource($reportCard))->response()->header('Cache-Control','private, no-store');
     }
 
     public function download(
@@ -174,7 +131,7 @@ class ReportCardController extends Controller
 
         $disk = Storage::disk('local');
 
-        if (! $disk->exists($reportCard->file_path)) {
+        if (! ReportCardDistribution::available($reportCard->file_path)) {
             abort(404);
         }
 
@@ -186,33 +143,47 @@ class ReportCardController extends Controller
             $absolutePath,
             $reportCard->file_name,
             [
-                'Content-Type' =>
-                    $reportCard->file_mime_type,
+                'Content-Type' => $reportCard->file_mime_type,
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
             ]
         );
     }
 
-    public function destroy(
-        Rapor $reportCard
-    ): JsonResponse {
-        Gate::authorize(
-            'delete',
-            $reportCard
-        );
+    public function destroy(Request $request, Rapor $reportCard): JsonResponse
+    {
+        Gate::authorize('delete', $reportCard);
+        $d=$request->validate(['version'=>'required|integer|min:1','reason'=>'required|string|min:3|max:1000']);
+        ReportCardDistribution::change($reportCard,$d,(int)$request->user()->id,'revoke');
+        return response()->json(['message'=>'Distribusi rapor dicabut; arsip tetap tersimpan.']);
+    }
 
-        $disk = Storage::disk('local');
+    public function revise(Request $request,Rapor $reportCard): JsonResponse
+    {
+        Gate::authorize('delete',$reportCard);
+        $d=$request->validate(['version'=>'required|integer|min:1','reason'=>'required|string|min:3|max:1000','action'=>'required|in:revise,reissue','file'=>'required|file|mimes:pdf|max:10240']);
+        $r=ReportCardDistribution::change($reportCard,$d,(int)$request->user()->id,$d['action'],$request->file('file'));
+        return (new ReportCardResource($r->load(['siswa','tahunAkademik','uploadedBy'])))->response()->header('Cache-Control','private, no-store');
+    }
 
-        if ($disk->exists($reportCard->file_path)) {
-            $disk->delete(
-                $reportCard->file_path
-            );
-        }
+    public function history(Request $request,Rapor $reportCard): JsonResponse
+    {
+        Gate::authorize('delete',$reportCard);
+        $request->validate(['page'=>'nullable|integer|min:1|max:100000']);
+        abort_if(count(array_diff(array_keys($request->query()),['page']))>0,422,'Filter tidak didukung.');
+        $events=DB::table('rapor_events as e')->join('users as u','u.id','=','e.actor_id')->where('e.rapor_id',$reportCard->id)->orderByDesc('e.id')->select('e.*','u.name as actor')->paginate(20);
+        abort_if($events->currentPage()>$events->lastPage(),422,'Halaman riwayat tidak tersedia.');
+        $events->through(function($event){$s=json_decode($event->snapshot,true,512,JSON_THROW_ON_ERROR);unset($event->snapshot);$event->file_name=$s['file_name'];$event->file_size=$s['file_size'];return $event;});
+        return response()->json(['data'=>$events->items(),'meta'=>['page'=>$events->currentPage(),'last_page'=>$events->lastPage(),'total'=>$events->total()]])->header('Cache-Control','private, no-store');
+    }
 
-        $reportCard->delete();
-
-        return response()->json([
-            'message' =>
-                'Rapor berhasil dihapus.',
-        ]);
+    public function archiveDownload(Rapor $reportCard,int $event): BinaryFileResponse
+    {
+        Gate::authorize('delete',$reportCard);
+        $entry=DB::table('rapor_events')->where('rapor_id',$reportCard->id)->where('id',$event)->first();
+        abort_unless($entry,404);
+        $s=json_decode($entry->snapshot,true,512,JSON_THROW_ON_ERROR);$disk=Storage::disk('local');
+        abort_unless(ReportCardDistribution::available($s['file_path']),404);
+        return response()->download($disk->path($s['file_path']),$s['file_name'],['Content-Type'=>$s['file_mime_type'],'Cache-Control'=>'private, no-store','X-Content-Type-Options'=>'nosniff']);
     }
 }

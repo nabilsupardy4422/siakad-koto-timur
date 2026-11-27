@@ -90,6 +90,12 @@ Route::middleware([
     EnsureAccountIsUsable::class,
 ])->group(function (): void {
     Route::get('/me', MeController::class);
+    Route::get('/tu/dashboard-workspace', \App\Http\Controllers\Api\TuDashboardController::class)->middleware('role:TU');
+    Route::get('/tu/attendance-monitoring', \App\Http\Controllers\Api\TuAttendanceMonitoringController::class)->middleware('role:TU');
+    Route::get('/tu/grade-monitoring', \App\Http\Controllers\Api\TuGradeMonitoringController::class)->middleware('role:TU');
+    Route::get('/tu/reports/student-options', [\App\Http\Controllers\Api\TuReportController::class,'studentOptions'])->middleware('role:TU');
+    Route::get('/tu/reports/{reportType}/preview', [\App\Http\Controllers\Api\TuReportController::class,'preview'])->middleware('role:TU');
+    Route::get('/tu/reports/{reportType}/export', [\App\Http\Controllers\Api\TuReportController::class,'export'])->middleware('role:TU');
     Route::post('/logout', LogoutController::class);
 
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
@@ -596,6 +602,10 @@ Route::middleware([
 
     Route::middleware('role:TU')->group(function (): void {
         Route::post('/report-cards', [ReportCardController::class, 'store']);
+        Route::get('/tu/report-card-workspace', [\App\Http\Controllers\Api\TuReportCardWorkspaceController::class, 'index']);
+        Route::post('/report-cards/{reportCard}/revision', [ReportCardController::class, 'revise']);
+        Route::get('/report-cards/{reportCard}/history', [ReportCardController::class, 'history']);
+        Route::get('/report-cards/{reportCard}/history/{event}/download', [ReportCardController::class, 'archiveDownload'])->whereNumber('event');
         Route::delete('/report-cards/{reportCard}', [ReportCardController::class, 'destroy']);
     });
 

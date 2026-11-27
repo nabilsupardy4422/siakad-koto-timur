@@ -44,6 +44,7 @@ final class ReportDocument
         if (isset($f['date_from']) || isset($f['date_to'])) $labels[] = 'Tanggal: '.($f['date_from'] ?? 'awal'). ' s.d. '.($f['date_to'] ?? 'akhir');
         if (isset($f['search'])) $labels[] = 'Pencarian: '.$f['search'];
         if (isset($f['status'])) $labels[] = 'Status akun: '.$f['status'];
+        foreach (['date'=>'Tanggal WIB','month'=>'Bulan','level'=>'Tingkat'] as $key=>$label) if (isset($f[$key])) $labels[]=$label.': '.$f[$key];
         $note = match ($type) {
             'attendance' => 'Satu baris = satu catatan siswa per pertemuan. Tidak mewakili seluruh pertemuan yang direncanakan.',
             'grades' => 'Nilai komponen tercatat; bobot hanya informasi. Bukan nilai akhir atau rapor resmi.',
@@ -52,6 +53,9 @@ final class ReportDocument
             'schedules' => 'Jadwal pelajaran yang tercatat, bukan bukti pelaksanaan pertemuan.',
             default => 'Dokumen informasi akademik sesuai kewenangan pengguna.',
         };
+        if(isset($report['note'])) $note=$report['note'];
+        if(isset($report['summary'])) $note.=' Ringkasan: '.implode('; ',array_map(fn($k,$v)=>$k.': '.($v??'—'),array_keys($report['summary']),array_values($report['summary']))).'.';
+        if(!empty($report['warnings'])) $note.=' '.implode(' ', $report['warnings']);
         $actor = $user->role?->code === 'GURU' ? ($user->guru?->nama_lengkap ?? $user->name) : ($user->siswa?->nama_lengkap ?? $user->name);
         return [
             'school' => self::SCHOOL, 'title' => $report['title'], 'scope' => $scope,
@@ -60,7 +64,7 @@ final class ReportDocument
             'count' => $report['rows']->count(), 'note' => $note,
             'sheet' => match ($type) {
                 'students' => 'Data Siswa', 'teachers' => 'Data Guru', 'classes' => 'Data Kelas',
-                'schedules' => 'Jadwal', 'attendance' => 'Presensi', 'grades' => 'Penilaian', default => 'Rekap Semester',
+                'schedules' => 'Jadwal', 'attendance' => 'Presensi', 'grades' => 'Penilaian', 'attendance-daily'=>'Harian','attendance-monthly'=>'Bulanan','attendance-coverage'=>'Kelengkapan Presensi','grade-coverage'=>'Kelengkapan Nilai','grade-components'=>'Komponen', default => 'Rekap Semester',
             },
         ];
     }
@@ -84,6 +88,11 @@ final class ReportDocument
                 'attendance' => [['Tanggal','Siswa / identitas','Mata pelajaran / guru','Jam','Status','Catatan'], [12,25,21,12,10,20]],
                 'grades' => [['Siswa / identitas','Mata pelajaran / guru','Hari / jam','Komponen','Bobot','Nilai','Catatan'], [24,20,14,14,7,7,14]],
                 'semester-recap' => [['Siswa / identitas','H','I','S','A','Total catatan','Hadir (%)','Jumlah nilai','Rata-rata komponen'], [28,5,5,5,5,12,12,12,16]],
+                'attendance-daily'=>[$report['headings'],[9,22,7,10,8,7,7,7,23]],
+                'attendance-monthly'=>[$report['headings'],[17,10,9,9,5,10,5,7,4,4,4,4,6,6]],
+                'attendance-coverage'=>[$report['headings'],[5,13,18,18,12,10,10,14]],
+                'grade-coverage'=>[$report['headings'],[5,10,15,15,13,7,5,5,6,6,6,7]],
+                'grade-components'=>[$report['headings'],[7,13,18,18,7,14,6,9,8]],
                 default => [$report['headings'], array_fill(0,count($report['headings']),100/count($report['headings']))],
             };
             $projected = $rows->map(function (array $r) use ($type): array {
