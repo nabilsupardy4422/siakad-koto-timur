@@ -1,0 +1,23 @@
+/* Only the TU homeroom picker; the shared SearchableSelect is unchanged. */
+.hm-candidate-picker{min-width:0;display:grid;gap:7px;color:#173b62}
+.hm-candidate-picker>.ui-field__label{margin:0}
+.hm-candidate-trigger,.hm-candidate-option{display:flex;align-items:center;gap:10px;min-width:0;width:100%;min-height:48px;padding:10px 12px;border:1px solid #cbd9e6;border-radius:8px;background:#fff;color:#173b62;text-align:left;font:inherit;cursor:pointer;touch-action:manipulation}
+.hm-candidate-trigger:disabled{opacity:.65;cursor:not-allowed;background:#f3f6f8}
+.hm-candidate-trigger[aria-expanded=true],.hm-candidate-option[aria-pressed=true]{border-color:#3978a5;background:#edf3f8}
+.hm-candidate-avatar{display:grid;place-items:center;flex:none;width:32px;height:32px;border:1px solid #d5e4f1;background:#edf3f9;color:#32638a;border-radius:7px}
+.hm-candidate-avatar svg{width:20px;height:20px}
+.hm-candidate-copy{flex:1;min-width:0;display:grid;gap:3px;overflow-wrap:anywhere}
+.hm-candidate-copy strong{font-size:14px;line-height:1.35}.hm-candidate-copy small{font-size:12px;color:#52677b;line-height:1.45}
+.hm-candidate-action{flex:none;font-size:12px;font-weight:700;color:#275d83}
+.hm-candidate-panel{display:grid;gap:9px;min-width:0;padding:12px;border:1px solid #d6e2ec;border-radius:8px;background:#f4f7fa}
+.hm-candidate-panel .ui-field__label{margin:0}
+.hm-candidate-search{width:100%;min-width:0;min-height:44px;padding:8px 10px;border:1px solid #cbd9e6;border-radius:7px;background:white;color:#173b62;font:inherit;font-size:16px;box-sizing:border-box}
+.hm-candidate-count,.hm-candidate-help,.hm-candidate-empty{font-size:12px;line-height:1.5;color:#52677b;margin:0}
+.hm-candidate-list{display:grid;gap:6px;min-width:0}
+.hm-candidate-option{min-height:52px}
+.hm-candidate-pagination{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px}
+.hm-candidate-pagination button{min-height:44px;border:1px solid #cbd9e6;border-radius:7px;padding:7px 9px;background:white;color:#173b62;font:inherit;font-weight:600;cursor:pointer;touch-action:manipulation}
+.hm-candidate-pagination button:disabled{opacity:.5;cursor:not-allowed}
+.hm-candidate-picker :focus-visible{outline:2px solid #3978a5;outline-offset:2px}
+@media(hover:hover){.hm-candidate-option:hover,.hm-candidate-trigger:hover:not(:disabled){background:#edf3f8}}
+@media(max-width:700px){.hm-candidate-panel{padding:9px}.hm-candidate-option{padding:10px;min-height:56px}.hm-candidate-trigger{min-height:48px}.hm-candidate-pagination button{padding:6px 8px}}

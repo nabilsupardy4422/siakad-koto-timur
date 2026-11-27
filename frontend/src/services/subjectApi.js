@@ -1,5 +1,6 @@
 
 import { apiClient } from './apiClient'
+import { loadSubjectCatalog } from '../pages/subjects/subjectDirectoryLogic.js'
 
 function buildQuery(params = {}) {
   const searchParams = new URLSearchParams()
@@ -22,6 +23,10 @@ export const subjectApi = {
     return apiClient.get(`/subjects${buildQuery(params)}`)
   },
 
+  getCatalog() {
+    return loadSubjectCatalog(page => this.getAll({ per_page: 100, page }))
+  },
+
   getById(id) {
     return apiClient.get(`/subjects/${id}`)
   },
@@ -34,7 +39,7 @@ export const subjectApi = {
     return apiClient.put(`/subjects/${id}`, payload)
   },
 
-  delete(id) {
-    return apiClient.delete(`/subjects/${id}`)
+  delete(id, version) {
+    return apiClient.delete(`/subjects/${id}`, version ? { version } : undefined)
   },
 }

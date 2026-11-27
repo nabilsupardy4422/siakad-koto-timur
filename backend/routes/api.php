@@ -336,6 +336,13 @@ Route::middleware([
     // Penempatan anggota kelas dan impor Excel adalah kewenangan TU.
     // Guru dan Wali Kelas hanya membaca data sesuai scope yang diizinkan.
     Route::middleware('role:TU')->group(function (): void {
+        Route::get('/membership-directory', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'directory']);
+        Route::get('/membership-history/{student}', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'history']);
+        Route::post('/academic-transitions/preview', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'preview']);
+        Route::post('/academic-transitions', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'commit']);
+        Route::get('/classes/{class}/students/candidates', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'candidates']);
+        Route::post('/classes/{class}/students/bulk/preview', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'preview']);
+        Route::post('/classes/{class}/students/bulk', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'store']);
         Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
         Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
 
@@ -355,6 +362,11 @@ Route::middleware([
     });
 
     Route::middleware('role:TU')->group(function (): void {
+        Route::get('/homeroom-management', [WaliKelasController::class, 'workspace']);
+        Route::get('/homeroom-management/candidates', [WaliKelasController::class, 'candidates']);
+        Route::post('/homeroom-management/continuation', [WaliKelasController::class, 'continuation']);
+        Route::post('/homeroom-assignments/{assignment}/cancel', [WaliKelasController::class, 'cancel']);
+        Route::post('/homeroom-assignments/{assignment}/replace', [WaliKelasController::class, 'replace']);
         Route::post('/homeroom-assignments', [WaliKelasController::class, 'store']);
         Route::put('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'update']);
         Route::delete('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'destroy']);
@@ -384,6 +396,8 @@ Route::middleware([
             [ScheduleExcelController::class, 'export']
         );
     });
+
+    Route::post('/schedules/copy-semester', \App\Http\Controllers\Api\ScheduleContinuationController::class)->middleware('role:TU');
 
     // Schedule Read
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {

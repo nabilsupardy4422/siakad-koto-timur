@@ -65,6 +65,14 @@ function MenuIcon({ label }) {
         </svg>
       );
 
+    case "Manajemen Wali Kelas":
+      return (
+        <svg {...commonProps}>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3.5 20c.5-3.2 2.3-5 5.5-5M15 14l2 2 4-5" />
+        </svg>
+      );
+
     case "Anggota Kelas":
       return (
         <svg {...commonProps}>

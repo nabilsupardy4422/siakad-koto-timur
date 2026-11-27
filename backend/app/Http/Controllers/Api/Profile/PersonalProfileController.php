@@ -129,7 +129,7 @@ final class PersonalProfileController extends Controller
                 $rows = $profile->anggotaKelas()->whereHas('kelas', fn ($q) => $q->where('tahun_akademik_id', $year->id))->with('kelas')->get();
                 $profile->setRelation('anggotaKelas', $rows);
                 $placement = StudentPlacement::summary($profile, $year->id);
-                $academic['placement'] = ['status' => $placement['status'], 'class_name' => $placement['status'] === 'effective' ? $placement['class_name'] : null];
+                $academic['placement'] = ['status' => $placement['status'], 'class_name' => $placement['status'] === 'effective' ? $placement['class_name'] : null, 'academic_status'=>$placement['academic_status']??null];
             }
             if ($year && $profile && $role === 'GURU') {
                 $academic['homeroom_classes'] = HomeroomReadAccess::currentAssignments($profile->id, $year->id)->with('kelas')->get()

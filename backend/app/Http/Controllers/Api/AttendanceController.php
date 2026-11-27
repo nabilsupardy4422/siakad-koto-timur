@@ -20,6 +20,7 @@ use App\Models\Siswa;
 use App\Support\TeachingAssignmentScope;
 use App\Support\HomeroomReadAccess;
 use App\Support\AttendanceTeachingAccess;
+use App\Support\MembershipWriteGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 
@@ -146,7 +147,9 @@ class AttendanceController extends Controller
 
         try {
             $attendance = DB::transaction(
-                function () use ($request): Presensi {
+                function () use ($request,$schedule): Presensi {
+                    MembershipWriteGuard::lock([$request->integer('siswa_id')]);
+                    MembershipWriteGuard::requireEffective((int)$schedule->kelas_id,$request->integer('siswa_id'),$request->input('tanggal'));
                     return Presensi::create([
                         'jadwal_pelajaran_id' => $request->integer(
                             'jadwal_pelajaran_id'
@@ -193,7 +196,13 @@ class AttendanceController extends Controller
         }
 
         try {
-            $attendance->update($request->validated());
+            DB::transaction(function()use($attendance,$request){
+                MembershipWriteGuard::lock([(int)$attendance->siswa_id]);
+                $current=Presensi::whereKey($attendance->id)->lockForUpdate()->firstOrFail();
+                MembershipWriteGuard::requireEffective((int)$attendance->jadwalPelajaran->kelas_id,(int)$current->siswa_id,$request->input('tanggal',$current->tanggal->toDateString()),'tanggal');
+                $current->update($request->validated());
+            },3);
+            $attendance->refresh();
         } catch (UniqueConstraintViolationException $e) {
             return response()->json(['message' => 'Presensi pada tanggal tersebut sudah tercatat.'], 409);
         }
@@ -638,6 +647,8 @@ class AttendanceController extends Controller
                 $schedule,
                 $date
             ): array {
+                MembershipWriteGuard::lock($attendanceRows->pluck('siswa_id')->all());
+                foreach($attendanceRows as $row) MembershipWriteGuard::requireEffective((int)$schedule->kelas_id,(int)$row['siswa_id'],$date);
                 $created = 0;
                 $updated = 0;
 

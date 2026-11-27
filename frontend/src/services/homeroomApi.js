@@ -32,7 +32,18 @@ export const homeroomApi = {
     return apiClient.put(`/homeroom-assignments/${id}`, payload)
   },
 
-  end(id) {
-    return apiClient.delete(`/homeroom-assignments/${id}`)
+  end(id, version, as_of) {
+    return apiClient.delete(`/homeroom-assignments/${id}`, version ? { version, as_of } : undefined)
+  },
+  workspace(academic_year_id) {
+    return apiClient.get(`/homeroom-management${buildQuery({ academic_year_id })}`)
+  },
+  candidates(params) {
+    return apiClient.get(`/homeroom-management/candidates${buildQuery(params)}`)
+  },
+  cancel(id, payload) { return apiClient.post(`/homeroom-assignments/${id}/cancel`, payload) },
+  continuation(payload) { return apiClient.post('/homeroom-management/continuation', payload) },
+  replace(id, payload) {
+    return apiClient.post(`/homeroom-assignments/${id}/replace`, payload)
   },
 }

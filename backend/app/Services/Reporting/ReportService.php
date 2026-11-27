@@ -91,8 +91,8 @@ class ReportService
                     'tanggal_mulai' => $membership?->tanggal_mulai?->format('Y-m-d'),
                     'tanggal_selesai' => $membership?->tanggal_selesai?->format('Y-m-d'),
                     'status_keanggotaan' => $membership === null ? 'Belum ditempatkan' : (
-                        $membership->tanggal_mulai->gt(today()) ? 'Terjadwal' : (
-                            $membership->tanggal_selesai !== null && $membership->tanggal_selesai->lt(today()) ? 'Berakhir' : 'Aktif'
+                        $membership->tanggal_mulai->toDateString() > today('Asia/Jakarta')->toDateString() ? 'Terjadwal' : (
+                            $membership->tanggal_selesai !== null && $membership->tanggal_selesai->toDateString() < today('Asia/Jakarta')->toDateString() ? 'Berakhir' : 'Aktif'
                         )
                     ),
                 ])->values()->all();
@@ -536,7 +536,7 @@ class ReportService
         // A row represents one student in one class (which belongs to exactly one period).
         // Started historical memberships remain reportable. Future memberships do not.
         $membershipQuery = AnggotaKelas::query()->with(['siswa', 'kelas.tahunAkademik'])
-            ->whereDate('tanggal_mulai', '<=', today());
+            ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'));
         ReportAccess::membership($membershipQuery, $user, $filters, false);
         if ($filters['scope'] === 'own') $membershipQuery->where('siswa_id', $user->siswa->id);
         if (isset($filters['student_id'])) $membershipQuery->where('siswa_id', $filters['student_id']);
@@ -622,7 +622,7 @@ class ReportService
         $scheduleScope = ReportAccess::schedules($user, $filters);
         if ($filters['scope'] === 'own' && \App\Models\TahunAkademik::query()->whereKey($filters['academic_year_id'])->where('is_active', true)->exists()) {
             $scheduleScope->whereIn('kelas_id', \App\Models\AnggotaKelas::query()->where('siswa_id', $user->siswa->id)
-                ->whereDate('tanggal_mulai', '<=', today())->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today()))->select('kelas_id'));
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today('Asia/Jakarta')))->select('kelas_id'));
         }
         $query->whereIn('id', $scheduleScope->select('id'));
     }
@@ -642,7 +642,7 @@ class ReportService
                 ->whereColumn('schedule.id', 'presensi.jadwal_pelajaran_id')
                 ->whereColumn('member.siswa_id', 'presensi.siswa_id')
                 ->whereColumn('member.tanggal_mulai', '<=', 'presensi.tanggal')
-                ->whereDate('member.tanggal_mulai', '<=', today())
+                ->whereDate('member.tanggal_mulai', '<=', today('Asia/Jakarta'))
                 ->where(fn ($q) => $q->whereNull('member.tanggal_selesai')->orWhereColumn('member.tanggal_selesai', '>=', 'presensi.tanggal'));
         });
     }
@@ -661,7 +661,7 @@ class ReportService
                 ->join('komponen_nilai as component', 'component.jadwal_pelajaran_id', '=', 'schedule.id')
                 ->whereColumn('component.id', 'nilai.komponen_nilai_id')
                 ->whereColumn('member.siswa_id', 'nilai.siswa_id')
-                ->whereDate('member.tanggal_mulai', '<=', today());
+                ->whereDate('member.tanggal_mulai', '<=', today('Asia/Jakarta'));
         });
     }
 

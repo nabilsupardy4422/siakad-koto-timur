@@ -39,7 +39,7 @@ final class StudentAssignmentWorkspaceController extends Controller
         $memberships = AnggotaKelas::query()
             ->where('siswa_id', $user->siswa->id)
             ->whereDate('tanggal_mulai', '<=', $today)
-            ->whereNull('tanggal_selesai')
+            ->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',$today))
             ->whereHas('kelas', fn (Builder $q) => $q->where('tahun_akademik_id', $yearId))
             ->with('kelas')
             ->get();

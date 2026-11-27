@@ -92,7 +92,7 @@ final class ReportAccess
         if ($scope !== 'own' && isset($filters['student_id'])) {
             $studentClasses = isset($filters['subject_id']) || isset($filters['schedule_id']) ? self::schedules($user, $filters)->pluck('kelas_id') : $classes;
             self::require(AnggotaKelas::query()->where('siswa_id', $filters['student_id'])
-                ->whereDate('tanggal_mulai', '<=', today())
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
                 ->whereIn('kelas_id', $studentClasses)
                 ->when(isset($filters['class_id']), fn (Builder $q) => $q->where('kelas_id', $filters['class_id']))
                 ->exists());
@@ -124,7 +124,7 @@ final class ReportAccess
                 ->where('tahun_akademik_id', $year)->pluck('kelas_id'),
             'homeroom' => HomeroomReadAccess::currentAssignments((int) $user->guru->id, $year)->pluck('kelas_id'),
             'own' => AnggotaKelas::query()->where('siswa_id', $user->siswa->id)
-                ->whereDate('tanggal_mulai', '<=', today())->pluck('kelas_id'),
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))->pluck('kelas_id'),
             default => collect(),
         };
         return Kelas::query()->where('tahun_akademik_id', $year)->whereIn('id', $ids)
@@ -154,10 +154,10 @@ final class ReportAccess
             $query->whereHas('kelas', fn (Builder $q) => $q->where('tahun_akademik_id', $filters['academic_year_id']));
         }
         if ($activeOnly) {
-            $query->whereDate('tanggal_mulai', '<=', today())
-                ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today()));
+            $query->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
+                ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today('Asia/Jakarta')));
         } elseif ($filters['scope'] !== 'school') {
-            $query->whereDate('tanggal_mulai', '<=', today());
+            $query->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'));
         }
     }
 }

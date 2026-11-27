@@ -16,6 +16,8 @@ export function genderLabel(value) {
 }
 export function placementLabel(value) {
   if (!value) return 'Konteks kelas belum tersedia'
+  if (value.academic_status==='graduate') return 'Lulus'
+  if (value.academic_status==='withdraw') return 'Pindah keluar'
   return ({effective: value.class_name || 'Nama kelas belum tersedia', unassigned: 'Belum ditempatkan', future: 'Penempatan belum berlaku', historical: 'Penempatan telah berakhir', conflict: 'Konflik penempatan · hubungi TU', period_unavailable: 'Periode belum tersedia'})[value.status] || 'Konteks kelas belum tersedia'
 }
 export { passwordChecks } from '../../components/security/passwordPolicy.js'

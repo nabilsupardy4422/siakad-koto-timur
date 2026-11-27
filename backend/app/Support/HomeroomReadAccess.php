@@ -16,8 +16,8 @@ final class HomeroomReadAccess
     {
         $query->where('guru_id', $guruId)
             ->where('tahun_akademik_id', $yearId)
-            ->whereDate('tanggal_mulai', '<=', today()->toDateString())
-            ->whereNull('tanggal_selesai');
+            ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta')->toDateString())
+            ->whereNull('tanggal_selesai')->whereNull('cancelled_at');
     }
 
     /** Restrict any homeroom privilege to the single active period. */

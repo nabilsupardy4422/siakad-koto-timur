@@ -1,262 +1,55 @@
-/* ========================================
-   MANAJEMEN WALI KELAS
-======================================== */
+.homeroom-management-page{display:grid;gap:20px;min-width:0;width:100%;color:var(--color-text,#173b62)}
+.homeroom-management-page > *{min-width:0}
+.hm-context{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) auto;align-items:end;gap:16px}
+.hm-context-status,.hm-identity{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.hm-context-status span,.hm-identity span,.hm-muted,.hm-note,.hm-section-heading p,.hm-pagination{color:#526579;font-size:13px;line-height:1.55}
+.hm-note{margin:12px 0 0;overflow-wrap:anywhere}
+.hm-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.hm-metric{background:#fff;border:1px solid #dbe4ed;border-top:3px solid #9aadc0;border-radius:10px;padding:16px;display:grid;gap:9px;min-width:0}
+.hm-metric span{font-size:13px;color:#526579;font-weight:500;overflow-wrap:anywhere}.hm-metric strong{font-size:30px;line-height:1.15;font-variant-numeric:tabular-nums;color:#173b62}
+.hm-metric--total{border-top-color:#173b62}.hm-metric--effective{border-top-color:#15803d}.hm-metric--scheduled{border-top-color:#2563eb}.hm-metric--conflict{border-top-color:#b91c1c}
+.hm-section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}.hm-section-heading h2{font-size:18px;line-height:1.4;color:#173b62;margin:0 0 4px}.hm-section-heading p{margin:0}
+.hm-map{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.hm-grade{min-width:0;border:1px solid #dbe4ed;border-radius:10px;overflow:hidden;background:#f8fafc}.hm-grade h3{margin:0;padding:12px 14px;background:#edf2f7;color:#173b62;font-size:14px;font-weight:650;border-bottom:1px solid #dbe4ed}
+.hm-class{display:flex;flex-direction:column;gap:8px;margin:10px;padding:10px;background:white;border:1px solid #dbe4ed;border-radius:8px;min-width:0}.hm-class--selected{border-color:#2563eb;box-shadow:0 0 0 1px #2563eb}.hm-class-main{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;border:0;background:none;cursor:pointer;padding:0;font:inherit;min-width:0;color:#173b62}.hm-class-main>span:not(.ui-badge){font-size:13px;color:#526579;overflow-wrap:anywhere}.hm-class-main strong{font-size:15px;overflow-wrap:anywhere}.hm-class-main:focus-visible,.hm-tabs button:focus-visible{outline:2px solid #2563eb;outline-offset:3px}.hm-class-main:hover strong{text-decoration:underline}
+.hm-tabs{display:flex;gap:20px;border-bottom:1px solid #dbe4ed;margin-bottom:16px}.hm-tabs button{border:0;border-bottom:3px solid transparent;padding:10px 2px;background:none;color:#526579;font:inherit;cursor:pointer}.hm-tabs button[aria-pressed=true]{border-color:#2563eb;color:#173b62;font-weight:600}
+.hm-filters{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}.hm-actions,.hm-pagination>div{display:flex;gap:8px;flex-wrap:wrap}.hm-identity strong{font-size:14px;overflow-wrap:anywhere}.hm-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}.homeroom-management-page .ui-table{min-width:680px}.homeroom-management-page .ui-table-wrapper,.homeroom-management-page .ui-table-scroll-shell{max-width:100%;min-width:0}
+.hm-notice,.hm-warning,.hm-form-error{padding:12px 16px;border:1px solid #b7cce0;background:#eff6ff;color:#173b62;border-radius:8px;font-size:14px;line-height:1.5;overflow-wrap:anywhere}.hm-notice{display:flex;justify-content:space-between;gap:12px}.hm-notice button{background:none;border:0;font-size:20px;cursor:pointer;color:inherit}.hm-warning{border-color:#e7c997;background:#fffbeb;color:#854d0e}.hm-form-error{border-color:#fecaca;background:#fef2f2;color:#991b1b}
+.hm-form{display:grid;gap:16px;min-width:0}.hm-form p{margin:0}.hm-form-context{display:grid;gap:6px;border-left:3px solid #173b62;padding:12px;background:#edf2f7;border-radius:4px;overflow-wrap:anywhere}.hm-form-context span{font-size:13px;color:#526579}
+@media(max-width:1050px){.hm-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.hm-map{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.hm-context,.hm-filters,.hm-map{grid-template-columns:minmax(0,1fr)}.hm-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.hm-section-heading{flex-wrap:wrap}.hm-metric{padding:12px}.hm-metric strong{font-size:25px}.hm-context-status{flex-direction:row;flex-wrap:wrap;align-items:center}.hm-pagination>div{width:100%}.hm-pagination>div>*{flex:1}}
+@media(max-width:360px){.hm-summary{grid-template-columns:minmax(0,1fr)}.hm-tabs{gap:12px}}
+/* V6.1: visual rhythm of Data Kelas / Anggota Kelas; no shared overrides. */
+.homeroom-management-page{--hm-ink:#173b62;--hm-muted:#52677b;--hm-line:#d6e2ec;gap:20px;color:var(--hm-ink)}
+.homeroom-management-page .ui-page-header{margin:0;padding:12px 0 16px;border-bottom:1px solid var(--hm-line);align-items:center;gap:16px}
+.homeroom-management-page .ui-page-header__eyebrow,.hm-eyebrow{font-size:11px;color:#32638a;letter-spacing:.09em;font-weight:700}
+.homeroom-management-page .ui-page-header__description{font-size:13px;color:var(--hm-muted)}
+.hm-context{grid-template-columns:minmax(0,1fr) minmax(180px,260px) auto;align-items:center;gap:14px}
+.hm-context-heading{display:flex;align-items:center;gap:14px;min-width:0}.hm-context-heading strong{font-size:16px}.hm-context-status{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px;margin-top:4px}.hm-context-status span:not(.ui-badge){font-size:12px}.hm-context>.ui-button{align-self:end}
+.hm-mark{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:8px;background:#edf3f9;border:1px solid #d5e4f1;color:#32638a}.hm-mark svg{width:20px;height:20px}
+.hm-summary-section{display:grid;gap:10px;min-width:0}.hm-summary-heading{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;font-size:13px}.hm-summary-heading span{font-size:12px;color:var(--hm-muted)}
+.hm-metric{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;border:1px solid var(--hm-line);border-radius:11px;padding:14px;min-width:0}.hm-metric>div{display:grid;gap:4px;min-width:0}.hm-metric>div>span{font-size:13px;color:#38536b;font-weight:650}.hm-metric strong{font-size:28px;font-weight:750}.hm-metric small{font-size:12px;color:var(--hm-muted);line-height:1.4}.hm-metric--effective .hm-mark{background:#edf7f1;color:#206849;border-color:#c5e5d1}.hm-metric--unassigned .hm-mark{background:#fff7e9;color:#906122;border-color:#eed9b5}
+.hm-coverage{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--hm-muted);background:white;border:1px solid var(--hm-line);border-radius:8px;padding:9px 14px}.hm-coverage progress{flex:1;min-width:35px;height:7px;accent-color:#32638a}.hm-coverage strong{color:var(--hm-ink);font-variant-numeric:tabular-nums}
+.hm-section-heading{align-items:center}.hm-section-heading h2{font-size:20px;margin:4px 0}.hm-section-heading>span.hm-muted{background:#edf3f8;border:1px solid var(--hm-line);border-radius:7px;padding:8px 11px;font-weight:650;white-space:nowrap}
+.hm-map{grid-template-columns:minmax(0,1fr);gap:10px}.hm-grade{padding:12px;background:#f4f7fa;border-radius:9px}.hm-grade h3{padding:0 0 10px;background:none;border:0;font-size:13px}.hm-grade h3 small{font-size:12px;color:var(--hm-muted);font-weight:400;margin-left:8px}.hm-grade-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr));gap:9px}.hm-class{margin:0;padding:12px;gap:8px;border-radius:8px}.hm-class--selected{border-color:#32638a;box-shadow:0 0 0 1px #32638a;background:#f3f7fa}.hm-class-main{width:100%;gap:8px}.hm-class-title{display:flex;align-items:center;gap:8px}.hm-class-title .hm-mark{width:30px;height:30px}.hm-class-title .hm-mark svg{width:17px;height:17px}.hm-class-main strong{font-size:14px}.hm-class-main>span:not(.ui-badge){font-size:12px}.hm-class .ui-button{align-self:flex-start}
+.homeroom-management-page .ui-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid;border-color:#d6e2ec;border-radius:20px;padding:4px 8px;font-size:11px;font-weight:600;line-height:1.3;white-space:normal;width:fit-content}.homeroom-management-page .ui-badge--success{background:#edf7f1;color:#206849;border-color:#c5e5d1}.homeroom-management-page .ui-badge--warning{background:#fff7e9;color:#906122;border-color:#eed9b5}.homeroom-management-page .ui-badge--danger{background:#fff4f4;color:#9b2424;border-color:#f1c2c2}.homeroom-management-page .ui-badge__dot{height:5px;width:5px;border-radius:50%;background:currentColor;flex:none}
+.hm-tabs{gap:4px}.hm-tabs button{padding:10px 14px;border-bottom-width:2px}.hm-tabs button[aria-pressed=true]{background:#edf3f8;border-color:#173b62}.hm-filters{padding:12px;background:#f4f7fa;border:1px solid var(--hm-line);border-radius:9px;align-items:end}.homeroom-management-page .ui-table-wrapper{border:1px solid var(--hm-line);border-radius:9px}.homeroom-management-page .ui-table{min-width:760px}.hm-pagination{border-top:1px solid var(--hm-line);padding-top:12px}
+.hm-form-context{border:1px solid var(--hm-line);border-radius:8px;padding:14px;background:#edf3f8}.hm-form-context strong{font-size:15px}.hm-reason{display:grid;gap:6px;font-size:13px;font-weight:600}.hm-reason textarea{min-height:90px;border:1px solid #cbd9e6;border-radius:8px;padding:10px;font:inherit;resize:vertical;width:100%}.hm-replacement,.hm-cont-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center;padding:12px;border:1px solid var(--hm-line);border-radius:8px;background:#f4f7fa}.hm-replacement>div{display:grid;gap:4px;overflow-wrap:anywhere}.hm-replacement small{color:var(--hm-muted)}.hm-cont-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.hm-preview{display:grid;gap:10px;border:1px solid var(--hm-line);padding:14px;border-radius:8px}.hm-preview>div{display:grid;gap:5px;border-top:1px solid var(--hm-line);padding-top:8px;font-size:13px;overflow-wrap:anywhere}
+@media(max-width:1200px){.hm-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.homeroom-management-page{gap:15px}.homeroom-management-page .ui-page-header{align-items:stretch;flex-direction:column}.homeroom-management-page .ui-page-header__actions{flex-wrap:wrap;width:100%}.homeroom-management-page .ui-page-header__actions button{flex:1}.hm-context,.hm-filters{grid-template-columns:minmax(0,1fr)}.hm-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.hm-metric{padding:10px;gap:4px}.hm-metric .hm-mark{width:26px;height:26px}.hm-metric .hm-mark svg{width:15px;height:15px}.hm-metric strong{font-size:23px}.hm-coverage{flex-wrap:wrap}.hm-grade-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hm-cont-row{grid-template-columns:minmax(0,1fr)}.homeroom-management-page .ui-button{min-height:44px}}
+@media(max-width:360px){.hm-summary,.hm-grade-grid,.hm-replacement{grid-template-columns:minmax(0,1fr)}.hm-replacement>span{display:none}}
+@media(min-width:701px){.hm-filters{grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr)) auto}}
 
-.homeroom-management-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  width: 100%;
-  min-width: 0;
-}
-
-.homeroom-management-page__success {
-  padding: 0.875rem 1rem;
-  border: 1px solid var(--color-success, #bbf7d0);
-  border-radius: var(--radius-md, 0.5rem);
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.homeroom-management-page__header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.homeroom-management-page__header h2 {
-  margin: 0.5rem 0 0.75rem;
-  color: var(--color-text, #172b4d);
-  font-size: 1.375rem;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.homeroom-management-page__header p {
-  margin: 0;
-  color: var(--color-text-secondary, #64748b);
-  line-height: 1.6;
-}
-
-.homeroom-management-page__eyebrow {
-  margin-bottom: 0.5rem !important;
-  font-size: 0.875rem;
-}
-
-.homeroom-management-page__count {
-  flex-shrink: 0;
-  color: var(--color-text-secondary, #64748b);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-/* Filter */
-
-.homeroom-management-page__filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  align-items: end;
-  margin-bottom: 1.5rem;
-}
-
-.homeroom-management-page__filter-actions {
-  display: flex;
-  align-items: flex-end;
-}
-
-/* Identitas */
-
-.homeroom-management-page__identity {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
-  min-width: 0;
-  line-height: 1.5;
-}
-
-.homeroom-management-page__identity strong,
-.homeroom-management-page__identity span {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
-.homeroom-management-page__identity strong {
-  color: var(--color-text, #172b4d);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.homeroom-management-page__identity span {
-  color: var(--color-text-secondary, #64748b);
-  font-size: 0.8125rem;
-}
-
-/* Tombol aksi */
-
-.homeroom-management-page__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 7.5rem;
-}
-
-/* Pagination */
-
-.homeroom-management-page__pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.875rem;
-  margin-top: 1.25rem;
-  color: var(--color-text-secondary, #64748b);
-  font-size: 0.875rem;
-}
-
-.homeroom-management-page__pagination > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-/* Form */
-
-.homeroom-management-page__form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem 1.25rem;
-}
-
-.homeroom-management-page__form-error {
-  margin-bottom: 1rem;
-}
-
-/* Modal konfirmasi pengakhiran penugasan */
-
-.homeroom-management-page__confirm {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.875rem;
-  color: var(--color-text, #172b4d);
-  line-height: 1.6;
-  text-align: center;
-}
-
-.homeroom-management-page__confirm p {
-  margin: 0;
-}
-
-.homeroom-management-page__confirm-icon {
-  display: grid;
-  place-items: center;
-  width: 3.25rem;
-  height: 3.25rem;
-  border: 1px solid #fecaca;
-  border-radius: 9999px;
-  background: #fef2f2;
-  color: #dc2626;
-  font-size: 1.75rem;
-  font-weight: 700;
-}
-
-.homeroom-management-page__confirm-message {
-  overflow-wrap: anywhere;
-}
-
-.homeroom-management-page__confirm-info {
-  display: grid;
-  gap: 0.625rem;
-  width: 100%;
-  padding: 1rem;
-  border: 1px solid var(--color-border, #dbe3ed);
-  border-radius: 0.75rem;
-  background: var(--color-surface-muted, #f8fafc);
-  font-size: 0.875rem;
-  text-align: left;
-}
-
-.homeroom-management-page__confirm-warning {
-  color: var(--color-text-secondary, #64748b);
-}
-
-.homeroom-management-page__confirm-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.5rem;
-  padding: 0.625rem 1rem;
-  border: 1px solid #dc2626;
-  border-radius: var(--radius-md, 0.5rem);
-  background: #dc2626;
-  color: #fff;
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease;
-}
-
-.homeroom-management-page__confirm-button:hover:not(:disabled) {
-  border-color: #b91c1c;
-  background: #b91c1c;
-}
-
-.homeroom-management-page__confirm-button:focus-visible {
-  outline: 3px solid #fca5a5;
-  outline-offset: 2px;
-}
-
-.homeroom-management-page__confirm-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-/* Responsif */
-
-@media (max-width: 900px) {
-  .homeroom-management-page__filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 768px) {
-  .homeroom-management-page__header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .homeroom-management-page__form-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .homeroom-management-page__pagination {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 480px) {
-  .homeroom-management-page {
-    gap: 1rem;
-  }
-
-  .homeroom-management-page__filters {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .homeroom-management-page__actions {
-    min-width: 0;
-  }
-
-  .homeroom-management-page__pagination > div {
-    width: 100%;
-  }
+/* V6.1.1: one scroll surface per dialog, including continuation and confirmation. */
+.homeroom-management-page .ui-modal__dialog{max-height:calc(100dvh - 3rem);overscroll-behavior:contain;min-width:0}
+.homeroom-management-page .ui-modal__body{min-width:0}
+@media(max-width:700px){
+ .homeroom-management-page .ui-modal{padding:8px;align-items:flex-end}
+ .homeroom-management-page .ui-modal__dialog{max-height:calc(100dvh - 16px);width:100%}
+ .homeroom-management-page .ui-modal__header,.homeroom-management-page .ui-modal__body,.homeroom-management-page .ui-modal__footer{padding:14px}
+ .homeroom-management-page .ui-modal__close{width:44px;height:44px}
+ .homeroom-management-page .ui-modal__footer{flex-wrap:wrap;gap:8px}
+ .homeroom-management-page .ui-modal__footer>.ui-button{flex:1 1 120px;min-height:44px;white-space:normal}
+ .homeroom-management-page .ui-modal .ui-input,.homeroom-management-page .ui-modal .ui-select__control,.homeroom-management-page .ui-modal textarea{font-size:16px;min-height:44px;max-width:100%;box-sizing:border-box}
+ .homeroom-management-page .hm-filters .ui-input,.homeroom-management-page .hm-filters .ui-select__control,.homeroom-management-page .hm-context .ui-select__control{font-size:16px;min-height:44px}
+ .homeroom-management-page .hm-tabs button{min-height:44px}
 }

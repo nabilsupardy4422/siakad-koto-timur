@@ -144,8 +144,8 @@ class BulkAccountsV24Test extends TestCase
         $other=TahunAkademik::create(['tahun_mulai'=>2026,'tahun_selesai'=>2027,'semester'=>'GENAP','is_active'=>false]);
         $class=Kelas::create(['tahun_akademik_id'=>$period->id,'nama'=>'X A','tingkat'=>10]);
         $wrong=Kelas::create(['tahun_akademik_id'=>$other->id,'nama'=>'X B','tingkat'=>10]);
-        AnggotaKelas::create(['siswa_id'=>$a->siswa->id,'kelas_id'=>$class->id,'tanggal_mulai'=>now()->subDay()->toDateString()]);
-        AnggotaKelas::create(['siswa_id'=>$b->siswa->id,'kelas_id'=>$class->id,'tanggal_mulai'=>now()->addDays(2)->toDateString()]);
+        AnggotaKelas::create(['siswa_id'=>$a->siswa->id,'kelas_id'=>$class->id,'tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString()]);
+        AnggotaKelas::create(['siswa_id'=>$b->siswa->id,'kelas_id'=>$class->id,'tanggal_mulai'=>today('Asia/Jakarta')->addDays(2)->toDateString()]);
         $this->getJson('/api/users?class_id='.$class->id)->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.id',$a->id);
         $this->getJson('/api/users?placement_state=unassigned')->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.id',$b->id);
         $this->getJson('/api/users?academic_year_id='.$period->id.'&class_id='.$wrong->id)->assertUnprocessable();

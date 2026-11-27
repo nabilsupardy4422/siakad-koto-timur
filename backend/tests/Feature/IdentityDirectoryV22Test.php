@@ -98,7 +98,7 @@ class IdentityDirectoryV22Test extends TestCase
         $other=TahunAkademik::create(['tahun_mulai'=>2026,'tahun_selesai'=>2027,'semester'=>'GENAP','is_active'=>false]);
         $class=Kelas::create(['tahun_akademik_id'=>$period->id,'nama'=>'X A','tingkat'=>10]);
         $oldClass=Kelas::create(['tahun_akademik_id'=>$other->id,'nama'=>'XI A','tingkat'=>11]);
-        AnggotaKelas::create(['siswa_id'=>$student->id,'kelas_id'=>$class->id,'tanggal_mulai'=>now()->subDay()->toDateString(),'tanggal_selesai'=>null]);
+        AnggotaKelas::create(['siswa_id'=>$student->id,'kelas_id'=>$class->id,'tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>null]);
         $this->getJson('/api/students?directory_context=1')->assertOk()->assertJsonPath('data.0.placement.class_name','X A');
         $this->getJson('/api/students?directory_context=1&academic_year_id='.$period->id.'&class_id='.$oldClass->id)->assertUnprocessable();
         $this->getJson('/api/students?directory_context=1&academic_year_id='.$other->id)->assertOk()->assertJsonPath('data.0.placement.status','unassigned');

@@ -8,7 +8,6 @@ use App\Models\Kelas;
 use App\Models\Mapel;
 use App\Models\TahunAkademik;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -18,11 +17,15 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class ScheduleSheetImport implements ToCollection, WithHeadingRow
 {
+    public array $rows = [];
+    public function __construct(private readonly int $period) {}
+
     /**
      * Import data jadwal pelajaran dari worksheet pertama.
      */
     public function collection(Collection $rows): void
     {
+        if ($rows->count() > 1000) throw ValidationException::withMessages(['file'=>['Maksimal 1000 baris per import.']]);
         $validRows = [];
         $errors = [];
 
@@ -37,6 +40,12 @@ class ScheduleSheetImport implements ToCollection, WithHeadingRow
             $rowNumber = $index + 2;
             $rawRow = $row->toArray();
 
+            foreach ($rawRow as $value) {
+                if (is_string($value) && str_starts_with(ltrim($value), '=')) {
+                    $errors["baris_{$rowNumber}"][] = 'Formula tidak diperbolehkan.';
+                    continue 2;
+                }
+            }
             $data = $this->normalizeRow($rawRow);
 
             Log::debug('ScheduleImport: pemeriksaan baris', [
@@ -137,6 +146,10 @@ class ScheduleSheetImport implements ToCollection, WithHeadingRow
             }
 
             $tahunAkademikId = $tahunAkademik->first()->id;
+            if ((int)$tahunAkademikId !== $this->period) {
+                $errors["baris_{$rowNumber}"][] = 'Periode berbeda dengan periode terpilih.';
+                continue;
+            }
 
             Log::debug('ScheduleImport: parameter pencarian kelas', [
                 'row_number' => $rowNumber,
@@ -201,7 +214,16 @@ class ScheduleSheetImport implements ToCollection, WithHeadingRow
             /*
              * 7. Mapping data Excel menjadi foreign key.
              */
+            $teacher = $guru->first()->load('user.role');
+            if (!\App\Services\ScheduleWriteService::teacherEligible($teacher)) {
+                $errors["baris_{$rowNumber}"][] = 'Akun guru tidak memenuhi syarat.';
+                continue;
+            }
             $validRows[] = [
+                'teacher' => $teacher->nama_lengkap,
+                'account_state' => $teacher->user->requires_activation ? 'pending' : 'ready',
+                'subject' => $mapel->first()->nama,
+                'class' => $kelas->first()->tingkat.' '.$kelas->first()->nama,
                 'row_number' => $rowNumber,
                 'data' => [
                     'tahun_akademik_id' => $tahunAkademikId,
@@ -282,19 +304,9 @@ class ScheduleSheetImport implements ToCollection, WithHeadingRow
         }
 
         /*
-         * 10. Simpan seluruh jadwal dalam satu transaksi.
+         * 10. Kembalikan hasil validasi; controller menangani konfirmasi dan transaksi.
          */
-        DB::transaction(function () use ($validRows): void {
-            foreach ($validRows as $item) {
-                JadwalPelajaran::query()->create(
-                    $item['data']
-                );
-            }
-        });
-
-        Log::info('ScheduleImport: import berhasil', [
-            'inserted_rows' => count($validRows),
-        ]);
+        $this->rows = $validRows;
     }
 
     /**
@@ -425,8 +437,8 @@ class ScheduleSheetImport implements ToCollection, WithHeadingRow
                 $data['tahun_akademik_id']
             )
             ->whereRaw('UPPER(hari) = ?', [$data['hari']])
-            ->where('jam_mulai', '<', $data['jam_selesai'])
-            ->where('jam_selesai', '>', $data['jam_mulai'])
+            ->whereRaw('SUBSTR(jam_mulai, 1, 5) < ?', [substr($data['jam_selesai'],0,5)])
+            ->whereRaw('SUBSTR(jam_selesai, 1, 5) > ?', [substr($data['jam_mulai'],0,5)])
             ->where(function ($query) use ($data) {
                 $query
                     ->where('kelas_id', $data['kelas_id'])

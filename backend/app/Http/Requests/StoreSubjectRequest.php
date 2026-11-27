@@ -28,6 +28,8 @@ class StoreSubjectRequest extends FormRequest
             'kkm' => [
                 'nullable',
                 'numeric',
+                'between:0,100',
+                'decimal:0,2',
             ],
         ];
     }

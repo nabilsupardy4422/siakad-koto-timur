@@ -1,5 +1,7 @@
 export function placementLabel(placement) {
   if (!placement) return 'Belum diperiksa'
+  if (placement.academic_status==='graduate') return 'Lulus'
+  if (placement.academic_status==='withdraw') return 'Pindah keluar'
   return ({effective:placement.class_name || 'Kelas belum diketahui', unassigned:'Belum ditempatkan', future:'Belum mulai', historical:placement.class_name ? `${placement.class_name} (riwayat)` : 'Riwayat penempatan', conflict:'Konflik penempatan', period_unavailable:'Periode belum tersedia'})[placement.status] || 'Belum diketahui'
 }
 

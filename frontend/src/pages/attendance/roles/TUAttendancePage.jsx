@@ -113,7 +113,7 @@ function AttendanceClassRecapPage() {
       }
 
       try {
-        const response = await classApi.getAll({
+        const response = await classApi.getCatalog({
           academic_year_id: selectedYearId,
           per_page: 100,
         })

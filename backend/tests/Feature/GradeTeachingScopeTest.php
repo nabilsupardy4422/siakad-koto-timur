@@ -130,7 +130,7 @@ class GradeTeachingScopeTest extends TestCase
         return AnggotaKelas::create([
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
-            'tanggal_mulai' => today()->subDay()->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDay()->toDateString(),
             'tanggal_selesai' => null,
         ]);
     }
@@ -172,7 +172,7 @@ class GradeTeachingScopeTest extends TestCase
         $own=$this->createSchedule($year,$class,$guru);
         $other=$this->createSchedule($year,$class,$peer);
         $other->update(['mapel_id'=>$own->mapel_id,'hari'=>'SELASA']);
-        $assignment=WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today()->subDay()->toDateString(),'tanggal_selesai'=>null]);
+        $assignment=WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>null]);
         $a=$this->createComponent($own);$b=$this->createComponent($other);
         $g=Nilai::create(['komponen_nilai_id'=>$a->id,'siswa_id'=>$student->id,'nilai'=>85]);
         $peerGrade=Nilai::create(['komponen_nilai_id'=>$b->id,'siswa_id'=>$student->id,'nilai'=>95]);
@@ -184,7 +184,7 @@ class GradeTeachingScopeTest extends TestCase
         $this->getJson('/api/grades?scope=homeroom')->assertOk()->assertJsonCount(2,'data');
         $this->getJson("/api/grade-components/{$b->id}?scope=homeroom")->assertOk();
         $this->putJson("/api/grades/{$peerGrade->id}",['nilai'=>90])->assertForbidden();
-        $assignment->update(['tanggal_selesai'=>today()->subDay()->toDateString()]);
+        $assignment->update(['tanggal_selesai'=>today('Asia/Jakarta')->subDay()->toDateString()]);
         $this->getJson('/api/grades?scope=homeroom')->assertOk()->assertJsonCount(0,'data');
         $this->getJson('/api/grades')->assertOk()->assertJsonCount(1,'data');
         $this->getJson("/api/grade-components/{$b->id}")->assertForbidden();
@@ -214,6 +214,10 @@ class GradeTeachingScopeTest extends TestCase
 
     public function test_score_range_membership_and_duplicate_are_validated_for_writes(): void
     {
+        // UTC is still Nov 26 while the school's calendar is already Nov 27.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00', 'UTC'));
+        $this->assertSame('2026-11-26', today('UTC')->toDateString());
+        $this->assertSame('2026-11-27', today('Asia/Jakarta')->toDateString());
         [$user,$guru]=$this->createTeacher(); [, $student]=$this->createStudent();
         $year=$this->createAcademicYear();$class=$this->createClass($year);
         $member=$this->createMembership($student,$class);
@@ -223,14 +227,14 @@ class GradeTeachingScopeTest extends TestCase
         foreach ([-1,101] as $score) {
             $this->postJson('/api/grades',$payload+['nilai'=>$score])->assertUnprocessable()->assertJsonValidationErrors('nilai');
         }
-        $member->update(['tanggal_mulai'=>today()->addDay()->toDateString()]);
+        $member->update(['tanggal_mulai'=>today('Asia/Jakarta')->addDay()->toDateString()]);
         $this->postJson('/api/grades',$payload+['nilai'=>80])->assertUnprocessable()->assertJsonValidationErrors('siswa_id');
-        $member->update(['tanggal_mulai'=>today()->subDay()->toDateString(),'tanggal_selesai'=>today()->toDateString()]);
+        $member->update(['tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>today('Asia/Jakarta')->toDateString()]);
         $id=$this->postJson('/api/grades',$payload+['nilai'=>0])->assertCreated()->assertJsonPath('data.nilai','0.00')->json('data.id');
         $this->postJson('/api/grades',$payload+['nilai'=>85])->assertUnprocessable()->assertJsonValidationErrors('siswa_id');
         $this->putJson("/api/grades/{$id}",['nilai'=>100])->assertOk()->assertJsonPath('data.nilai','100.00');
         $this->putJson("/api/grades/{$id}",['nilai'=>101])->assertUnprocessable()->assertJsonValidationErrors('nilai');
-        $member->update(['tanggal_selesai'=>today()->subDay()->toDateString()]);
+        $member->update(['tanggal_selesai'=>today('Asia/Jakarta')->subDay()->toDateString()]);
         $this->putJson("/api/grades/{$id}",['nilai'=>90])->assertUnprocessable()->assertJsonValidationErrors('siswa_id');
         $this->assertDatabaseHas('nilai',['id'=>$id,'nilai'=>100]);
     }

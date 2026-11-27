@@ -43,7 +43,7 @@ final class GradeTeachingAccess
     // Same date convention as ClassMemberController::index (application timezone).
     public static function activeStudent(JadwalPelajaran $schedule, int $studentId): bool
     {
-        $today = today()->toDateString();
+        $today = today('Asia/Jakarta')->toDateString();
         return AnggotaKelas::query()->where('kelas_id', $schedule->kelas_id)
             ->where('siswa_id', $studentId)->whereDate('tanggal_mulai', '<=', $today)
             ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today))

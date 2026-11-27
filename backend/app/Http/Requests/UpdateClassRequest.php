@@ -12,11 +12,22 @@ class UpdateClassRequest extends FormRequest
         return true;
     }
 
+    public function messages(): array
+    {
+        return [
+            'nama.required' => 'Nama rombel wajib diisi.',
+            'nama.string' => 'Nama rombel harus berupa teks.',
+            'nama.max' => 'Nama rombel maksimal 100 karakter.',
+            'nama.unique' => 'Nama rombel sudah digunakan pada tingkat dan periode ini.',
+        ];
+    }
+
     public function rules(): array
     {
         $class = $this->route('class');
 
         return [
+            'version' => ['nullable', 'string', 'size:64'],
             'tahun_akademik_id' => [
                 'required',
                 'integer',

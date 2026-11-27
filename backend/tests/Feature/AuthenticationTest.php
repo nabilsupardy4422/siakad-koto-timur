@@ -285,7 +285,7 @@ class AuthenticationTest extends TestCase
             'guru_id' => $guru->id,
             'kelas_id' => $class->id,
             'tahun_akademik_id' => $academicYear->id,
-            'tanggal_mulai' => now()->subDays(30)->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDays(30)->toDateString(),
             'tanggal_selesai' => null,
         ]);
 
@@ -341,8 +341,8 @@ class AuthenticationTest extends TestCase
             'guru_id' => $guru->id,
             'kelas_id' => $class->id,
             'tahun_akademik_id' => $academicYear->id,
-            'tanggal_mulai' => now()->subDays(30)->toDateString(),
-            'tanggal_selesai' => now()->subDay()->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDays(30)->toDateString(),
+            'tanggal_selesai' => today('Asia/Jakarta')->subDay()->toDateString(),
         ]);
 
         $loginResponse = $this->postJson('/api/login', [

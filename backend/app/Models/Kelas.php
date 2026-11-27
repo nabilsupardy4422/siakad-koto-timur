@@ -26,6 +26,11 @@ class Kelas extends Model
         ];
     }
 
+    public function directoryVersion(): string
+    {
+        return hash_hmac('sha256', json_encode([$this->id, $this->tahun_akademik_id, $this->nama, $this->tingkat, $this->getRawOriginal('updated_at')], JSON_THROW_ON_ERROR), (string) config('app.key'));
+    }
+
     public function tahunAkademik(): BelongsTo
     {
         return $this->belongsTo(TahunAkademik::class);

@@ -33,6 +33,7 @@ final class StudentPlacement
 
     public static function load(Builder $query, ?int $period): void
     {
+        $query->with(['academicMembershipEvents'=>fn($q)=>$q->whereIn('action',['graduate','withdraw'])->whereDate('effective_on','<=',today('Asia/Jakarta')->toDateString())->orderBy('id')]);
         if ($period === null) {
             return;
         }
@@ -44,14 +45,16 @@ final class StudentPlacement
 
     public static function summary($student, ?int $period): array
     {
+        $terminal=$student->relationLoaded('academicMembershipEvents')?$student->academicMembershipEvents->last()?->action:$student->academicMembershipEvents()->whereIn('action',['graduate','withdraw'])->whereDate('effective_on','<=',today('Asia/Jakarta')->toDateString())->latest('id')->first()?->action;
+        // Keep historical membership rows visible; status is a separate decision, not account state.
         if ($period === null || ! $student->relationLoaded('anggotaKelas')) {
-            return ['status' => 'period_unavailable', 'class_name' => null, 'academic_year_id' => $period];
+            return ['status' => 'period_unavailable', 'class_name' => null, 'academic_year_id' => $period,'academic_status'=>$terminal];
         }
         $today = now('Asia/Jakarta')->toDateString();
         $rows = $student->anggotaKelas;
         $effective = $rows->filter(fn ($r) => $r->tanggal_mulai->toDateString() <= $today && (! $r->tanggal_selesai || $r->tanggal_selesai->toDateString() >= $today));
         $status = $effective->count() > 1 ? 'conflict' : ($effective->count() === 1 ? 'effective' : ($rows->isEmpty() ? 'unassigned' : ($rows->contains(fn ($r) => $r->tanggal_mulai->toDateString() > $today) ? 'future' : 'historical')));
         return ['status' => $status, 'class_name' => $effective->count() === 1 ? $effective->first()->kelas?->nama : ($status === 'historical' && $rows->count() === 1 ? $rows->first()->kelas?->nama : null),
-            'academic_year_id' => $period, 'memberships' => $rows->map(fn ($r) => ['id' => $r->id, 'class_name' => $r->kelas?->nama, 'start' => $r->tanggal_mulai->toDateString(), 'end' => $r->tanggal_selesai?->toDateString()])->values()];
+            'academic_year_id' => $period, 'academic_status'=>$terminal, 'memberships' => $rows->map(fn ($r) => ['id' => $r->id, 'class_name' => $r->kelas?->nama, 'start' => $r->tanggal_mulai->toDateString(), 'end' => $r->tanggal_selesai?->toDateString()])->values()];
     }
 }

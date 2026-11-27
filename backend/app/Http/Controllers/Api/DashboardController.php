@@ -238,7 +238,7 @@ class DashboardController extends Controller
         if ($waliKelas) {
             $studentQuery = AnggotaKelas::query()
                 ->where('kelas_id', $waliKelas->kelas_id)
-                ->whereNull('tanggal_selesai');
+                ->whereDate('tanggal_mulai','<=',today('Asia/Jakarta')->toDateString())->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',today('Asia/Jakarta')->toDateString()));
 
             $studentIds = (clone $studentQuery)->pluck('siswa_id');
 
@@ -504,7 +504,7 @@ class DashboardController extends Controller
             )
             ->withCount([
                 'anggotaKelas as active_students_count' => fn ($query) => $query
-                    ->whereNull('tanggal_selesai'),
+                    ->whereDate('tanggal_mulai','<=',today('Asia/Jakarta')->toDateString())->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',today('Asia/Jakarta')->toDateString())),
             ])
             ->orderBy('tingkat')
             ->orderBy('nama')
