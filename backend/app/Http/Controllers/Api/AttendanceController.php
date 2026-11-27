@@ -199,7 +199,9 @@ class AttendanceController extends Controller
             DB::transaction(function()use($attendance,$request){
                 MembershipWriteGuard::lock([(int)$attendance->siswa_id]);
                 $current=Presensi::whereKey($attendance->id)->lockForUpdate()->firstOrFail();
-                MembershipWriteGuard::requireEffective((int)$attendance->jadwalPelajaran->kelas_id,(int)$current->siswa_id,$request->input('tanggal',$current->tanggal->toDateString()),'tanggal');
+                $date=$request->input('tanggal',$current->tanggal->toDateString());
+                abort_if($date > today('Asia/Jakarta')->toDateString(),422,'Tanggal presensi tidak boleh melebihi hari ini (WIB).');
+                MembershipWriteGuard::requireEffective((int)$attendance->jadwalPelajaran->kelas_id,(int)$current->siswa_id,$date,'tanggal');
                 $current->update($request->validated());
             },3);
             $attendance->refresh();
@@ -272,19 +274,24 @@ class AttendanceController extends Controller
             );
         }
 
+        if ($scope === TeachingAssignmentScope::HOMEROOM) {
+            $query->whereIn('presensi.id', \App\Services\TeacherMonitoringIntegrity::attendanceIds());
+        }
+
+        $statusColumn = $scope === TeachingAssignmentScope::HOMEROOM ? 'UPPER(status)' : 'status';
         $recap = $query
             ->selectRaw('COUNT(*) as total')
             ->selectRaw(
-                "SUM(CASE WHEN status = 'HADIR' THEN 1 ELSE 0 END) as hadir"
+                "SUM(CASE WHEN {$statusColumn} = 'HADIR' THEN 1 ELSE 0 END) as hadir"
             )
             ->selectRaw(
-                "SUM(CASE WHEN status = 'IZIN' THEN 1 ELSE 0 END) as izin"
+                "SUM(CASE WHEN {$statusColumn} = 'IZIN' THEN 1 ELSE 0 END) as izin"
             )
             ->selectRaw(
-                "SUM(CASE WHEN status = 'SAKIT' THEN 1 ELSE 0 END) as sakit"
+                "SUM(CASE WHEN {$statusColumn} = 'SAKIT' THEN 1 ELSE 0 END) as sakit"
             )
             ->selectRaw(
-                "SUM(CASE WHEN status = 'ALPA' THEN 1 ELSE 0 END) as alpa"
+                "SUM(CASE WHEN {$statusColumn} = 'ALPA' THEN 1 ELSE 0 END) as alpa"
             )
             ->first();
 
@@ -563,6 +570,7 @@ class AttendanceController extends Controller
         $schedule = JadwalPelajaran::query()->findOrFail($validated['schedule_id']);
         abort_unless($this->canManageAttendance($request->user(), $schedule), 403);
         $date = $validated['date'];
+        abort_if($date > today('Asia/Jakarta')->toDateString(), 422, 'Tanggal presensi tidak boleh melebihi hari ini (WIB).');
         $students = Siswa::query()
             ->whereHas('anggotaKelas', function (Builder $membership) use ($schedule, $date): void {
                 $membership->where('kelas_id', $schedule->kelas_id)

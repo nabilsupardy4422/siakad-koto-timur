@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
-import SearchableSelect from '../../components/ui/SearchableSelect'
+import SearchableSelect from '../../components/ui/TeacherNativeSelect'
 import ToastNotification from '../../components/ui/ToastNotification'
 import { academicYearApi } from '../../services/academicYearApi'
 import { homeroomApi } from '../../services/homeroomApi'
@@ -37,7 +37,7 @@ function Kpi({icon,label,value,note}){return <article className="hr-panel hr-kpi
 function Attendance({value,error,retry}){
   let start=0
   const segments=keys.map((k,i)=>{const end=start+(value?.total?value[k]/value.total*100:0);const segment=`${colors[i]} ${start}% ${end}%`;start=end;return segment})
-  return <article className="hr-panel"><div className="hr-panelhead"><div><h2>Rekap kehadiran</h2><p>Distribusi catatan presensi per pertemuan.</p></div><span className="hr-tag">SEMESTER INI</span></div>
+  return <article className="hr-panel"><div className="hr-panelhead"><div><h2>Rekap kehadiran</h2><p>Distribusi catatan presensi valid per pertemuan (sampai hari ini WIB).</p></div><span className="hr-tag">SEMESTER INI</span></div>
     {error?<PanelState error={error} onRetry={retry}/>:!value?<PanelState>Memuat rekap kehadiran...</PanelState>:<><div className="hr-attendance"><div className="hr-ring" style={{background:value.total?`conic-gradient(${segments.join(',')})`:'#e4ebf2'}} role="img" aria-label={value.total?`${percent(value.percent)} hadir dari catatan presensi`:'Belum ada catatan presensi'}><div><b>{percent(value.percent)}</b><small>{value.total?'Hadir tercatat':'Belum tercatat'}</small></div></div><div className="hr-legend">{keys.map((key,i)=><div key={key}><i style={{background:colors[i]}}/><span>{labels[i]}</span><b>{num(value[key])}</b></div>)}</div></div><div className="hr-note"><Icon name="info"/>{value.total?'Persentase berdasarkan catatan yang tersedia, bukan seluruh pertemuan yang seharusnya berlangsung.':'Belum ada catatan presensi untuk periode ini. Persentase belum dapat dihitung.'}</div></>}
   </article>
 }

@@ -203,6 +203,10 @@ class GradeController extends Controller
         );
     }
 
+    if ($request->input('scope') === 'homeroom') {
+        $query->whereIn('nilai.id', \App\Services\TeacherMonitoringIntegrity::gradeIds());
+    }
+
     $recap = $query
         ->selectRaw('COUNT(*) as total')
         ->selectRaw('AVG(nilai) as rata_rata')
@@ -249,7 +253,8 @@ class GradeController extends Controller
             }
 
             $studentId = $request->integer('siswa_id');
-            if (! GradeTeachingAccess::activeStudent($component->jadwalPelajaran, $studentId)) {
+            \App\Support\MembershipWriteGuard::lock([$studentId]);
+            if (! \App\Support\MembershipWriteGuard::effective((int)$component->jadwalPelajaran->kelas_id,$studentId,today('Asia/Jakarta')->toDateString())) {
                 throw ValidationException::withMessages(['siswa_id' => 'Siswa bukan anggota aktif kelas pada jadwal ini.']);
             }
             if ($component->nilai()->where('siswa_id', $studentId)->exists()) {
@@ -283,6 +288,7 @@ class GradeController extends Controller
     ): JsonResponse {
         return DB::transaction(function () use ($request, $grade): JsonResponse {
             $component = KomponenNilai::query()->lockForUpdate()->with('jadwalPelajaran')->findOrFail($grade->komponen_nilai_id);
+            \App\Support\MembershipWriteGuard::lock([(int)$grade->siswa_id]);
             $grade = Nilai::query()->lockForUpdate()->findOrFail($grade->id);
             $grade->setRelation('komponenNilai', $component);
 
@@ -298,7 +304,7 @@ class GradeController extends Controller
                 ], 403);
             }
 
-            if (! GradeTeachingAccess::activeStudent($component->jadwalPelajaran, (int) $grade->siswa_id)) {
+            if (! \App\Support\MembershipWriteGuard::effective((int)$component->jadwalPelajaran->kelas_id,(int)$grade->siswa_id,today('Asia/Jakarta')->toDateString())) {
                 throw ValidationException::withMessages(['siswa_id' => 'Siswa bukan anggota aktif kelas pada jadwal ini.']);
             }
             $grade->update($request->validated());

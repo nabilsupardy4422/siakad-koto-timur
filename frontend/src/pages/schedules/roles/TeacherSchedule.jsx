@@ -10,6 +10,8 @@ import { scheduleApi } from '../../../services/scheduleApi'
 import { academicYearApi } from '../../../services/academicYearApi'
 
 import InteractiveTimetable from '../components/InteractiveTimetable'
+import {PrincipalScheduleList} from './PrincipalScheduleViews'
+import '../styles/principal-schedule-scale.css'
 import '../styles/teacher-schedule.css'
 
 function getApiMessage(error) {
@@ -35,6 +37,7 @@ function TeachingScheduleWorkspace({ guruId }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [revision, setRevision] = useState(0)
+  const [mode,setMode]=useState('calendar')
   const loadData = () => setRevision(value => value + 1)
 
   useEffect(() => {
@@ -58,7 +61,7 @@ function TeachingScheduleWorkspace({ guruId }) {
         const own = await loadOwnTeachingSchedules(scheduleApi, guruId, year.id)
         if (!alive) return
         setAcademicYear(year)
-        setSchedules(own)
+        setSchedules(own.map(row=>({...row,hari:String(row.hari||'').toUpperCase()})))
       } catch (requestError) {
         if (alive) setError(requestError)
       } finally {
@@ -100,11 +103,8 @@ function TeachingScheduleWorkspace({ guruId }) {
 
   return (
     <div className="teacher-schedule">
-      <InteractiveTimetable
-        role="GURU"
-        schedules={schedules}
-        academicYear={academicYear}
-      />
+      <div className="teacher-schedule-modes"><strong>Jadwal mengajar</strong><div role="group" aria-label="Mode jadwal Guru"><button type="button" aria-pressed={mode==='calendar'} onClick={()=>setMode('calendar')}>Kalender</button><button type="button" aria-pressed={mode==='list'} onClick={()=>setMode('list')}>Daftar</button></div></div>
+      {mode==='calendar'?<InteractiveTimetable role="GURU" schedules={schedules} academicYear={academicYear}/>:<div className="principal-schedule teacher-schedule-list"><PrincipalScheduleList schedules={schedules}/></div>}
     </div>
   )
 }

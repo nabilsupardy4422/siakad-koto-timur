@@ -206,4 +206,22 @@ class HomeroomWorkspaceTest extends TestCase
         $this->getJson('/api/attendance/recap'.$suffix)->assertForbidden();
         $this->getJson('/api/classes/'.$class->id.'/students')->assertOk();
     }
+    public function test_teacher_dashboard_and_homeroom_recap_exclude_future_and_foreign_class(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00','UTC'));
+        [$user,$guru]=$this->createTeacher();[, $peer]=$this->createTeacher();[, $student]=$this->createStudent();
+        $year=$this->createAcademicYear();$class=$this->createClass($year);$outside=$this->createClass($year,'Other');
+        $this->createMembership($student,$class);$this->createMembership($student,$outside);
+        $own=$this->createSchedule($year,$class,$peer);$foreign=$this->createSchedule($year,$outside,$guru);
+        foreach([[$own,'2026-11-27'],[$own,'2026-11-28'],[$foreign,'2026-11-27']] as [$schedule,$date]) Presensi::create(['jadwal_pelajaran_id'=>$schedule->id,'siswa_id'=>$student->id,'tanggal'=>$date,'status'=>'HADIR']);
+        $c=$this->createComponent($own);$other=$this->createComponent($foreign);
+        Nilai::create(['komponen_nilai_id'=>$c->id,'siswa_id'=>$student->id,'nilai'=>0]);
+        Nilai::create(['komponen_nilai_id'=>$other->id,'siswa_id'=>$student->id,'nilai'=>90]);
+        WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>'2026-11-26','tanggal_selesai'=>null]);
+        Sanctum::actingAs($user);$suffix='?scope=homeroom&academic_year_id='.$year->id.'&class_id='.$class->id;
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.wali_kelas.total_students',1)->assertJsonPath('data.wali_kelas.attendance_records',1)->assertJsonPath('data.wali_kelas.graded_records',1);
+        $this->getJson('/api/attendance/recap'.$suffix)->assertOk()->assertJsonPath('data.total',1)->assertJsonPath('data.hadir',1);
+        $this->getJson('/api/grades/recap'.$suffix)->assertOk()->assertJsonPath('data.total',1)->assertJsonPath('data.rata_rata',0);
+        $this->assertDatabaseCount('presensi',3);$this->assertDatabaseCount('nilai',2);
+    }
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../context/useAuth'
-import SearchableSelect from '../../../components/ui/SearchableSelect'
+import SearchableSelect from '../../../components/ui/TeacherNativeSelect'
 import WorkspaceModal from '../../../components/ui/WorkspaceModal'
 import ToastNotification from '../../../components/ui/ToastNotification'
 import { academicYearApi } from '../../../services/academicYearApi'

@@ -4,6 +4,7 @@ import { reportApi } from '../../../services/reportApi'
 import ToastNotification from '../../../components/ui/ToastNotification'
 import WorkspaceModal from '../../../components/ui/WorkspaceModal'
 import { TYPES, permittedTypes, blankFilters, filterOptions, reportParams, validateContext, validatePreview } from './reportWorkspace.js'
+import {makePreparedDownload} from './principalReportDownload.js'
 import './GuruReports.css'
 
 const paths={book:'M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4z M20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-3h3z',users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M19 8a3 3 0 0 1 0 6m3 7v-2a4 4 0 0 0-3-4 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8',calendar:'M3 5h18v16H3z M7 3v4m10-4v4M3 10h18',check:'M9 5H5v16h14V5h-4 M9 3h6v4H9z M8 14l3 3 5-6',chart:'M3 3v18h18 M7 15l4-4 4 2 6-7',file:'M5 3h10l4 4v14H5z M14 3v5h5 M8 12h8m-8 4h8',shield:'M12 3l8 3v6c0 4-4 8-8 10-4-2-8-6-8-10V6z M8 12l3 3 5-6',lock:'M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3',eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6',excel:'M4 3h16v18H4z M4 9h16 M4 15h16 M10 9v12',info:'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20 M12 11v6m0-10v1',download:'M12 3v12m-5-5 5 5 5-5 M4 16v5h16v-5'}
@@ -28,15 +29,17 @@ default:return [['Siswa / identitas',identity],['Kelas',cls],... [['Hadir','hadi
 function Empty({title,description}){return <div className="empty" role="status"><Icon name="file"/><h3>{title}</h3><p>{description}</p></div>}
 
 export default function GuruReports(){
- const {assignments}=useAuth()
- const assignmentKey=JSON.stringify(assignments||[])
+ const {assignments,user}=useAuth()
+ const assignmentKey=JSON.stringify([user?.id,assignments||[]])
  const [context,setContext]=useState(null),[contextError,setContextError]=useState(''),[contextLoading,setContextLoading]=useState(true)
  const [scope,setScope]=useState('teaching'),[type,setType]=useState('grades'),[filters,setFilters]=useState(()=>blankFilters('teaching'))
  const [preview,setPreview]=useState(null),[busy,setBusy]=useState(''),[confirm,setConfirm]=useState(null),[notice,setNotice]=useState(null)
+ const [prepared,setPrepared]=useState(null),preparedRef=useRef(null)
+ function clearPrepared(){if(preparedRef.current)URL.revokeObjectURL(preparedRef.current.url);preparedRef.current=null;setPrepared(null)}
  const generation=useRef(0),contextRef=useRef(null),mounted=useRef(false),refreshRef=useRef(null)
  const closeNotice=useCallback(()=>setNotice(null),[])
- function invalidate(){generation.current++;setPreview(null);setBusy('');setConfirm(null)}
- useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;generation.current++}},[])
+ function invalidate(){generation.current++;clearPrepared();setPreview(null);setBusy('');setConfirm(null)}
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;generation.current++;if(preparedRef.current)URL.revokeObjectURL(preparedRef.current.url);preparedRef.current=null}},[])
  useEffect(()=>{
    let alive=true,pending=false
    async function load(){
@@ -69,7 +72,7 @@ export default function GuruReports(){
    try{params=reportParams(context,scope,type,filters)}catch(error){notifyError(error);return}
    const previousHash=page===1?null:preview?.preview_hash
    const id=++generation.current;setBusy('preview');setConfirm(null)
-   if(!previousHash)setPreview(null)
+   clearPrepared();if(!previousHash)setPreview(null)
    try{
      const data=validatePreview((await reportApi.preview(type,{...params,page})).data,page)
      if(!mounted.current||id!==generation.current)return
@@ -80,16 +83,15 @@ export default function GuruReports(){
  }
  async function download(){
    if(!confirm||!preview||busy)return
-   const format=confirm, hash=preview.preview_hash
+   clearPrepared();const format=confirm, hash=preview.preview_hash
    let params;try{params=reportParams(context,scope,type,filters)}catch(error){invalidate();notifyError(error);return}
    const id=++generation.current;setBusy('download')
    try{
      const blob=await reportApi.downloadReport(type,{...params,format,preview_hash:hash})
      if(!mounted.current||id!==generation.current)return
-     const url=URL.createObjectURL(blob),link=document.createElement('a')
-     link.href=url;link.download=`laporan-${type}-${scope}.${format==='excel'?'xlsx':'pdf'}`
-     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)
-     setConfirm(null);setNotice({type:'success',title:'Laporan berhasil dibuat',message:`Dokumen ${format==='excel'?'Excel':'PDF'} siap diunduh.`})
+     clearPrepared();const next=makePreparedDownload(blob,`laporan-${type}-${scope}.${format==='excel'?'xlsx':'pdf'}`,format)
+     preparedRef.current=next;setPrepared(next)
+     setConfirm(null);setNotice({type:'success',title:'File siap diunduh',message:'Gunakan tautan Unduh file yang tersedia.'})
    }catch(error){if(mounted.current&&id===generation.current){invalidate();notifyError(error);if([401,403,409].includes(error.status))refreshRef.current?.()}}
    finally{if(mounted.current&&id===generation.current)setBusy('')}
  }
@@ -111,7 +113,8 @@ export default function GuruReports(){
      {type==='attendance'&&<><Field label="Tanggal mulai"><input type="date" value={filters.date_from} disabled={disabled} onChange={e=>change('date_from',e.target.value)}/></Field><Field label="Tanggal selesai"><input type="date" min={filters.date_from||undefined} value={filters.date_to} disabled={disabled} onChange={e=>change('date_to',e.target.value)}/></Field></>}
    </div><div className="filter-actions"><span className="small muted">{options.classes.length?'Filter hanya memuat data sesuai konteks akses.':'Belum ada penugasan pada periode aktif.'}</span><div className="actions"><button type="button" className="textbutton" disabled={disabled} onClick={()=>{invalidate();setFilters(blankFilters(scope,context))}}>Reset filter</button><button type="submit" className="primary" disabled={disabled}><Icon name="eye"/>{busy==='preview'?'Memuat…':'Tampilkan pratinjau'}</button></div></div></form></section>
    <section className="panel preview"><div className="sectionhead"><Step number="03" title="Pratinjau laporan" description="Periksa isi dokumen sebelum mengunduh."/><div className="actions"><button type="button" className="exportpdf" disabled={exportDisabled} onClick={()=>setConfirm('pdf')}><Icon name="file"/>Unduh PDF</button><button type="button" className="exportexcel" disabled={exportDisabled} onClick={()=>setConfirm('excel')}><Icon name="excel"/>Unduh Excel</button></div></div>
-   {preview?<><div className="previewcontext"><div><strong>{preview.metadata.title}</strong><p>{preview.metadata.scope} · {preview.metadata.period}</p><p>{preview.metadata.filters}</p></div><div className="metrics"><div className="metric"><small>Jumlah baris</small><b>{preview.total}</b></div></div></div>{preview.total===0?<Empty title="Tidak ada data sesuai filter" description="Ubah filter atau tunggu data akademik dicatat sebelum mengunduh."/>:<><div className="tablewrap" tabIndex={0} role="region" aria-label="Tabel pratinjau laporan"><table><thead><tr>{cols.map(([name])=><th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{preview.rows.map((r,index)=><tr key={`${preview.page}-${index}`}>{cols.map(([name,render])=><td key={name}>{render(r)}</td>)}</tr>)}</tbody></table></div><div className="previewfoot"><span className="small muted">{(preview.page-1)*preview.per_page+1}–{Math.min(preview.page*preview.per_page,preview.total)} dari {preview.total} baris</span><div className="pager"><button type="button" disabled={Boolean(busy)||preview.page<=1} onClick={()=>loadPreview(preview.page-1)} aria-label="Halaman sebelumnya">‹</button><span className="small">{preview.page} / {preview.last_page}</span><button type="button" disabled={Boolean(busy)||preview.page>=preview.last_page} onClick={()=>loadPreview(preview.page+1)} aria-label="Halaman selanjutnya">›</button></div></div></>}<div className="previewfoot"><span className="small muted">{preview.metadata.note}</span></div></>:<Empty title={busy==='preview'?'Memuat pratinjau…':'Pratinjau belum ditampilkan'} description="Tentukan jenis laporan dan filter, kemudian tampilkan pratinjau."/>}</section><div className="notice"><Icon name="info"/><span>Data diambil dari server sesuai penugasan. Ekspor memeriksa ulang hak akses dan perubahan data. Dokumen rekap bukan rapor resmi.</span></div></>}
+   {preview?<><div className="previewcontext"><div><strong>{preview.metadata.title}</strong><p>{preview.metadata.scope} · {preview.metadata.period}</p><p>{preview.metadata.filters}</p></div><div className="metrics"><div className="metric"><small>Jumlah baris</small><b>{preview.total}</b></div></div></div>{preview.total===0?<Empty title="Tidak ada data sesuai filter" description="Ubah filter atau tunggu data akademik dicatat sebelum mengunduh."/>:<><div className="tablewrap" tabIndex={0} role="region" aria-label="Tabel pratinjau laporan"><table><thead><tr>{cols.map(([name])=><th key={name} scope="col">{name}</th>)}</tr></thead><tbody>{preview.rows.map((r,index)=><tr key={`${preview.page}-${index}`}>{cols.map(([name,render])=><td key={name} data-label={name}><span className="gr-mobile-label" aria-hidden="true">{name}</span><div>{render(r)}</div></td>)}</tr>)}</tbody></table></div><div className="previewfoot"><span className="small muted">{(preview.page-1)*preview.per_page+1}–{Math.min(preview.page*preview.per_page,preview.total)} dari {preview.total} baris</span><div className="pager"><button type="button" disabled={Boolean(busy)||preview.page<=1} onClick={()=>loadPreview(preview.page-1)} aria-label="Halaman sebelumnya">‹</button><span className="small">{preview.page} / {preview.last_page}</span><button type="button" disabled={Boolean(busy)||preview.page>=preview.last_page} onClick={()=>loadPreview(preview.page+1)} aria-label="Halaman selanjutnya">›</button></div></div></>}<div className="previewfoot"><span className="small muted">{preview.metadata.note}</span></div></>:<Empty title={busy==='preview'?'Memuat pratinjau…':'Pratinjau belum ditampilkan'} description="Tentukan jenis laporan dan filter, kemudian tampilkan pratinjau."/>}</section><div className="notice"><Icon name="info"/><span>Data diambil dari server sesuai penugasan. Ekspor memeriksa ulang hak akses dan perubahan data. Dokumen rekap bukan rapor resmi.</span></div></>}
+   {prepared&&<section className="panel gr-prepared" role="status"><strong>Dokumen siap diunduh</strong><p>{prepared.filename}</p><div className="actions"><a href={prepared.url} download={prepared.filename}>Unduh file {prepared.format==='excel'?'Excel':'PDF'}</a>{prepared.format==='pdf'&&<a href={prepared.url} target="_blank" rel="noopener noreferrer">Buka PDF</a>}<button type="button" onClick={clearPrepared}>Tutup</button></div></section>}
    {confirm&&preview&&<WorkspaceModal compact eyebrow="KONFIRMASI EKSPOR" title={`Unduh laporan ${confirm==='pdf'?'PDF':'Excel'}?`} description="Pastikan konteks dan filter laporan sudah benar." busy={busy==='download'} onClose={()=>setConfirm(null)} footer={<><button type="button" disabled={Boolean(busy)} onClick={()=>setConfirm(null)}>Batal</button><button type="button" className="primary" disabled={Boolean(busy)} onClick={download}>{busy==='download'?'Memproses…':'Unduh laporan'}</button></>}><div className="gr-confirm"><strong>{preview.metadata.title}</strong><p>{preview.metadata.scope} · {preview.metadata.period}</p><p>{preview.metadata.filters}</p><p>{preview.total} baris · seluruh hasil filter, bukan hanya halaman ini</p></div></WorkspaceModal>}
    <ToastNotification notice={notice} onClose={closeNotice}/>
  </main>

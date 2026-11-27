@@ -8,8 +8,16 @@ export const ownSchedules = (list,guru,year) => ownTeachingSchedules(list,guru,y
 export const gradeParams = (year,schedule,extra={}) => ({...extra,scope:'teaching',academic_year_id:year,schedule_id:schedule})
 const matchesSchedule = (actual,expected) => same(actual?.id,expected?.id) && same(actual?.guru_id,expected?.guru_id ?? expected?.guru?.id) && same(actual?.tahun_akademik_id,expected?.tahun_akademik_id ?? expected?.tahun_akademik?.id) && same(actual?.kelas_id,classId(expected)) && same(actual?.mapel_id,expected?.mapel_id ?? expected?.mapel?.id)
 export const ownComponents = (list,schedule) => list.filter(c=>c?.id!=null && same(c.jadwal_pelajaran_id,schedule?.id) && matchesSchedule(c.jadwal_pelajaran,schedule))
-// Roster response uses ClassMemberController's application date (UTC in this project).
-export const activeStudents = (members,kelas,date=new Date().toISOString().slice(0,10)) => [...new Map(members.filter(m=>same(m.kelas_id,kelas) && typeof m.tanggal_mulai==='string' && m.tanggal_mulai<=date && (m.tanggal_selesai==null || m.tanggal_selesai>=date) && m.siswa?.id!=null && same(m.siswa_id,m.siswa.id)).map(m=>[idOf(m.siswa.id),m.siswa])).values()]
+// Dates are school calendar dates in Asia/Jakarta, not UTC.
+import {teacherDay} from '../../../utils/teacherDay.js'
+export function activeStudents(members,kelas,date=teacherDay()) {
+ const map=new Map()
+ for(const m of members){
+  if(!same(m.kelas_id,kelas)||typeof m.tanggal_mulai!=='string'||m.tanggal_mulai>date||(m.tanggal_selesai!=null&&m.tanggal_selesai<date)||m.siswa?.id==null||!same(m.siswa_id,m.siswa.id))continue
+  const key=idOf(m.siswa.id);if(map.has(key))throw new Error('Keanggotaan ganda terdeteksi. Hubungi Tata Usaha.');map.set(key,m.siswa)
+ }
+ return [...map.values()]
+}
 export const scopedGrades = (grades,component,students,schedule) => grades.filter(g=>g?.id!=null && same(g.komponen_nilai_id,component) && same(g.komponen_nilai?.id,component) && matchesSchedule(g.komponen_nilai?.jadwal_pelajaran,schedule) && students.some(s=>same(s.id,g.siswa_id)))
 export function buildRows(students,grades,component,schedule) {
   const map=new Map()

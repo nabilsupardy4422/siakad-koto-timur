@@ -43,6 +43,7 @@ class StoreAttendanceRequest extends FormRequest
             'tanggal' => [
                 'required',
                 'date_format:Y-m-d',
+                'before_or_equal:'.today('Asia/Jakarta')->toDateString(),
             ],
 
             'status' => [
