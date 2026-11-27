@@ -1,4 +1,5 @@
 import {useEffect,useId,useRef,useState} from 'react'
+import {containDialogTab} from '../../../components/ui/dialogFocus.js'
 import {pickerPage} from '../roles/adminScheduleWorkspace.js'
 
 // Native top layer: no layout shift or clipping by a parent modal. No blur dismissal.
@@ -25,7 +26,7 @@ export default function SchedulePicker({label,name,value,placeholder,options,onC
     <button ref={trigger} type="button" id={`${id}-button`} className="sch-picker__trigger" disabled={disabled} aria-haspopup="dialog" aria-expanded={visible} aria-controls={`${id}-panel`} aria-invalid={Boolean(error)} onClick={()=>{setQuery('');setPage(1);setOpen(true)}}>
       <span>{selected?.label || (value?`Pilihan #${value} tidak tersedia`:placeholder)}</span><span aria-hidden="true">⌄</span>
     </button>
-    <dialog ref={dialog} className="sch-picker__dialog" id={`${id}-panel`} aria-labelledby={`${id}-title`} onCancel={e=>{e.preventDefault();dismiss()}} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();dismiss()}}}>
+    <dialog ref={dialog} className="sch-picker__dialog" id={`${id}-panel`} aria-labelledby={`${id}-title`} onCancel={e=>{e.preventDefault();dismiss()}} onKeyDown={e=>{if(e.target.closest('dialog')!==e.currentTarget)return;if(e.key==='Escape'){e.preventDefault();e.stopPropagation();dismiss()}else containDialogTab(e)}}>
       <section className="sch-picker__panel">
         <header className="sch-picker__heading"><div><small>PILIHAN FILTER / FORM</small><h3 id={`${id}-title`}>{label}</h3></div><button type="button" className="sch-picker__x" aria-label="Tutup pilihan" onClick={dismiss}>×</button></header>
         <label htmlFor={`${id}-search`}>Cari {label.toLowerCase()}</label>

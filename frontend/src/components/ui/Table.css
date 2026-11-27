@@ -54,3 +54,7 @@
       min-width: 620px;
     }
   }
+
+.ui-table-wrapper { max-width:100%; min-width:0; overscroll-behavior-inline:contain; }
+.ui-table-wrapper:focus-visible { outline:2px solid var(--ui-focus); outline-offset:2px; }
+.ui-table__empty { color:var(--ui-muted) !important; }

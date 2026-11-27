@@ -31,3 +31,7 @@
 .ui-field__error {
   color: #a04444;
 }
+
+.ui-field__label { font-size:13px; }
+.ui-field__hint, .ui-field__error { font-size:12px; overflow-wrap:anywhere; }
+.ui-field__hint { color:var(--ui-muted); }

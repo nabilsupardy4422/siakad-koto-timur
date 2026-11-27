@@ -275,3 +275,11 @@
   background: #102a43;
   transform: translateY(-50%) rotate(45deg);
 }
+
+/* Portal navigation: keep compact desktop geometry, enlarge essential mobile targets. */
+.app-sidebar__brand-copy strong { font-family:var(--ui-font); }
+@media(max-width:1023px){
+  .app-sidebar__close { width:var(--ui-touch); height:var(--ui-touch); }
+  .app-sidebar__link { min-height:var(--ui-touch); font-size:13px; }
+  .app-sidebar__section { font-size:11px; letter-spacing:.08em; }
+}

@@ -1,3 +1,4 @@
+import './State.css'
 export default function ErrorState({
   title = "Terjadi kesalahan",
   message = "Data tidak dapat dimuat. Silakan coba lagi.",

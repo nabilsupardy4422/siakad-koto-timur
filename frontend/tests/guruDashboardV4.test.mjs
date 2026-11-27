@@ -20,14 +20,14 @@ test('Guru uses its own dashboard and leaves TU/Siswa/Kepala Sekolah entrypoints
     assert.ok(dispatcher.includes(name))
   }
   assert.match(component, /useDashboard\(\)/)
-  assert.match(component, /from '\.\/GuruDashboard\.css'|import '\.\/GuruDashboard\.css'/)
+  assert.match(component, /(?:from|import)\s+['"]\.\/GuruDashboard\.css['"]/)
 })
 
 test('five summary cards use only real existing backend summary fields', () => {
-  for (const field of expectedSummaryKeys) assert.ok(component.includes(`key: '${field}'`), field)
+  for (const field of expectedSummaryKeys) assert.match(component, new RegExp(`key\\s*:\\s*['"]${field}['"]`), field)
   assert.match(component, /SUMMARY_ITEMS\.map\(/)
   assert.match(component, /formatCount\(summary\[item\.key\]\)/)
-  assert.match(component, /return '—'/)
+  assert.match(component, /return\s+['"]—['"]/)
 })
 
 test('today agenda renders actual per-schedule day, class, subject and times', () => {
@@ -44,24 +44,31 @@ test('activity panels use API recent arrays rather than fabricated totals', () =
   assert.match(component, /Array\.isArray\(recent\?\.materials\)/)
   assert.match(component, /Array\.isArray\(recent\?\.assignments\)/)
   assert.match(component, /recent=\{dashboard\.recent\}/)
-  assert.match(component, /\.slice\(0, 3\)/)
+  assert.match(component, /\.slice\(\s*0,\s*3\s*,?\s*\)/)
   assert.match(component, /Belum ada bahan ajar tersimpan/)
   assert.match(component, /Belum ada tugas tersimpan/)
 })
 
-test('quick links and latest activity are permission-gated with existing paths', () => {
+function assertQuickLinkScope(component) {
   for (const rule of ['schedules.view','attendance.view','materials.view','assignments.view','grades.view']) {
     assert.ok(component.includes(rule), rule)
   }
-  assert.match(component, /QUICK_LINKS\.filter\(\(link\) => permissions\.includes\(link\.permission\)\)/)
-  assert.match(component, /const canMaterials = permissions\.includes\('materials\.view'\)/)
-  assert.match(component, /const canAssignments = permissions\.includes\('assignments\.view'\)/)
+  assert.match(component, /QUICK_LINKS\.filter\(\s*\(link\)\s*=>\s*permissions\.includes\(link\.permission\)\s*,?\s*\)/)
+  assert.match(component, /const canMaterials\s*=\s*permissions\.includes\(\s*['"]materials\.view['"]\s*,?\s*\)/)
+  assert.match(component, /const canAssignments\s*=\s*permissions\.includes\(\s*['"]assignments\.view['"]\s*,?\s*\)/)
   for (const url of ['/app/schedules','/app/attendance','/app/materials','/app/assignments','/app/grades']) assert.ok(component.includes(url))
+}
+
+test('quick links and latest activity are permission-gated with existing paths', () => assertQuickLinkScope(component))
+
+test('dashboard permission contract rejects removing the permission check', () => {
+  assert.throws(() => assertQuickLinkScope(component.replace('permissions.includes(link.permission)', 'true')))
+  assert.throws(() => assertQuickLinkScope(component.replace(/permissions\.includes\(\s*['"]materials\.view['"]\s*\)/, 'true')))
 })
 
 test('Wali Kelas is an authorized teaching assignment and preserves existing class resolution', () => {
-  assert.match(component, /dashboard\?\.is_wali_kelas === true && assignments\.some\(/)
-  assert.match(component, /a\.type === 'WALI_KELAS'/)
+  assert.match(component, /dashboard\?\.is_wali_kelas\s*===\s*true\s*&&\s*assignments\.some\(/)
+  assert.match(component, /a\.type\s*===\s*['"]WALI_KELAS['"]/)
   assert.match(component, /useHomeroomDetails/)
   assert.match(component, /matchesTeacher/)
   assert.match(component, /classDetails\(dashboard\?\.wali_kelas\)/)
@@ -81,9 +88,9 @@ test('desktop, tablet and mobile layouts use scoped responsive CSS with no force
 })
 
 test('loading, error, empty, headings and focus remain accessible', () => {
-  assert.match(component, /if \(loading\) return <LoadingState/)
-  assert.match(component, /if \(error\) return <ErrorState/)
-  assert.match(component, /if \(!dashboard\) return <ErrorState/)
+  assert.match(component, /if\s*\(loading\)\s*return\s*\(?\s*<LoadingState/)
+  assert.match(component, /if\s*\(error\)\s*return\s*\(?\s*<ErrorState/)
+  assert.match(component, /if\s*\(!dashboard\)\s*return\s*\(?\s*<ErrorState/)
   assert.match(component, /aria-labelledby="guru-v4-title"/)
   assert.match(component, /aria-labelledby="guru-agenda-heading"/)
   assert.match(component, /aria-live="polite"/)

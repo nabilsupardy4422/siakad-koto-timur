@@ -30,6 +30,7 @@ export default function Button({
       className={classes}
       onClick={onClick}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
     >
       {loading && (
         <span

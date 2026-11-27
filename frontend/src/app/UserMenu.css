@@ -103,3 +103,6 @@
 @media (prefers-reduced-motion: reduce) {
   .app-user-menu__trigger, .app-user-menu__item, .app-user-menu__chevron { transition: none; }
 }
+
+.app-user-menu__identity span,.app-user-menu__summary div span { color:var(--ui-muted); font-size:12px; }
+@media(max-width:639px){ .app-user-menu__trigger { min-height:var(--ui-touch); min-width:var(--ui-touch); justify-content:center; } }

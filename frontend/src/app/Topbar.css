@@ -98,3 +98,7 @@
 @media (prefers-reduced-motion: reduce) {
   .app-topbar__site-link { transition: none; }
 }
+
+.app-topbar__context span, .app-topbar__context strong { color: var(--ui-muted); font-size: 12px; letter-spacing: .04em; }
+@media(max-width:1023px){ .app-topbar__menu { width:var(--ui-touch); height:var(--ui-touch); } .app-topbar__site-link { min-height:var(--ui-touch); } }
+.app-topbar__context { flex-wrap:wrap; }

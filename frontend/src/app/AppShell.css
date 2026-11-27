@@ -59,3 +59,10 @@
 /* Programmatic and skip-link focus stays visible without a full-height border. */
 .app-shell__main:focus { outline: none; }
 .app-shell__main:focus-visible { box-shadow: inset 0 3px #2563eb; }
+
+/* Portal-only typography. Landing headings retain their existing font. */
+.app-shell { font-family: var(--ui-font); --font-heading: var(--ui-font); --font-body: var(--ui-font); }
+.app-shell :where(button, input, select, textarea) { font-family: var(--ui-font); }
+.app-shell :where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+/* Scroll stays in the active native dialog, rather than the background page. */
+html:has(.ui-modal:modal, .siakad-workspace-modal:modal, .sch-picker__dialog:modal) { overflow: hidden; }

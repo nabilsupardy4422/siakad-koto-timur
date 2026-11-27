@@ -19,3 +19,12 @@
   .siakad-hscroll-actions button:disabled { opacity:.38; cursor:not-allowed; }
   .siakad-hscroll-actions button:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
 }
+
+/* Preserve every column while keeping the hint and action controls readable. */
+@media(max-width:900px){
+  .siakad-hscroll-controls { flex-wrap:wrap; }
+  .siakad-hscroll-hint { flex:1 1 120px; font-size:12px; }
+  .siakad-hscroll-actions { max-width:100%; flex-wrap:wrap; }
+  .siakad-hscroll-actions button { min-width:var(--ui-touch); min-height:var(--ui-touch); }
+  .siakad-hscroll-actions .siakad-hscroll-end { font-size:12px; padding:0 10px; }
+}

@@ -154,3 +154,7 @@
       animation: none;
     }
   }
+
+.ui-button { border-radius:var(--ui-control-radius); }
+.ui-button > span { min-width:0; }
+@media(max-width:767px){ .ui-button { min-height:var(--ui-touch); font-size:13px; white-space:normal; line-height:1.35; overflow-wrap:anywhere; padding-block:8px; } }

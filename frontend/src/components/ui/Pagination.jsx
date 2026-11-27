@@ -28,7 +28,7 @@ export default function Pagination({
         Sebelumnya
       </button>
 
-      <span className="ui-pagination__status">
+      <span className="ui-pagination__status" aria-live="polite">
         Halaman {currentPage} dari {totalPages}
       </span>
 

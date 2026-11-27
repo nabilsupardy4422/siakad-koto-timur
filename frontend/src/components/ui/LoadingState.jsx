@@ -1,3 +1,4 @@
+import './State.css'
 export default function LoadingState({
   message = 'Memuat data...',
 }) {

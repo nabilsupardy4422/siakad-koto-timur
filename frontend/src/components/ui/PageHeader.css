@@ -44,3 +44,15 @@
   align-items: center;
   gap: 8px;
 }
+
+.ui-page-header { gap:clamp(12px, 2vw, 24px); flex-wrap:wrap; }
+.ui-page-header__content { flex:1 1 240px; overflow-wrap:anywhere; }
+.ui-page-header__eyebrow { font-size:11px; }
+.ui-page-header__description { color:var(--ui-muted); font-size:14px; }
+.ui-page-header__actions { flex:0 1 auto; min-width:0; max-width:100%; flex-wrap:wrap; }
+@media(max-width:767px){
+ .ui-page-header { align-items:stretch; flex-direction:column; gap:12px; }
+ .ui-page-header__content { flex:0 1 auto; width:100%; }
+ .ui-page-header__actions { width:100%; }
+ .ui-page-header__actions > * { min-width:0; max-width:100%; }
+}
