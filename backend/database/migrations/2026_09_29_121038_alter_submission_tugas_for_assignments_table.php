@@ -3,11 +3,16 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        // No verified mapping from legacy bahan_ajar_id to assignment_id.
+        if (DB::table('submission_tugas')->exists()) {
+            throw new RuntimeException('SUBMISSION_LEGACY_MAPPING_REVIEW_REQUIRED');
+        }
         Schema::table('submission_tugas', function (Blueprint $table) {
             $table->dropForeign([
                 'bahan_ajar_id',
@@ -47,6 +52,9 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::table('submission_tugas')->exists()) {
+            throw new RuntimeException('SUBMISSION_ROLLBACK_REQUIRES_DATA_REVIEW');
+        }
         Schema::table('submission_tugas', function (Blueprint $table) {
             $table->dropForeign([
                 'assignment_id',
