@@ -41,6 +41,16 @@ class StoreAcademicYearRequest extends FormRequest
         ];
     }
 
+    public function after(): array
+    {
+        return [function (\Illuminate\Validation\Validator $validator): void {
+            if (! $validator->errors()->has('tahun_mulai') && ! $validator->errors()->has('tahun_selesai')
+                && ((int) $this->input('tahun_mulai') < 1000 || (int) $this->input('tahun_selesai') !== (int) $this->input('tahun_mulai') + 1)) {
+                $validator->errors()->add('tahun_selesai', 'Tahun selesai harus satu tahun setelah tahun mulai.');
+            }
+        }];
+    }
+
     public function messages(): array
     {
         return [

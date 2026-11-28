@@ -11,6 +11,7 @@ class ScheduleResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'version' => $this->when($request->user()?->role?->code === 'TU', fn () => \App\Services\ScheduleWriteService::version($this->resource)),
 
             'tahun_akademik_id' => $this->tahun_akademik_id,
             'kelas_id' => $this->kelas_id,

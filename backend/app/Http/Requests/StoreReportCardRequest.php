@@ -23,6 +23,7 @@ class StoreReportCardRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'class_id' => ['required', 'integer', 'exists:kelas,id'],
             'siswa_id' => [
                 'required',
                 'integer',
@@ -47,7 +48,7 @@ class StoreReportCardRequest extends FormRequest
             'file' => [
                 'required',
                 'file',
-                'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx,ppt,pptx',
+                'mimes:pdf',
                 'max:10240',
             ],
         ];

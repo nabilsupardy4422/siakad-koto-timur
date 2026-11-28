@@ -9,12 +9,14 @@ use App\Http\Requests\ResetUserPasswordRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Models\Role;
+use App\Services\ActivationCodeMonitor;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
@@ -23,10 +25,38 @@ class UserController extends Controller
     // DAFTAR PENGGUNA
     // ==========================================
 
+    public function roles(): JsonResponse
+    {
+        return ApiResponse::success(Role::query()->whereIn('code', ['TU', 'KEPALA_SEKOLAH', 'GURU', 'SISWA'])->orderBy('id')->get(['id', 'code', 'name']));
+    }
+
+    public function activationSummary(): JsonResponse
+    {
+        $counts = User::query()->selectRaw("COUNT(*) as total, SUM(CASE WHEN account_status = 'active' AND requires_activation = 0 THEN 1 ELSE 0 END) as ready, SUM(CASE WHEN account_status = 'active' AND requires_activation = 1 THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN account_status = 'inactive' THEN 1 ELSE 0 END) as inactive")->first();
+        $total = (int) $counts->total;
+        $ready = (int) $counts->ready;
+        $pending = (int) $counts->pending;
+        $inactive = (int) $counts->inactive;
+        return ApiResponse::success(['total'=>$total, 'ready'=>$ready, 'pending'=>$pending, 'inactive'=>$inactive,
+            'unknown'=>$total-$ready-$pending-$inactive, 'code_monitor'=>ActivationCodeMonitor::counts()])->header('Cache-Control', 'private, no-store');
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $users = User::query()
-            ->with('role')
+        $request->validate([
+            'account_state'=>['sometimes','in:ready,pending,inactive'],
+            'code_state'=>['sometimes','in:'.implode(',',ActivationCodeMonitor::STATES)],
+            'profile_state'=>['sometimes','in:linked,unlinked'],
+            'academic_year_id'=>['sometimes','integer','exists:tahun_akademik,id'],
+            'class_id'=>['sometimes','integer','exists:kelas,id'],
+            'placement_state'=>['sometimes','in:unassigned'],
+        ]);
+        $asOf = now();
+        $users = User::query()->select('users.*')->selectRaw(ActivationCodeMonitor::sql().' AS code_state',[$asOf])
+            ->addSelect(['code_expires_at'=>DB::table('user_activation_tokens')->select('expires_at')->whereColumn('user_id','users.id')])
+            ->when($request->filled('code_state'), fn (Builder $q) => $q->whereRaw('('.ActivationCodeMonitor::sql().') = ?',[$asOf,$request->input('code_state')]))
+            ->with(['role', 'guru:id,user_id', 'siswa:id,user_id'])
+            ->when($request->filled('user_id'), fn (Builder $query) => $query->whereKey($request->integer('user_id')))
             ->when(
                 $request->filled('search'),
                 function (Builder $query) use ($request): void {
@@ -72,7 +102,38 @@ class UserController extends Controller
                         ->toString()
                 )
             )
-            ->latest('id')
+            ->when($request->filled('account_state'), function (Builder $q) use ($request) {
+                $state = $request->input('account_state');
+                $q->where('account_status', $state === 'inactive' ? 'inactive' : 'active');
+                if ($state !== 'inactive') $q->where('requires_activation', $state === 'pending');
+            })
+            ->when($request->filled('profile_state'), function (Builder $q) use ($request) {
+                $linked = $request->input('profile_state') === 'linked';
+                $q->where(function (Builder $q) use ($linked) {
+                    $q->where(function (Builder $q) use ($linked) {
+                        $q->whereHas('role', fn ($r) => $r->where('code','GURU'))->whereDoesntHave('siswa');
+                        $linked ? $q->whereHas('guru') : $q->whereDoesntHave('guru');
+                    })->orWhere(function (Builder $q) use ($linked) {
+                        $q->whereHas('role', fn ($r) => $r->where('code','SISWA'))->whereDoesntHave('guru');
+                        $linked ? $q->whereHas('siswa') : $q->whereDoesntHave('siswa');
+                    });
+                });
+            });
+        if ($request->filled('academic_year_id') || $request->filled('class_id') || $request->filled('placement_state')) {
+            $period = \App\Support\StudentPlacement::period($request);
+            abort_if($period === null, 422, 'Periode akademik tidak tersedia.');
+            $class = $request->filled('class_id') ? $request->integer('class_id') : null;
+            abort_if($class !== null && ! \App\Models\Kelas::query()->whereKey($class)->where('tahun_akademik_id',$period)->exists(), 422, 'Kelas tidak sesuai periode.');
+            abort_if($class !== null && $request->filled('placement_state'), 422, 'Pilih kelas atau belum ditempatkan.');
+            $effective = \App\Models\TahunAkademik::query()->whereKey($period)->where('is_active',true)->exists();
+            $memberships = fn (Builder $q) => \App\Support\StudentPlacement::scope($q, $period, $class, $effective);
+            $users->whereHas('role', fn ($q) => $q->where('code','SISWA'))->whereDoesntHave('guru')
+                ->whereHas('siswa', function (Builder $q) use ($request, $memberships) {
+                    $request->input('placement_state') === 'unassigned' ? $q->whereDoesntHave('anggotaKelas',$memberships) : $q->whereHas('anggotaKelas',$memberships);
+                });
+        }
+        $users = $users->orderBy('name', $request->input('sort_order') === 'desc' ? 'desc' : 'asc')
+            ->orderBy('id')
             ->paginate(
                 min(
                     max($request->integer('page_size', 15), 1),
@@ -99,14 +160,19 @@ class UserController extends Controller
     public function store(
         StoreUserRequest $request
     ): JsonResponse {
+        $roleCode = Role::query()->whereKey($request->validated('role_id'))->value('code');
+        if (in_array($roleCode, ['GURU', 'SISWA'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['role_id' => 'Daftarkan Guru atau Siswa melalui Data Master agar akun dan profil dibuat bersama.']);
+        }
+
         $user = User::create([
             ...$request->safe()->only([
                 'username',
                 'name',
                 'email',
                 'role_id',
-                'password',
             ]),
+            'password' => Hash::make($request->validated('password')),
             'account_status' => 'active',
         ]);
 
@@ -124,10 +190,10 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
-        $user->load('role');
+        $user->load(['role', 'guru:id,user_id', 'siswa:id,user_id']);
 
         return ApiResponse::success(
-            new UserResource($user)
+            new UserResource(ActivationCodeMonitor::decorate($user))
         );
     }
 
@@ -269,12 +335,19 @@ class UserController extends Controller
                             422
                         );
                     }
+                    if (in_array($targetRoleCode, ['GURU', 'SISWA'], true)) {
+                        return ApiResponse::message('Perubahan menjadi Guru atau Siswa memerlukan prosedur identitas akademik. Tidak dapat dilakukan melalui edit akun.', null, 422);
+                    }
                 }
 
                 // ==================================
                 // SIMPAN PERUBAHAN
                 // ==================================
 
+                $academicProfile = $target->role?->code === 'GURU' ? $target->guru()->first() : ($target->role?->code === 'SISWA' ? $target->siswa()->first() : null);
+                if ($academicProfile && array_key_exists('name', $data) && $data['name'] !== $academicProfile->nama_lengkap) {
+                    return ApiResponse::message('Nama resmi diperbarui melalui Data Master.', null, 422);
+                }
                 $target->update($data);
 
                 if ($roleChanged) {
@@ -372,6 +445,8 @@ class UserController extends Controller
                     ->lockForUpdate()
                     ->get(['id']);
 
+                $user = User::query()->lockForUpdate()->findOrFail($user->id);
+
                 $targetIsTu = $user->role()
                     ->where(
                         'code',
@@ -397,8 +472,9 @@ class UserController extends Controller
                     'account_status' => 'inactive',
                 ]);
 
-                // Cabut semua token Sanctum.
+                // Cabut sesi dan kode aktivasi yang masih berlaku.
                 $user->tokens()->delete();
+                DB::table('user_activation_tokens')->where('user_id', $user->id)->whereNull('used_at')->delete();
 
                 Log::info(
                     'User account deactivated',
@@ -460,15 +536,15 @@ class UserController extends Controller
                 $validated
             ): void {
 
-                // Model User menggunakan cast
-                // password => hashed.
-                $user->update([
-                    'password' =>
-                        $validated['password'],
-                ]);
+                $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+                abort_if($locked->requires_activation, 422, 'Akun belum diaktivasi. Terbitkan Slip Aktivasi terlebih dahulu.');
+                $locked->forceFill([
+                    'password' => Hash::make($validated['password']),
+                    'remember_token' => null,
+                ])->save();
 
                 // Logout seluruh sesi lama.
-                $user->tokens()->delete();
+                $locked->tokens()->delete();
             }
         );
 

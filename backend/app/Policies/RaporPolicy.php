@@ -32,7 +32,8 @@ class RaporPolicy
         $siswaId = $user->siswa?->id;
 
         return $siswaId !== null
-            && $rapor->siswa_id === $siswaId;
+            && (int)$rapor->siswa_id === (int)$siswaId
+            && $rapor->distribution_status === 'active';
     }
 
     /**

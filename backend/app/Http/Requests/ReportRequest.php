@@ -68,11 +68,12 @@ class ReportRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'confirm_empty' => $this->routeIs('student.reports.export') ? ['nullable','boolean'] : ['prohibited'],
             'scope' => ['nullable', 'string', Rule::in(['school', 'teaching', 'homeroom', 'own'])],
             'schedule_id' => ['nullable', 'integer', 'exists:jadwal_pelajaran,id'],
-            'format' => $this->routeIs('reports.preview') ? ['prohibited'] : ['required', 'string', Rule::in(['pdf', 'excel'])],
-            'page' => $this->routeIs('reports.preview') ? ['nullable', 'integer', 'min:1', 'max:1000000'] : ['prohibited'],
-            'preview_hash' => $this->routeIs('reports.preview') ? ['prohibited'] : ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'format' => $this->routeIs('reports.preview', 'student.reports.preview') ? ['prohibited'] : ['required', 'string', Rule::in(['pdf', 'excel'])],
+            'page' => $this->routeIs('reports.preview', 'student.reports.preview') ? ['nullable', 'integer', 'min:1', 'max:1000000'] : ['prohibited'],
+            'preview_hash' => $this->routeIs('reports.preview', 'student.reports.preview') ? ['prohibited'] : ['nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'academic_year_id' => [
                 'nullable',
                 'integer',
@@ -115,11 +116,11 @@ class ReportRequest extends FormRequest
             ],
             'date_from' => [
                 'nullable',
-                'date',
+                $this->routeIs('student.reports.*') ? 'date_format:Y-m-d' : 'date',
             ],
             'date_to' => [
                 'nullable',
-                'date',
+                $this->routeIs('student.reports.*') ? 'date_format:Y-m-d' : 'date',
                 'after_or_equal:date_from',
             ],
         ];
@@ -140,10 +141,16 @@ class ReportRequest extends FormRequest
             }
 
             $allowed = array_merge(
-                [$this->routeIs('reports.preview') ? 'page' : 'format', 'scope', ...($this->routeIs('reports.preview') ? [] : ['preview_hash'])],
+                [$this->routeIs('reports.preview', 'student.reports.preview') ? 'page' : 'format', 'scope', ...($this->routeIs('reports.preview', 'student.reports.preview') ? [] : ['preview_hash'])],
                 self::REPORT_FILTERS[$reportType]
             );
 
+            if ($this->routeIs('student.reports.*')) {
+                $allowed = array_merge(['academic_year_id'], $this->routeIs('student.reports.preview') ? ['page'] : ['format','preview_hash','confirm_empty']);
+                if ($reportType === 'attendance') $allowed = [...$allowed,'date_from','date_to'];
+                if (! $this->filled('academic_year_id')) $validator->errors()->add('academic_year_id','Pilih periode.');
+                if ($this->routeIs('student.reports.export') && ! $this->filled('preview_hash')) $validator->errors()->add('preview_hash','Pratinjau diperlukan.');
+            }
             foreach ($this->all() as $key => $value) {
                 if (! in_array($key, $allowed, true)) {
                     $validator->errors()->add(

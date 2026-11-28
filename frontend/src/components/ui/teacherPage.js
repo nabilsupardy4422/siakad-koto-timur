@@ -1,0 +1,1 @@
+export function teacherPage(rows,page,size=12){const last=Math.max(1,Math.ceil(rows.length/size));const current=Math.min(last,Math.max(1,Number.isInteger(page)?page:1));const first=(current-1)*size;return {rows:rows.slice(first,first+size),page:current,last,total:rows.length,first:rows.length?first+1:0,end:Math.min(first+size,rows.length)}}

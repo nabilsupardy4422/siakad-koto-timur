@@ -33,6 +33,7 @@ final class StudentGradeWorkspaceController extends Controller
         $yearId = $validated['academic_year_id'] ?? null;
         if ($yearId !== null) {
             $year = TahunAkademik::query()->findOrFail($yearId);
+            abort_if($year->is_active && TahunAkademik::where('is_active', true)->count() !== 1, 409, 'Periode aktif belum tunggal.');
         } else {
             $active = TahunAkademik::query()->where('is_active', true)->limit(2)->get();
             if ($active->count() !== 1) {
@@ -66,6 +67,7 @@ final class StudentGradeWorkspaceController extends Controller
             ->whereHas('kelas', fn ($q) => $q->where('tahun_akademik_id', $year->id))
             ->whereNotNull('tanggal_mulai')
             ->whereDate('tanggal_mulai', '<=', $today)
+            ->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai', '>=', 'tanggal_mulai'))
             ->get();
 
         // Periode aktif memakai kelas efektif saat ini. Historis mempertahankan
@@ -76,7 +78,7 @@ final class StudentGradeWorkspaceController extends Controller
                 $member->tanggal_selesai->toDateString() >= $today;
         })->values();
 
-        if ($year->is_active && $eligible->pluck('kelas_id')->unique()->count() > 1) {
+        if ($year->is_active && $eligible->count() > 1) {
             return response()->json(['message' => 'Penempatan kelas aktif siswa ambigu.'], 409);
         }
 
@@ -147,8 +149,10 @@ final class StudentGradeWorkspaceController extends Controller
             if (! isset($subjects[$key])) {
                 continue;
             }
+            abort_if($component->nilai->count() > 1, 409, 'Catatan nilai ganda. Hubungi Tata Usaha.');
             $grade = $component->nilai->first();
-            $assessed = $grade !== null && $grade->nilai !== null;
+            abort_if($grade !== null && $grade->nilai !== null && (!is_numeric($grade->nilai) || $grade->nilai < 0 || $grade->nilai > 100), 409, 'Catatan nilai tidak valid. Hubungi Tata Usaha.');
+            $assessed = $grade !== null && $grade->nilai !== null && is_numeric($grade->nilai) && $grade->nilai >= 0 && $grade->nilai <= 100;
             $subjects[$key]['components'][] = [
                 'id' => (int) $component->id,
                 'schedule_id' => (int) $schedule->id,
@@ -159,7 +163,7 @@ final class StudentGradeWorkspaceController extends Controller
                 'name' => $component->nama,
                 'weight' => $component->bobot === null ? null : (float) $component->bobot,
                 'score' => $assessed ? (float) $grade->nilai : null,
-                'note' => $grade?->catatan,
+                'note' => $assessed ? $grade->catatan : null,
                 'assessed' => $assessed,
             ];
             $subjects[$key][$assessed ? 'assessed' : 'pending']++;
@@ -171,7 +175,7 @@ final class StudentGradeWorkspaceController extends Controller
         })->sortBy('subject', SORT_NATURAL | SORT_FLAG_CASE)->values()->all();
         $base['summary'] = [
             'subjects' => count($base['subjects']),
-            'components' => $components->count(),
+            'components' => array_sum(array_map(fn ($s) => count($s['components']), $base['subjects'])),
             'assessed' => array_sum(array_column($base['subjects'], 'assessed')),
             'pending' => array_sum(array_column($base['subjects'], 'pending')),
         ];

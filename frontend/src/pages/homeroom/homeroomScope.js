@@ -3,11 +3,15 @@ import { collectPages, sameId } from '../../utils/teachingScope.js'
 const params = page => ({ page, per_page: 100 })
 const validId = id => /^\d+$/.test(String(id)) && Number(id) > 0
 const dateOnly = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-export const currentDay = () => new Date().toISOString().slice(0, 10)
+export const currentDay = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Jakarta', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(now)
+  const part = type => parts.find(p=>p.type===type).value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
 export function activeAssignments(records, guruId, yearId, today = currentDay()) {
   return records.filter(a => validId(a?.id) && validId(a.kelas_id) && sameId(a.guru_id, guruId) &&
     sameId(a.tahun_akademik_id, yearId) && sameId(a.kelas?.id, a.kelas_id) &&
-    sameId(a.tahun_akademik?.id, yearId) && dateOnly(a.tanggal_mulai) && a.tanggal_mulai <= today && a.tanggal_selesai === null)
+    sameId(a.tahun_akademik?.id, yearId) && dateOnly(a.tanggal_mulai) && a.tanggal_mulai <= today && a.tanggal_selesai === null && !a.cancelled_at)
 }
 export async function loadHomeroomContext({ academicYearApi, homeroomApi }, guruId) {
   if (!validId(guruId)) throw new Error('Identitas Guru belum tersedia.')

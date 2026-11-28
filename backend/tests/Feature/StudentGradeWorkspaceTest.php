@@ -122,4 +122,11 @@ class StudentGradeWorkspaceTest extends TestCase
         $this->actingAs($f['studentUser'])->getJson('/api/grades/student-workspace')->assertStatus(409);
         $this->getJson('/api/grades/student-workspace?academic_year_id=invalid')->assertStatus(422);
     }
+    public function test_explicit_active_period_conflict_does_not_unlock_grade_workspace(): void
+    {
+        $f=$this->fixtures();
+        $this->member($f['student'],$f['class'],today('Asia/Jakarta')->subDays(5)->toDateString());
+        TahunAkademik::create(['tahun_mulai'=>2027,'tahun_selesai'=>2028,'semester'=>'GANJIL','is_active'=>true]);
+        $this->actingAs($f['studentUser'])->getJson('/api/grades/student-workspace?academic_year_id='.$f['year']->id)->assertStatus(409);
+    }
 }

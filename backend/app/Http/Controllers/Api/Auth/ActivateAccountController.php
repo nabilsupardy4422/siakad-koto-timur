@@ -9,9 +9,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Validation\Rules\Password;
+use App\Support\SchoolPasswordPolicy;
 
 class ActivateAccountController extends Controller
 {
@@ -35,11 +36,7 @@ class ActivateAccountController extends Controller
                 'max:80',
             ],
 
-            'password' => [
-                'required',
-                'confirmed',
-                Password::defaults(),
-            ],
+            'password' => SchoolPasswordPolicy::rules(),
         ]);
 
         $username = trim(
@@ -182,7 +179,8 @@ class ActivateAccountController extends Controller
                 // password => hashed.
                 $user->forceFill([
                     'password' =>
-                        $validated['password'],
+                        Hash::make($validated['password']),
+                    'remember_token' => null,
 
                     'requires_activation' =>
                         false,

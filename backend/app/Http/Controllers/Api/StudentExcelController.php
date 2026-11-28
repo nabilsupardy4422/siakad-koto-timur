@@ -11,7 +11,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
@@ -165,14 +164,17 @@ class StudentExcelController extends Controller
     {
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx', 'max:2048'],
+            'excluded_rows' => ['sometimes', 'array', 'max:1000'],
+            'excluded_rows.*' => ['integer', 'min:2'],
         ]);
 
-        $result = $this->readAndValidate($validated['file']->getRealPath());
+        $result = $this->readAndValidate($validated['file']->getRealPath(), $validated['excluded_rows'] ?? []);
 
         if (isset($result['error'])) {
             return ApiResponse::message($result['error'], $result['data'] ?? null, 422);
         }
 
+        $result['preview_token'] = $this->previewToken($result, $request);
         return ApiResponse::message('Preview Data Siswa berhasil dibuat.', $result);
     }
 
@@ -180,7 +182,8 @@ public function import(Request $request): JsonResponse
 {
     $validated = $request->validate([
         'file' => ['required', 'file', 'mimes:xlsx', 'max:2048'],
-        'excluded_rows' => ['sometimes', 'array'],
+        'excluded_rows' => ['sometimes', 'array', 'max:1000'],
+        'preview_token' => ['required', 'string', 'size:64'],
         'excluded_rows.*' => ['integer', 'min:2'],
     ]);
 
@@ -195,6 +198,10 @@ public function import(Request $request): JsonResponse
             $result['data'] ?? null,
             422
         );
+    }
+
+    if (! hash_equals($this->previewToken($result, $request), $validated['preview_token'])) {
+        return ApiResponse::message('File, pengecualian atau data siswa berubah sejak preview. Periksa ulang.', null, 409);
     }
 
     if ($result['summary']['valid_rows'] === 0) {
@@ -227,7 +234,6 @@ public function import(Request $request): JsonResponse
         ): void {
             $studentRole = Role::query()
                 ->where('code', 'SISWA')
-                ->lockForUpdate()
                 ->first();
 
             if (!$studentRole) {
@@ -245,31 +251,27 @@ public function import(Request $request): JsonResponse
                 ->filter()
                 ->all();
 
-            // Ambil profil siswa yang sudah tersedia.
-            $studentsByNisn = Siswa::query()
-                ->with('user')
-                ->whereIn('nisn', $nisns)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('nisn');
-
-            $studentsByNipd = Siswa::query()
-                ->whereIn('nipd', $nipds)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('nipd');
-
-            // Ambil akun berdasarkan username/NISN.
-            $existingUsers = User::query()
-                ->with(['role', 'siswa'])
-                ->whereIn('username', $nisns)
-                ->lockForUpdate()
-                ->get()
-                ->keyBy('username');
+            // Discover candidate account IDs without taking profile locks.
+            // Acquire user locks in a stable order, then lock profile rows.
+            // Recheck actual ownership under lock; a newly appeared owner
+            // requires another preview rather than acquiring locks backwards.
+            $candidateIds = Siswa::query()->whereIn('nisn', $nisns)->pluck('user_id');
+            $lockedUsers = User::query()
+                ->where(fn ($q) => $q->whereIn('id', $candidateIds)->orWhereIn('username', $nisns))
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $existingUsers = $lockedUsers->keyBy('username');
+            $studentsByNisn = Siswa::query()->whereIn('nisn', $nisns)
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('nisn');
+            $studentsByNipd = Siswa::query()->whereIn('nipd', $nipds)
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('nipd');
 
             // Pemeriksaan ulang sebelum proses penyimpanan.
             foreach ($result['rows'] as $row) {
                 $student = $studentsByNisn->get($row['nisn']);
+                if (($student ? 'updated' : 'new') !== $row['status'] ||
+                    ($student && ! hash_equals($row['profile_version'] ?? '', \App\Services\AcademicIdentityService::version($student)))) {
+                    throw new \RuntimeException('Identitas berubah sejak preview. Muat ulang preview.');
+                }
 
                 $nipdOwner = $row['nipd'] !== ''
                     ? $studentsByNipd->get($row['nipd'])
@@ -286,14 +288,19 @@ public function import(Request $request): JsonResponse
                     );
                 }
 
-                if ($student && !$student->user) {
+                if (!$student && $user) {
+                    throw new \RuntimeException('Akun existing harus dihubungkan secara eksplisit melalui Data Siswa sebelum import.');
+                }
+                if ($student && (! $lockedUsers->has($student->user_id) ||
+                    (int) $lockedUsers->get($student->user_id)->role_id !== (int) $studentRole->id ||
+                    $lockedUsers->get($student->user_id)->guru()->lockForUpdate()->first(['id']) !== null)) {
                     throw new \RuntimeException(
                         "Profil siswa dengan NISN {$row['nisn']} tidak memiliki akun pengguna."
                     );
                 }
 
                 if ($user) {
-                    if ($user->role_id !== $studentRole->id) {
+                    if ((int) $user->role_id !== (int) $studentRole->id) {
                         throw new \RuntimeException(
                             "Username {$row['nisn']} digunakan oleh akun dengan role selain SISWA."
                         );
@@ -301,10 +308,8 @@ public function import(Request $request): JsonResponse
 
                     // Jika profil sudah ada, pastikan akun tersebut
                     // memang terhubung dengan profil yang sesuai.
-                    if (
-                        $user->siswa &&
-                        (!$student || $user->siswa->id !== $student->id)
-                    ) {
+                    $linked = $user->siswa()->lockForUpdate()->first(['id']);
+                    if ($linked && (! $student || $linked->id !== $student->id)) {
                         throw new \RuntimeException(
                             "Akun dengan username {$row['nisn']} sudah terhubung dengan profil siswa lain."
                         );
@@ -316,54 +321,40 @@ public function import(Request $request): JsonResponse
             foreach ($result['rows'] as $row) {
                 $student = $studentsByNisn->get($row['nisn']);
 
-                $user = $existingUsers->get($row['nisn']);
-
                 $studentData = [
                     'nisn' => $row['nisn'],
-                    'nipd' => $row['nipd'] ?: null,
+                    'nipd' => ($row['nipd'] !== '' ? $row['nipd'] : null),
                     'nama_lengkap' => $row['nama_lengkap'],
-                    'jenis_kelamin' => $row['jenis_kelamin'] ?: null,
-                    'tanggal_lahir' => $row['tanggal_lahir'] ?: null,
-                    'tempat_lahir' => $row['tempat_lahir'] ?: null,
-                    'no_telepon' => $row['no_telepon'] ?: null,
-                    'alamat' => $row['alamat'] ?: null,
+                    'jenis_kelamin' => ($row['jenis_kelamin'] !== '' ? $row['jenis_kelamin'] : null),
+                    'tanggal_lahir' => ($row['tanggal_lahir'] !== '' ? $row['tanggal_lahir'] : null),
+                    'tempat_lahir' => ($row['tempat_lahir'] !== '' ? $row['tempat_lahir'] : null),
+                    'no_telepon' => ($row['no_telepon'] !== '' ? $row['no_telepon'] : null),
+                    'alamat' => ($row['alamat'] !== '' ? $row['alamat'] : null),
                 ];
 
                 // Jika profil siswa sudah ada, perbarui datanya.
                 if ($student) {
-                    $student->update($studentData);
+                    $student->update(array_filter($studentData, static fn ($value) => $value !== null));
+                    $lockedUsers->get($student->user_id)->update(['name' => $student->nama_lengkap]);
 
                     $updatedCount++;
 
                     continue;
                 }
 
-                // Jika akun sudah ada, gunakan akun tersebut.
-                if (!$user) {
-                    $user = User::create([
-                        'role_id' => $studentRole->id,
-                        'username' => $row['nisn'],
-                        'name' => $row['nama_lengkap'],
-                        'email' => null,
-                        'password' => Str::random(48),
-                        'account_status' => 'active',
-                    ]);
-
-                    $user->requires_activation = true;
-                    $user->activated_at = null;
-                    $user->save();
-                }
-
-                // Buat profil siswa menggunakan akun yang ditemukan
-                // atau akun baru yang baru saja dibuat.
-                Siswa::create([
-                    'user_id' => $user->id,
+                app(\App\Services\AcademicIdentityService::class)->register('SISWA', [
                     ...$studentData,
+                    'registration_mode' => 'new_account',
                 ]);
 
                 $createdCount++;
             }
         });
+    } catch (\Illuminate\Validation\ValidationException $exception) {
+        return ApiResponse::message('Import dibatalkan. Periksa ulang konflik identitas.', ['errors' => $exception->errors()], 422);
+    } catch (\Illuminate\Database\QueryException $exception) {
+        // Never return SQL, bindings, or imported biodata to the browser.
+        return ApiResponse::message('Import dibatalkan karena konflik penyimpanan. Periksa ulang data sebelum mencoba kembali.', null, 409);
     } catch (\RuntimeException $exception) {
         return ApiResponse::message(
             $exception->getMessage(),
@@ -391,11 +382,16 @@ public function import(Request $request): JsonResponse
 }
 
 
+    private function previewToken(array $result, Request $request): string
+    {
+        return hash_hmac('sha256', json_encode(['actor' => $request->user()->id, 'result' => $result], JSON_THROW_ON_ERROR), (string) config('app.key'));
+    }
+
     private function readAndValidate(string $path, array $excludedRows = []): array
     {
         try {
             $reader = IOFactory::createReader('Xlsx');
-            $reader->setReadDataOnly(true);
+            $reader->setReadDataOnly(false);
             $spreadsheet = $reader->load($path);
         } catch (ReaderException | SpreadsheetException $exception) {
             return [
@@ -421,13 +417,14 @@ public function import(Request $request): JsonResponse
                     $columnIndex
                 );
 
-                $header = trim((string) $sheet->getCell(
-                    "{$column}" . self::HEADER_ROW
-                )->getFormattedValue());
+                $headerCell = $sheet->getCell("{$column}" . self::HEADER_ROW);
+                if ($headerCell->getDataType() === DataType::TYPE_FORMULA) return ['error' => 'Header tidak boleh berupa formula.'];
+                $header = trim((string) $headerCell->getFormattedValue());
 
                 $normalizedHeader = strtolower(preg_replace('/\s+/', ' ', $header));
 
                 if ($normalizedHeader !== '') {
+                    if (isset($headerMap[$normalizedHeader])) return ['error' => 'Header duplikat ditemukan.'];
                     $headerMap[$normalizedHeader] = $column;
                 }
             }
@@ -487,6 +484,7 @@ public function import(Request $request): JsonResponse
 
                 $data = [];
                 $hasFormula = false;
+                $precisionError = false;
 
                 foreach ($columns as $field => $column) {
                     $cell = $sheet->getCell("{$column}{$rowNumber}");
@@ -495,7 +493,8 @@ public function import(Request $request): JsonResponse
                         $hasFormula = true;
                     }
 
-                    $data[$field] = trim((string) $cell->getFormattedValue());
+                    if (in_array($field, ['nisn','nipd','no_telepon'], true) && $cell->getDataType() === DataType::TYPE_NUMERIC && abs((float) $cell->getValue()) >= 1e15) $precisionError = true;
+                    $data[$field] = $cell->getDataType() === DataType::TYPE_FORMULA ? '[FORMULA]' : trim((string) $cell->getFormattedValue());
                 }
 
                 if (count(array_filter($data, fn ($value) => $value !== '')) === 0) {
@@ -504,6 +503,7 @@ public function import(Request $request): JsonResponse
 
                 $errors = [];
 
+                if ($precisionError) $errors[] = 'Identifier angka panjang wajib disimpan sebagai teks Excel.';
                 if ($hasFormula) {
                     $errors[] = 'Formula Excel tidak diperbolehkan.';
                 }
@@ -563,7 +563,7 @@ public function import(Request $request): JsonResponse
                     'nisn' => ['required', 'string', 'max:50'],
                     'jenis_kelamin' => ['nullable', 'in:L,P'],
                     'tempat_lahir' => ['nullable', 'string', 'max:100'],
-                    'tanggal_lahir' => ['nullable', 'date_format:Y-m-d'],
+                    'tanggal_lahir' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
                     'alamat' => ['nullable', 'string'],
                     'no_telepon' => ['nullable', 'string', 'max:30'],
                     'rombel_saat_ini' => ['nullable', 'string', 'max:100'],
@@ -667,6 +667,9 @@ foreach ($rawRows as &$row) {
             'Konflik: NISN sama tetapi nama lengkap berbeda.';
     }
 
+    if (($nipdOccurrences[trim($row['nipd'])] ?? 0) > 1) {
+        $row['errors'][] = 'NIPD duplikat dalam file Excel.';
+    }
     $row['errors'] = array_values(array_unique($row['errors']));
 }
 unset($row);
@@ -721,7 +724,7 @@ foreach ($rawRows as $row) {
             $errors[] = 'NIPD sudah digunakan oleh siswa lain.';
         }
 
-        if (!$student->user) {
+        if (!$student->user || $student->user->role?->code !== 'SISWA' || $student->user->guru()->exists()) {
             $errors[] = 'Profil siswa tidak memiliki akun pengguna.';
         }
     } else {
@@ -730,6 +733,7 @@ foreach ($rawRows as $row) {
         }
 
         if ($user) {
+            $errors[] = 'Akun existing harus dihubungkan secara eksplisit melalui Data Siswa sebelum import.';
             if (!$studentRole || $user->role_id !== $studentRole->id) {
                 $errors[] = 'Username NISN sudah digunakan oleh akun dengan role selain SISWA.';
             } elseif ($user->siswa) {
@@ -742,7 +746,19 @@ foreach ($rawRows as $row) {
         }
     }
 
+    $changes = [];
+    if ($student) {
+        foreach (['nama_lengkap','nipd','jenis_kelamin','tanggal_lahir','tempat_lahir','no_telepon','alamat'] as $field) {
+            $next = $row[$field];
+            $current = $field === 'tanggal_lahir' ? $student->tanggal_lahir?->format('Y-m-d') : $student->{$field};
+            if ($next !== '' && (string) $current !== (string) $next) {
+                $changes[$field] = ['before' => $current, 'after' => $next];
+            }
+        }
+    }
     $rows[] = [
+        'profile_version' => $student ? \App\Services\AcademicIdentityService::version($student) : null,
+        'changes' => $changes,
         'row' => $row['row'],
         'nisn' => $row['nisn'],
         'nipd' => $row['nipd'],

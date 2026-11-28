@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
+use App\Support\SchoolPasswordPolicy;
 
 class ResetUserPasswordRequest extends FormRequest
 {
@@ -17,12 +17,7 @@ class ResetUserPasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'password' => [
-                'required',
-                'string',
-                'confirmed',
-                Password::defaults(),
-            ],
+            'password' => SchoolPasswordPolicy::rules(),
         ];
     }
 

@@ -1,0 +1,6 @@
+<?php
+require __DIR__.'/../../app/Support/AcademicTransitionRules.php';
+use App\Support\AcademicTransitionRules as R;
+$a=['tahun_mulai'=>2026,'tahun_selesai'=>2027,'semester'=>'GANJIL'];$b=[...$a,'semester'=>'GENAP'];$c=['tahun_mulai'=>2027,'tahun_selesai'=>2028,'semester'=>'GANJIL'];
+$checks=[R::nextPeriod($a,$b)==='semester',R::nextPeriod($b,$c)==='year',R::nextPeriod($a,$c)===null,R::nextPeriod($b,$a)===null,R::allows('continue',10,10,'semester'),!R::allows('continue',10,11,'semester'),R::allows('promote',10,11,'year'),R::allows('promote',11,12,'year'),!R::allows('promote',12,13,'year'),R::allows('retain',12,12,'year'),R::allows('graduate',12,null,'year'),!R::allows('graduate',11,null,'year'),R::allows('move',10,10,'same'),!R::allows('move',10,11,'same'),R::allows('withdraw',10,null,'same'),!R::allows('withdraw',10,10,'same'),R::overlap('2026-01-01','2026-01-10','2026-01-10',null),!R::overlap('2026-01-01','2026-01-10','2026-01-11',null),R::overlap('2026-01-01',null,'2027-01-01',null),R::overlap('2026-01-02','2026-01-01','2027-01-01',null)];
+foreach($checks as $i=>$ok){if(!$ok){fwrite(STDERR,'FAIL '.($i+1).PHP_EOL);exit(1);}echo 'PASS '.($i+1).PHP_EOL;}echo count($checks).'/'.count($checks).' transition rule cases passed'.PHP_EOL;

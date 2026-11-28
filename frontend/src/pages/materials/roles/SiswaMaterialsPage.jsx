@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { academicYearApi } from '../../../services/academicYearApi'
-import { materialApi } from '../../../services/materialApi'
+import {apiClient} from '../../../services/apiClient'
+import {periodCatalog} from '../../../utils/studentWorkspace.js'
+import PreparedStudentFile,{usePreparedStudentFile} from '../../../components/ui/PreparedStudentFile.jsx'
 import { studentMaterialWorkspaceApi } from '../../../services/studentMaterialWorkspaceApi'
 import {
   fileKind, fileSize, formatDateWib, parseMaterialsWorkspace, uniqueTeachers,
 } from './studentMaterialsView'
 import './SiswaMaterialsPage.css'
 
-function getYears(response) {
-  const value = response?.data?.data ?? response?.data ?? response
-  return Array.isArray(value) ? value : []
-}
 function errorMessage(error) {
   return error?.payload?.message || error?.response?.data?.message || error?.message || 'Bahan ajar tidak berhasil dimuat.'
 }
@@ -29,16 +27,13 @@ export default function SiswaMaterialsPage() {
   const [page, setPage] = useState(1)
   const [downloading, setDownloading] = useState(null)
   const generation = useRef(0)
+  const fileState=usePreparedStudentFile(`${yearId}:${subjectId}:${page}:${search}:${sort}`)
 
   useEffect(() => {
     let live = true
     academicYearApi.getAll().then((r) => {
       if (!live) return
-      const list = getYears(r)
-      setYears(list)
-      const active = list.find((y) => y.is_active === true || y.is_active === 1 || y.is_active === '1')
-      setYearId(active ? String(active.id) : '')
-      if (!active) setLoading(false)
+      const {years:list,activeId}=periodCatalog(r);setYears(list);setYearId(activeId);if(!activeId)setLoading(false)
     }).catch((err) => {
       if (live) { setError(errorMessage(err)); setLoading(false) }
     })
@@ -58,7 +53,7 @@ export default function SiswaMaterialsPage() {
       })
       const result = parseMaterialsWorkspace(response)
       if (requestId !== generation.current) return
-      setWorkspace(result)
+      if(String(result.academic_year.id)!==String(selectedYear))throw new Error('Periode respons berbeda.');setWorkspace(result)
     } catch (err) {
       if (requestId !== generation.current) return
       setError(errorMessage(err))
@@ -101,12 +96,8 @@ export default function SiswaMaterialsPage() {
     setError('')
     setNotice('')
     try {
-      if (file.id !== null && file.id !== undefined) {
-        await materialApi.downloadAttachment(material.id, file.id, file.name || material.title)
-      } else {
-        await materialApi.download(material.id, file.name || material.title)
-      }
-      setNotice('Unduhan berhasil diproses.')
+      const path=file.id!=null?`/materials/${material.id}/attachments/${file.id}/download`:`/materials/${material.id}/download`
+      await fileState.prepare(()=>apiClient.download(path),file.name||'bahan-ajar')
     } catch (err) { setError(errorMessage(err)) }
     finally { setDownloading(null) }
   }
@@ -119,10 +110,10 @@ export default function SiswaMaterialsPage() {
     <main className="smv2-page">
       <div className="smv2-heading">
         <div><p className="smv2-eyebrow">PEMBELAJARAN / BAHAN AJAR</p><h1>Bahan ajar</h1><p>Materi dan lampiran dari guru pada kelas dan periode akademikmu.</p></div>
-        <button type="button" className="smv2-button" onClick={() => load(yearId, subjectId, page, search, sort)} disabled={!yearId || loading || detailLoading}>Perbarui data</button>
+        <button type="button" className="smv2-button" onClick={() => {fileState.clear();load(yearId, subjectId, page, search, sort)}} disabled={!yearId || loading || detailLoading}>Perbarui data</button>
       </div>
       {error && <div className="smv2-alert" role="alert">{error}</div>}
-      {notice && <div className="smv2-notice" role="status">{notice}</div>}
+      <PreparedStudentFile state={fileState}/>{notice && <div className="smv2-notice" role="status">{notice}</div>}
       <section className="smv2-context" aria-label="Konteks akademik">
         <label><span>Periode akademik</span><select aria-label="Periode akademik" value={yearId} onChange={(e) => setYearId(e.target.value)}>
           {!yearId && <option value="">Tidak ada periode aktif</option>}
@@ -160,7 +151,7 @@ export default function SiswaMaterialsPage() {
           {m.description && <p className="smv2-description">{m.description}</p>}
           {m.files.length ? <ul className="smv2-files">{m.files.map((file, index) => <li key={file.id ?? `legacy-${index}`}>
             <span className="smv2-file-kind">{fileKind(file.name, file.mime_type)}</span><span className="smv2-file-label"><strong>{file.name || 'Lampiran'}</strong><small>{fileSize(file.size)}</small></span>
-            <button type="button" className="smv2-button" onClick={() => download(m, file, index)} disabled={downloading !== null}>{downloading === `${m.id}-${file.id ?? index}` ? 'Mengunduh…' : 'Unduh'}</button>
+            <button type="button" className="smv2-button" onClick={() => download(m, file, index)} disabled={downloading !== null || loading || detailLoading}>{downloading === `${m.id}-${file.id ?? index}` ? 'Menyiapkan…' : 'Siapkan file'}</button>
           </li>)}</ul> : <p className="smv2-muted">Materi ini tidak memiliki lampiran.</p>}
         </article>)}</div>
         {materials && materials.last_page > 1 && <div className="smv2-pagination"><button type="button" className="smv2-button" disabled={page <= 1 || detailLoading} onClick={() => changePage(page - 1)}>Sebelumnya</button><span>Halaman {page} dari {materials.last_page}</span><button type="button" className="smv2-button" disabled={page >= materials.last_page || detailLoading} onClick={() => changePage(page + 1)}>Berikutnya</button></div>}

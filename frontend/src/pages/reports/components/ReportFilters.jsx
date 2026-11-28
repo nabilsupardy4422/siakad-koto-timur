@@ -122,7 +122,7 @@ export default function ReportFilters({ reportType, onGenerate, loading }) {
       if (needsSubject) {
         tasks.push({
           key: "subjects",
-          request: subjectApi.getAll({ per_page: 100 }),
+          request: subjectApi.getCatalog(),
           setter: setSubjects,
         });
       }
@@ -187,7 +187,7 @@ export default function ReportFilters({ reportType, onGenerate, loading }) {
       }));
 
       try {
-        const response = await classApi.getAll({
+        const response = await classApi.getCatalog({
           academic_year_id: filters.academic_year_id || undefined,
           per_page: 100,
         });

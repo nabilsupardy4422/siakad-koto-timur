@@ -12,6 +12,16 @@ class StoreClassRequest extends FormRequest
         return true;
     }
 
+    public function messages(): array
+    {
+        return [
+            'nama.required' => 'Nama rombel wajib diisi.',
+            'nama.string' => 'Nama rombel harus berupa teks.',
+            'nama.max' => 'Nama rombel maksimal 100 karakter.',
+            'nama.unique' => 'Nama rombel sudah digunakan pada tingkat dan periode ini.',
+        ];
+    }
+
     public function rules(): array
     {
         return [

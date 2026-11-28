@@ -70,11 +70,6 @@ const navigation = {
       permission: "materials.view",
     },
     {
-      label: "Tugas",
-      path: "/app/assignments",
-      permission: "assignments.view",
-    },
-    {
       label: "Rapor",
       path: "/app/report-cards",
       permission: "report_cards.view",

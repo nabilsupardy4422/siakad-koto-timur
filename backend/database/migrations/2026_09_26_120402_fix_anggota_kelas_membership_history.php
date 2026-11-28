@@ -2,99 +2,77 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private const OLD_UNIQUE = 'anggota_kelas_kelas_id_siswa_id_unique';
+    private const NEW_UNIQUE = 'anggota_kelas_kelas_siswa_mulai_unique';
+
+    private function hasIndex(string $name): bool
+    {
+        return collect(Schema::getIndexes('anggota_kelas'))->contains(
+            fn (array $index): bool => $index['name'] === $name
+        );
+    }
+
     public function up(): void
     {
         if (! Schema::hasColumn('anggota_kelas', 'tanggal_mulai')) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->date('tanggal_mulai')
-                    ->after('siswa_id');
+            if (DB::table('anggota_kelas')->exists()) {
+                throw new \RuntimeException('MEMBERSHIP_START_DATE_REVIEW_REQUIRED');
+            }
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->date('tanggal_mulai')->after('siswa_id');
             });
         }
-
+        if (DB::table('anggota_kelas')->whereNull('tanggal_mulai')->exists()) {
+            throw new \RuntimeException('MEMBERSHIP_NULL_START_DATE_REVIEW_REQUIRED');
+        }
+        if (DB::table('anggota_kelas')->select('kelas_id', 'siswa_id', 'tanggal_mulai')
+            ->groupBy('kelas_id', 'siswa_id', 'tanggal_mulai')->havingRaw('COUNT(*) > 1')->exists()) {
+            throw new \RuntimeException('MEMBERSHIP_DUPLICATE_TARGET_KEY_REVIEW_REQUIRED');
+        }
         if (! Schema::hasColumn('anggota_kelas', 'tanggal_selesai')) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->date('tanggal_selesai')
-                    ->nullable()
-                    ->after('tanggal_mulai');
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->date('tanggal_selesai')->nullable()->after('tanggal_mulai');
             });
         }
-
-        $indexes = Schema::getIndexes('anggota_kelas');
-
-        $hasOldUnique = collect($indexes)->contains(
-            fn (array $index): bool =>
-                $index['name'] === 'anggota_kelas_kelas_id_siswa_id_unique'
-        );
-
-        if ($hasOldUnique) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->dropUnique(
-                    'anggota_kelas_kelas_id_siswa_id_unique'
-                );
+        // Create replacement index before dropping the supporting old index.
+        if (! $this->hasIndex(self::NEW_UNIQUE)) {
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->unique(['kelas_id', 'siswa_id', 'tanggal_mulai'], self::NEW_UNIQUE);
             });
         }
-
-        $indexes = Schema::getIndexes('anggota_kelas');
-
-        $hasMembershipUnique = collect($indexes)->contains(
-            fn (array $index): bool =>
-                $index['name'] === 'anggota_kelas_kelas_siswa_mulai_unique'
-        );
-
-        if (! $hasMembershipUnique) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->unique(
-                    ['kelas_id', 'siswa_id', 'tanggal_mulai'],
-                    'anggota_kelas_kelas_siswa_mulai_unique'
-                );
+        if ($this->hasIndex(self::OLD_UNIQUE)) {
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->dropUnique(self::OLD_UNIQUE);
             });
         }
     }
 
     public function down(): void
     {
-        $indexes = Schema::getIndexes('anggota_kelas');
-
-        $hasMembershipUnique = collect($indexes)->contains(
-            fn (array $index): bool =>
-                $index['name'] === 'anggota_kelas_kelas_siswa_mulai_unique'
-        );
-
-        if ($hasMembershipUnique) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->dropUnique(
-                    'anggota_kelas_kelas_siswa_mulai_unique'
-                );
+        if (DB::table('anggota_kelas')->exists()) {
+            throw new \RuntimeException('MEMBERSHIP_ROLLBACK_REQUIRES_DATA_REVIEW');
+        }
+        if (! $this->hasIndex(self::OLD_UNIQUE)) {
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->unique(['kelas_id', 'siswa_id'], self::OLD_UNIQUE);
             });
         }
-
-        if (Schema::hasColumn('anggota_kelas', 'tanggal_mulai')) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->dropColumn([
-                    'tanggal_mulai',
-                    'tanggal_selesai',
-                ]);
+        if ($this->hasIndex(self::NEW_UNIQUE)) {
+            Schema::table('anggota_kelas', function (Blueprint $table): void {
+                $table->dropUnique(self::NEW_UNIQUE);
             });
         }
-
-        $indexes = Schema::getIndexes('anggota_kelas');
-
-        $hasOldUnique = collect($indexes)->contains(
-            fn (array $index): bool =>
-                $index['name'] === 'anggota_kelas_kelas_id_siswa_id_unique'
-        );
-
-        if (! $hasOldUnique) {
-            Schema::table('anggota_kelas', function (Blueprint $table) {
-                $table->unique(
-                    ['kelas_id', 'siswa_id'],
-                    'anggota_kelas_kelas_id_siswa_id_unique'
-                );
-            });
+        foreach (['tanggal_selesai', 'tanggal_mulai'] as $column) {
+            if (Schema::hasColumn('anggota_kelas', $column)) {
+                Schema::table('anggota_kelas', function (Blueprint $table) use ($column): void {
+                    $table->dropColumn($column);
+                });
+            }
         }
     }
 };

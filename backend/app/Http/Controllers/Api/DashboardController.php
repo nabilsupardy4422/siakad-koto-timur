@@ -137,11 +137,16 @@ class DashboardController extends Controller
     private function guruDashboard(User $user): JsonResponse
     {
         $guruId = $user->guru?->id;
-        $academicYear = $this->activeAcademicYear();
+        $years = TahunAkademik::query()->where('is_active', true)->limit(2)->get();
+        $academicYear = $years->count() === 1 ? $years->first() : null;
+        $contextStatus = $years->count() > 1 ? 'conflict' : ($academicYear ? 'active' : 'none');
 
         if ($guruId === null) {
             return ApiResponse::success([
                 'role' => 'GURU',
+                'academic_year' => $this->academicYearData($academicYear),
+                'context_status' => $guruId === null ? 'unlinked' : $contextStatus,
+                'as_of' => today('Asia/Jakarta')->toDateString(),
                 'is_wali_kelas' => false,
                 'summary' => [
                     'today_schedule_count' => 0,
@@ -164,16 +169,15 @@ class DashboardController extends Controller
             ->where('guru_id', $guruId)
             ->when(
                 $academicYear,
-                fn ($query) => $query->where(
-                    'tahun_akademik_id',
-                    $academicYear->id
-                )
+                fn ($query) => $query->where('tahun_akademik_id', $academicYear->id)
+                    ->whereHas('kelas', fn ($c) => $c->where('tahun_akademik_id', $academicYear->id)),
+                fn ($query) => $query->whereRaw('1=0')
             );
 
-        $today = $this->todayName();
+        $today = match (Carbon::now('Asia/Jakarta')->dayOfWeekIso) {1=>'Senin',2=>'Selasa',3=>'Rabu',4=>'Kamis',5=>'Jumat',6=>'Sabtu',7=>'Minggu'};
 
         $todaySchedule = (clone $scheduleQuery)
-            ->where('hari', $today)
+            ->whereRaw('UPPER(hari) = ?', [strtoupper($today)])
             ->with([
                 'kelas',
                 'mapel',
@@ -210,37 +214,23 @@ class DashboardController extends Controller
         $gradeComponentQuery = KomponenNilai::query()
             ->whereIn('jadwal_pelajaran_id', $scheduleIds);
 
-        $attendanceQuery = Presensi::query()
-            ->whereHas(
-                'jadwalPelajaran',
-                function ($query) use ($guruId, $academicYear): void {
-                    $query->where('guru_id', $guruId);
+        $attendanceQuery = Presensi::query()->whereIn('jadwal_pelajaran_id', $scheduleIds)
+            ->whereIn('presensi.id', \App\Services\TeacherMonitoringIntegrity::attendanceIds());
 
-                    if ($academicYear) {
-                        $query->where(
-                            'tahun_akademik_id',
-                            $academicYear->id
-                        );
-                    }
-                }
-            );
-
-        $waliKelas = HomeroomReadAccess::currentAssignments((int) $guruId)
+        $waliKelas = $academicYear ? HomeroomReadAccess::currentAssignments((int) $guruId, (int) $academicYear->id)
             ->with([
                 'kelas',
                 'tahunAkademik',
             ])
             ->latest('id')
-            ->first();
+            ->first() : null;
 
         $waliKelasData = null;
 
         if ($waliKelas) {
             $studentQuery = AnggotaKelas::query()
                 ->where('kelas_id', $waliKelas->kelas_id)
-                ->whereNull('tanggal_selesai');
-
-            $studentIds = (clone $studentQuery)->pluck('siswa_id');
+                ->whereDate('tanggal_mulai','<=',today('Asia/Jakarta')->toDateString())->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',today('Asia/Jakarta')->toDateString()));
 
             $waliKelasData = [
                 'assignment_id' => $waliKelas->id,
@@ -252,46 +242,29 @@ class DashboardController extends Controller
                 'academic_year' => $this->academicYearData(
                     $waliKelas->tahunAkademik
                 ),
-                'total_students' => $studentQuery->count(),
+                'total_students' => $studentQuery->distinct()->count('siswa_id'),
                 'attendance_records' => Presensi::query()
-                    ->whereIn('siswa_id', $studentIds)
-                    ->when(
-                        $academicYear,
-                        fn ($query) => $query->whereHas(
-                            'jadwalPelajaran',
-                            fn ($scheduleQuery) => $scheduleQuery->where(
-                                'tahun_akademik_id',
-                                $academicYear->id
-                            )
-                        )
-                    )
-                    ->count(),
+                    ->whereHas('jadwalPelajaran', fn ($q) => $q->where('kelas_id',$waliKelas->kelas_id)->where('tahun_akademik_id',$waliKelas->tahun_akademik_id))
+                    ->whereIn('presensi.id', \App\Services\TeacherMonitoringIntegrity::attendanceIds())->count(),
                 'graded_records' => Nilai::query()
-                    ->whereIn('siswa_id', $studentIds)
-                    ->whereHas(
-                        'komponenNilai.jadwalPelajaran',
-                        fn ($query) => $query->when(
-                            $academicYear,
-                            fn ($academicQuery) => $academicQuery->where(
-                                'tahun_akademik_id',
-                                $academicYear->id
-                            )
-                        )
-                    )
-                    ->count(),
+                    ->whereHas('komponenNilai.jadwalPelajaran', fn ($q) => $q->where('kelas_id',$waliKelas->kelas_id)->where('tahun_akademik_id',$waliKelas->tahun_akademik_id))
+                    ->whereIn('nilai.id', \App\Services\TeacherMonitoringIntegrity::gradeIds())->count(),
             ];
         }
 
         return ApiResponse::success([
             'role' => 'GURU',
+                'academic_year' => $this->academicYearData($academicYear),
+                'context_status' => $guruId === null ? 'unlinked' : $contextStatus,
+                'as_of' => today('Asia/Jakarta')->toDateString(),
             'is_wali_kelas' => $waliKelas !== null,
             'summary' => [
-                'today_schedule_count' => $todaySchedule->count(),
-                'teaching_schedule_count' => $scheduleQuery->count(),
-                'material_count' => $materialQuery->count(),
-                'assignment_count' => $assignmentQuery->count(),
-                'grade_component_count' => $gradeComponentQuery->count(),
-                'attendance_record_count' => $attendanceQuery->count(),
+                'today_schedule_count' => $academicYear ? $todaySchedule->count() : null,
+                'teaching_schedule_count' => $academicYear ? $scheduleQuery->count() : null,
+                'material_count' => $academicYear ? $materialQuery->count() : null,
+                'assignment_count' => $academicYear ? $assignmentQuery->count() : null,
+                'grade_component_count' => $academicYear ? $gradeComponentQuery->count() : null,
+                'attendance_record_count' => $academicYear ? $attendanceQuery->count() : null,
             ],
             'wali_kelas' => $waliKelasData,
             'today_schedule' => $todaySchedule,
@@ -504,7 +477,7 @@ class DashboardController extends Controller
             )
             ->withCount([
                 'anggotaKelas as active_students_count' => fn ($query) => $query
-                    ->whereNull('tanggal_selesai'),
+                    ->whereDate('tanggal_mulai','<=',today('Asia/Jakarta')->toDateString())->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',today('Asia/Jakarta')->toDateString())),
             ])
             ->orderBy('tingkat')
             ->orderBy('nama')

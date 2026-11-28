@@ -22,6 +22,11 @@ function buildQuery(params = {}) {
 }
 
 export const userApi = {
+  getActivationSummary() { return apiClient.get('/users/activation-summary') },
+  previewBulk(payload) { return apiClient.post('/users/bulk/preview', payload) },
+  issueBulk(payload) { return apiClient.postBlob('/users/bulk/activation-codes', payload) },
+  deactivateBulk(payload) { return apiClient.post('/users/bulk/deactivate', payload) },
+  getRoles() { return apiClient.get('/users/roles') },
   getAll(params = {}) {
     return apiClient.get(`/users${buildQuery(params)}`)
   },

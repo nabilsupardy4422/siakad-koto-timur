@@ -18,6 +18,7 @@ class WaliKelas extends Model
         'tahun_akademik_id',
         'tanggal_mulai',
         'tanggal_selesai',
+        'cancelled_at', 'cancelled_by', 'cancel_reason',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class WaliKelas extends Model
         return [
             'tanggal_mulai' => 'date',
             'tanggal_selesai' => 'date',
+            'cancelled_at' => 'datetime',
         ];
     }
 

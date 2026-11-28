@@ -38,6 +38,11 @@ class Siswa extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function academicMembershipEvents(): HasMany
+    {
+        return $this->hasMany(AcademicMembershipEvent::class);
+    }
+
     public function anggotaKelas(): HasMany
     {
         return $this->hasMany(AnggotaKelas::class);

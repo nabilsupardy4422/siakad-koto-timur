@@ -30,11 +30,11 @@ class RoleChangeRevokesTokensTest extends TestCase
             'name' => 'Guru',
         ])->save();
 
-        $siswaRole = new Role();
+        $principalRole = new Role();
 
-        $siswaRole->forceFill([
-            'code' => 'SISWA',
-            'name' => 'Siswa',
+        $principalRole->forceFill([
+            'code' => 'KEPALA_SEKOLAH',
+            'name' => 'Kepala Sekolah',
         ])->save();
 
         // 2. Buat akun TU penguji.
@@ -82,11 +82,11 @@ class RoleChangeRevokesTokensTest extends TestCase
 
         Sanctum::actingAs($tu);
 
-        // 6. TU mengubah role Guru menjadi Siswa.
+        // 6. TU mengubah role Guru menjadi Kepala Sekolah.
         $response = $this->putJson(
             "/api/users/{$guru->id}",
             [
-                'role_id' => $siswaRole->id,
+                'role_id' => $principalRole->id,
             ]
         );
 
@@ -97,7 +97,7 @@ class RoleChangeRevokesTokensTest extends TestCase
         $guru->refresh();
 
         $this->assertSame(
-            (int) $siswaRole->id,
+            (int) $principalRole->id,
             (int) $guru->role_id
         );
 
@@ -110,7 +110,7 @@ class RoleChangeRevokesTokensTest extends TestCase
         // 9. Pastikan database konsisten.
         $this->assertDatabaseHas('users', [
             'id' => $guru->id,
-            'role_id' => $siswaRole->id,
+            'role_id' => $principalRole->id,
             'account_status' => 'active',
         ]);
     }

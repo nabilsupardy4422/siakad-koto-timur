@@ -1,151 +1,565 @@
-
-import { useDashboard } from '../hooks/useDashboard'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { apiClient } from '../../../services/apiClient'
+import { monitoringFrom } from '../../tu-monitoring/monitoringLogic.js'
+import { dashboardApi } from '../../../services/dashboardApi'
+import { principalAttendanceApi } from '../../../services/principalAttendanceApi'
+import { principalGradeApi } from '../../../services/principalGradeApi'
+import { formatPrincipalGrade, normalizePrincipalGradeRecap, principalGradeBarWidth } from './principalGradeView'
+import {
+  attendanceTrendGeometry,
+  formatAttendanceRate,
+  normalizePrincipalAttendance,
+  principalAttendanceMonths,
+} from './principalAttendanceView'
+import {
+  classBarWidth,
+  formatPrincipalNumber,
+  normalizePrincipalDashboard,
+  principalEnrollmentScope,
+} from './principalDashboardView'
 import './KepalaSekolahDashboard.css'
 
-function SummaryCard({ label, value, icon, description }) {
+function VisualIcon({ name, size = 20 }) {
+  const icons = {
+    guru: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-2a5.5 5.5 0 0 1 11 0v2" /><path d="M16.5 5a3 3 0 0 1 0 6M17 14a4.5 4.5 0 0 1 3.5 4.5V20" /></>,
+    siswa: <><path d="m2 9 10-5 10 5-10 5-10-5Z" /><path d="M6 11.5V16c4 3.1 8 3.1 12 0v-4.5M22 9v6" /></>,
+    kelas: <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 4v17M3 10h18M12 15h5" /></>,
+    mapel: <><path d="M3 5h7a2 2 0 0 1 2 2v14a3 3 0 0 0-3-3H3zM21 5h-7a2 2 0 0 0-2 2v14a3 3 0 0 1 3-3h6z"/></>,
+    effective: <><circle cx="12" cy="7" r="3"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></>,
+    jadwal: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18M8 15h3M8 18h5" /></>,
+    presensi: <><path d="M4 19V5M4 19h16" /><path d="m8 15 4-5 3 3 5-7" /><path d="M17 6h3v3" /></>,
+    nilai: <><path d="M4 20h16M7 17V9M12 17V5M17 17v-6" /><circle cx="7" cy="7" r="1" /></>,
+    laporan: <><path d="M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M15 3v5h5M9 12h7M9 16h7" /></>,
+    arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
+    refresh: <><path d="M20 11a8 8 0 1 0-2.5 6" /><path d="M20 4v7h-7" /></>,
+    shield: <><path d="m12 2 8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-4Z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>,
+  }
+
   return (
-    <article className="principal-summary-card">
-      <div className="principal-summary-card__top">
-        <span
-          className="principal-summary-card__icon"
-          aria-hidden="true"
-        >
-          {icon}
-        </span>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {icons[name] ?? icons.laporan}
+    </svg>
+  )
+}
 
-        <span className="principal-summary-card__label">
-          {label}
-        </span>
+const shortcuts = [
+  { title: 'Monitoring Presensi', description: 'Periksa rekap kehadiran dan keterisian catatan.', path: '/app/attendance', icon: 'presensi' },
+  { title: 'Monitoring Penilaian', description: 'Tinjau perkembangan penilaian akademik.', path: '/app/grades', icon: 'nilai' },
+  { title: 'Jadwal Pembelajaran', description: 'Lihat distribusi jadwal dan kegiatan kelas.', path: '/app/schedules', icon: 'jadwal' },
+  { title: 'Laporan Sekolah', description: 'Buka laporan resmi sesuai akses Kepala Sekolah.', path: '/app/reports', icon: 'laporan' },
+]
+
+function LoadingDashboard() {
+  return (
+    <main className="principal-v1" aria-busy="true">
+      <div className="principal-v1__loading" role="status" aria-live="polite">
+        <span className="principal-v1__loader" aria-hidden="true" />
+        <div>
+          <strong>Menyiapkan ikhtisar sekolah</strong>
+          <p>Mengambil data akademik yang tersedia...</p>
+        </div>
       </div>
+      <div className="principal-v1__skeleton-grid" aria-hidden="true">
+        {[1, 2, 3, 4].map((item) => <div key={item} />)}
+      </div>
+    </main>
+  )
+}
 
-      <strong className="principal-summary-card__value">
-        {value ?? 0}
-      </strong>
+function DashboardError({ error, onRetry }) {
+  return (
+    <main className="principal-v1">
+      <div className="principal-v1__feedback" role="alert">
+        <span className="principal-v1__feedback-icon"><VisualIcon name="refresh" /></span>
+        <h1>Ikhtisar belum dapat ditampilkan</h1>
+        <p>{error || 'Data monitoring sekolah belum tersedia. Silakan coba kembali.'}</p>
+        <button className="principal-v1__retry" type="button" onClick={onRetry}>
+          <VisualIcon name="refresh" size={17} /> Coba lagi
+        </button>
+      </div>
+    </main>
+  )
+}
 
-      <p className="principal-summary-card__caption">
-        {description}
-      </p>
+function MetricCard({ metric }) {
+  return (
+    <article className="principal-v1__metric">
+      <div className="principal-v1__metric-top">
+        <span className={`principal-v1__metric-icon principal-v1__metric-icon--${metric.key}`}>
+          <VisualIcon name={metric.key} />
+        </span>
+        <span className="principal-v1__metric-label">{metric.label}</span>
+      </div>
+      <strong className="principal-v1__metric-value">{formatPrincipalNumber(metric.value)}</strong>
+      <p>{metric.value === null ? 'Data belum tersedia' : metric.note}</p>
     </article>
   )
 }
 
-export default function KepalaSekolahDashboard() {
-  const { dashboard, loading, error } = useDashboard()
-
-  if (loading) {
-    return (
-      <section className="dashboard-page principal-dashboard">
-        <div className="principal-dashboard__state">
-          <span
-            className="principal-dashboard__spinner"
-            aria-hidden="true"
-          />
-          <p>Memuat dashboard Kepala Sekolah...</p>
-        </div>
-      </section>
-    )
-  }
-
-  if (error) {
-    return (
-      <section className="dashboard-page principal-dashboard">
-        <div className="principal-dashboard__error" role="alert">
-          <strong>Dashboard tidak dapat dimuat</strong>
-          <p>
-            {error.message ||
-              'Terjadi kesalahan saat mengambil data dashboard.'}
-          </p>
-        </div>
-      </section>
-    )
-  }
-
-  const summary = dashboard?.summary ?? {}
-
-  const cards = [
-    {
-      label: 'Guru',
-      value: summary.total_guru,
-      icon: 'G',
-      description: 'Total data guru',
-    },
-    {
-      label: 'Siswa',
-      value: summary.total_siswa,
-      icon: 'S',
-      description: 'Total data siswa',
-    },
-    {
-      label: 'Kelas',
-      value: summary.total_kelas,
-      icon: 'K',
-      description: 'Total rombongan belajar',
-    },
-    {
-      label: 'Jadwal',
-      value: summary.total_jadwal,
-      icon: 'J',
-      description: 'Jadwal yang tercatat',
-    },
-  ]
+function DistributionPanel({ classes, studentMetric, levels=[] }) {
+  const [page,setPage]=useState(1)
+  const last=Math.max(1,Math.ceil(classes.length/8))
+  const current=Math.min(page,last)
+  const displayedClasses = classes.slice((current-1)*8,current*8)
+  const maxCount = classes[0]?.count ?? 0
+  const scope = principalEnrollmentScope(displayedClasses, studentMetric)
 
   return (
-    <section className="dashboard-page principal-dashboard">
-      <header className="principal-dashboard__hero">
-        <div className="principal-dashboard__hero-content">
-          <div className="principal-dashboard__eyebrow">
-            <span className="principal-dashboard__eyebrow-dot" />
-            DASHBOARD KEPALA SEKOLAH
-          </div>
-
-          <h1>
-            Ringkasan,
-            <strong>Kepala Sekolah</strong>
-          </h1>
-
-          <p>
-            Pantau ringkasan data guru, siswa, kelas, dan jadwal
-            akademik sekolah melalui satu halaman.
-          </p>
+    <section className="principal-v1__panel" aria-labelledby="principal-v1-class-title">
+      <div className="principal-v1__panel-head">
+        <div>
+          <span className="principal-v1__eyebrow">DISTRIBUSI AKADEMIK</span>
+          <h2 id="principal-v1-class-title">Sebaran anggota kelas aktif</h2>
+          <p>Siswa efektif distinct per rombel pada tanggal acuan WIB.</p>
         </div>
+        {classes.length > 0 && <span className="principal-v1__panel-count">{classes.length} kelas</span>}
+      </div>
+      {classes.length === 0 ? (
+        <div className="principal-v1__empty">
+          <span className="principal-v1__empty-symbol" aria-hidden="true">—</span>
+          <strong>Belum ada distribusi kelas</strong>
+          <p>Data anggota kelas akan tampil setelah tersedia pada sistem.</p>
+        </div>
+      ) : (
+        <>
+          <div className="principal-v1__level-grid" aria-label="Distribusi per tingkat">{levels.map(v=><div key={v.level}><small>Tingkat {v.level}</small><strong>{formatPrincipalNumber(v.count)}</strong></div>)}</div>
+          <div className="principal-v1__bar-list">
+            {displayedClasses.map((item) => (
+              <div className="principal-v1__bar-row" key={item.id}>
+                <span className="principal-v1__bar-name" title={item.name}>{item.name}</span>
+                <div className="principal-v1__bar-track" role="img" aria-label={`${item.name}: ${formatPrincipalNumber(item.count)} anggota kelas aktif`}>
+                  <div className="principal-v1__bar-fill" style={{ width: `${classBarWidth(item.count, maxCount)}%` }} />
+                </div>
+                <strong className="principal-v1__bar-count">{formatPrincipalNumber(item.count)}</strong>
+              </div>
+            ))}
+          </div>
+          {last>1&&<div className="principal-v1__pages"><button type="button" disabled={current===1} onClick={()=>setPage(current-1)}>Sebelumnya</button><span>{current} / {last}</span><button type="button" disabled={current===last} onClick={()=>setPage(current+1)}>Berikutnya</button></div>}
+          {scope && (
+            <div className="principal-v1__enrollment-scope" role="note" aria-label="Perbandingan satuan data profil siswa dan anggota kelas">
+              <div>
+                <span>Profil siswa terdaftar</span>
+                <strong>{formatPrincipalNumber(scope.registeredProfiles)}</strong>
+              </div>
+              <div>
+                <span>Keanggotaan di {scope.displayedClasses} kelas pada grafik</span>
+                <strong>{formatPrincipalNumber(scope.memberships)}</strong>
+              </div>
+            </div>
+          )}
+          <p className="principal-v1__footnote">
+            {classes.length > 8 ? `Halaman ${current} dari ${last} · ${classes.length} rombel.` : 'Seluruh kelas yang tersedia ditampilkan.'}
+            {' '}Jumlah profil siswa dan keanggotaan kelas berasal dari unit hitung berbeda.
+            Selisih kedua angka bukan bukti jumlah siswa tanpa kelas; pemeriksaan penempatan memerlukan data anggota kelas berdasarkan periode.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
 
-        <div
-          className="principal-dashboard__decoration"
-          aria-hidden="true"
-        >
-          <span />
-          <span />
-          <span />
+const attendanceStatuses = [
+  { key: 'hadir', label: 'Hadir', color: '#168d83' },
+  { key: 'izin', label: 'Izin', color: '#6489c3' },
+  { key: 'sakit', label: 'Sakit', color: '#efb75e' },
+  { key: 'alpa', label: 'Alpa', color: '#da7477' },
+]
+
+function AttendanceFeedback({ kind, onRetry }) {
+  if (kind === 'loading') {
+    return <div className="principal-v1__analytics-state" role="status" aria-live="polite"><span className="principal-v1__loader" aria-hidden="true" /> Memuat catatan presensi sekolah...</div>
+  }
+  if (kind === 'no-year') {
+    return <div className="principal-v1__analytics-state">Tahun akademik aktif belum tersedia. Grafik presensi belum dapat ditampilkan.</div>
+  }
+  if (kind === 'error') {
+    return (
+      <div className="principal-v1__analytics-state principal-v1__analytics-state--error" role="alert">
+        <strong>Rekap presensi gagal dimuat.</strong>
+        <p>Data lama tidak ditampilkan agar tidak menyesatkan. Periksa koneksi dan coba kembali.</p>
+        <button type="button" className="principal-v1__retry" onClick={onRetry}>Coba lagi</button>
+      </div>
+    )
+  }
+  return <div className="principal-v1__analytics-state">Belum ada catatan presensi tersimpan pada enam bulan ini. Tidak ada persentase yang dihitung.</div>
+}
+
+function AttendanceComposition({ attendance, status, onRetry }) {
+  const totals = attendance?.totals
+  const available = status === 'ready' && totals?.total > 0
+  let cumulative = 0
+  const stops = available ? attendanceStatuses.map((item) => {
+    const start = cumulative
+    cumulative += (totals[item.key] / totals.total) * 100
+    return `${item.color} ${start}% ${cumulative}%`
+  }).join(', ') : ''
+
+  return (
+    <section className="principal-v1__panel principal-v1__attendance-panel" aria-labelledby="principal-attendance-title">
+      <div className="principal-v1__panel-head">
+        <div>
+          <span className="principal-v1__eyebrow">KOMPOSISI PRESENSI</span>
+          <h2 id="principal-attendance-title">Status yang tercatat</h2>
+          <p>Akumulasi catatan per pertemuan, bukan rekap siswa unik atau tingkat keterisian presensi.</p>
+        </div>
+      </div>
+      {!available ? <AttendanceFeedback kind={status} onRetry={onRetry} /> : (
+        <>
+          <div className="principal-v1__donut-wrap">
+            <div className="principal-v1__donut" style={{ background: `conic-gradient(${stops})` }} role="img" aria-label={attendanceStatuses.map((item) => `${item.label}: ${totals[item.key]} catatan`).join(', ')}>
+              <div className="principal-v1__donut-hole">
+                <strong>{formatAttendanceRate(totals.rate)}</strong>
+                <span>Hadir dari catatan</span>
+              </div>
+            </div>
+            <div className="principal-v1__donut-legend">
+              {attendanceStatuses.map((item) => (
+                <div className="principal-v1__legend-row" key={item.key}>
+                  <span className="principal-v1__legend-color" style={{ background: item.color }} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  <strong>{new Intl.NumberFormat('id-ID').format(totals[item.key])}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="principal-v1__analytics-footnote">Dasar perhitungan: {new Intl.NumberFormat('id-ID').format(totals.total)} catatan presensi yang tersimpan selama enam bulan terakhir.</p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function AttendanceTrend({ attendance, status, onRetry }) {
+  const available = status === 'ready' && attendance?.totals?.total > 0
+  const geometry = available ? attendanceTrendGeometry(attendance.months) : { points: [], segments: [] }
+
+  return (
+    <section className="principal-v1__panel principal-v1__attendance-panel" aria-labelledby="principal-trend-title">
+      <div className="principal-v1__panel-head">
+        <div>
+          <span className="principal-v1__eyebrow">TREN PRESENSI</span>
+          <h2 id="principal-trend-title">Persentase hadir per bulan</h2>
+          <p>Proporsi status Hadir dari seluruh catatan yang tersimpan pada bulan tersebut.</p>
+        </div>
+        {available && <span className="principal-v1__panel-count">6 bulan</span>}
+      </div>
+      {!available ? <AttendanceFeedback kind={status} onRetry={onRetry} /> : (
+        <>
+          <div className="principal-v1__trend-wrap" role="img" aria-label={attendance.months.map((month) => `${month.label}: ${formatAttendanceRate(month.rate)} dari ${month.total} catatan`).join('; ')}>
+            <div className="principal-v1__trend-axis" aria-hidden="true"><span>100%</span><span>50%</span><span>0%</span></div>
+            <svg viewBox="0 0 620 170" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              {[27, 83, 139].map((y) => <line key={y} x1="17" x2="601" y1={y} y2={y} className="principal-v1__trend-gridline" />)}
+              {geometry.segments.map((segment, index) => <polyline key={index} points={segment.map((point) => `${point.x},${point.y}`).join(' ')} className="principal-v1__trend-line" />)}
+              {geometry.points.filter((point) => point.y !== null).map((point) => (
+                <circle key={point.key} cx={point.x} cy={point.y} r="6" className="principal-v1__trend-point">
+                  <title>{point.label}: {formatAttendanceRate(point.rate)}, {point.total} catatan</title>
+                </circle>
+              ))}
+            </svg>
+          </div>
+          <div className="principal-v1__trend-labels" aria-hidden="true">{attendance.months.map((month) => <span key={month.key}>{month.label}</span>)}</div>
+          {attendance.monthsWithRecords < 2 && (
+            <p className="principal-v1__trend-insight" role="status">
+              Belum cukup data untuk membandingkan tren antarbulan. Saat ini baru {attendance.monthsWithRecords} dari 6 bulan yang memiliki catatan presensi.
+            </p>
+          )}
+          <p className="principal-v1__analytics-footnote">Bulan tanpa catatan dibiarkan kosong dan garis tidak disambung melewatinya. Bulan berjalan dihitung sampai hari ini (WIB).</p>
+        </>
+      )}
+    </section>
+  )
+}
+
+function PrincipalAttendanceAnalytics({ year, state, onRetry }) {
+  const canQuery = Number.isSafeInteger(year?.id) && year.id > 0
+  const status = !canQuery ? 'no-year' : state.loading ? 'loading' : state.error ? 'error' : state.data?.totals?.total > 0 ? 'ready' : 'empty'
+  return (
+    <section className="principal-v1__section" aria-labelledby="principal-analytics-heading">
+      <div className="principal-v1__section-heading">
+        <div>
+          <span className="principal-v1__eyebrow">ANALITIK AKADEMIK</span>
+          <h2 id="principal-analytics-heading">Kondisi presensi sekolah</h2>
+          <p>Data tercatat di tahun akademik aktif · {year?.label ?? 'Periode belum ditentukan'} · enam bulan terakhir dalam WIB.</p>
+        </div>
+        {canQuery && <button className="principal-v1__analytics-refresh" type="button" onClick={onRetry} disabled={state.loading}>
+          <VisualIcon name="refresh" size={16} /> Perbarui rekap
+        </button>}
+      </div>
+      <div className="principal-v1__analytics-grid">
+        <AttendanceComposition attendance={state.data} status={status} onRetry={onRetry} />
+        <AttendanceTrend attendance={state.data} status={status} onRetry={onRetry} />
+      </div>
+    </section>
+  )
+}
+
+
+function PrincipalGradeAnalytics({ year, state, onRetry }) {
+  const canQuery = Number.isSafeInteger(year?.id) && year.id > 0
+  const status = !canQuery ? 'no-year' : state.loading ? 'loading' : state.error ? 'error' : state.data?.total > 0 ? 'ready' : 'empty'
+  const summary = status === 'ready' ? state.data : null
+
+  const scoreBars = summary ? [
+    { label: 'Skor terendah', value: summary.lowest, key: 'lowest' },
+    { label: 'Rata-rata komponen', value: summary.average, key: 'average' },
+    { label: 'Skor tertinggi', value: summary.highest, key: 'highest' },
+  ] : []
+
+  return (
+    <section className="principal-v1__section" aria-labelledby="principal-grade-analytics-title">
+      <div className="principal-v1__section-heading">
+        <div>
+          <span className="principal-v1__eyebrow">MONITORING PENILAIAN</span>
+          <h2 id="principal-grade-analytics-title">Ringkasan nilai komponen</h2>
+          <p>Skor komponen tersimpan untuk {year?.label ?? 'periode aktif'} · tidak mewakili nilai rapor atau kelulusan.</p>
+        </div>
+        {canQuery && (
+          <button className="principal-v1__analytics-refresh" type="button" onClick={onRetry} disabled={state.loading}>
+            <VisualIcon name="refresh" size={16} /> Perbarui nilai
+          </button>
+        )}
+      </div>
+      <div className="principal-v1__panel principal-v1__grade-panel">
+        {status !== 'ready' ? (
+          <div className={`principal-v1__analytics-state ${status === 'error' ? 'principal-v1__analytics-state--error' : ''}`} role={status === 'error' ? 'alert' : 'status'}>
+            {status === 'loading' && <><span className="principal-v1__loader" aria-hidden="true" /> Memuat ringkasan nilai komponen...</>}
+            {status === 'no-year' && 'Tahun akademik aktif belum tersedia. Ringkasan nilai tidak ditampilkan.'}
+            {status === 'empty' && 'Belum ada catatan nilai komponen untuk periode aktif. Rata-rata tidak dihitung.'}
+            {status === 'error' && <><strong>Ringkasan nilai belum dapat dimuat.</strong><p>Data lama tidak ditampilkan agar tidak menyesatkan.</p><button type="button" className="principal-v1__retry" onClick={onRetry}>Coba lagi</button></>}
+          </div>
+        ) : (
+          <>
+            <div className="principal-v1__grade-highlight">
+              <span className="principal-v1__eyebrow">RATA-RATA ARITMETIKA</span>
+              <div className="principal-v1__grade-average">
+                <strong>{formatPrincipalGrade(summary.average)}</strong><span>/ 100</span>
+              </div>
+              <p>Dari <strong>{new Intl.NumberFormat('id-ID').format(summary.total)}</strong> catatan nilai komponen, bukan jumlah siswa unik.</p>
+              <Link className="principal-v1__grade-detail-link" to="/app/grades">Buka monitoring penilaian <VisualIcon name="arrow" size={15} /></Link>
+            </div>
+            <div className="principal-v1__grade-bars" role="img" aria-label={`Skor terendah ${formatPrincipalGrade(summary.lowest)}, rata-rata ${formatPrincipalGrade(summary.average)}, tertinggi ${formatPrincipalGrade(summary.highest)} dari ${summary.total} catatan komponen`}>
+              {scoreBars.map((score) => (
+                <div className="principal-v1__grade-row" key={score.key}>
+                  <div className="principal-v1__grade-label"><span>{score.label}</span><strong>{formatPrincipalGrade(score.value)}</strong></div>
+                  <div className="principal-v1__grade-track">
+                    <div className={`principal-v1__grade-fill principal-v1__grade-fill--${score.key}`} style={{ width: `${principalGradeBarWidth(score.value)}%` }} />
+                  </div>
+                </div>
+              ))}
+              <div className="principal-v1__grade-scale"><span>0</span><span>50</span><span>100</span></div>
+            </div>
+          </>
+        )}
+      </div>
+      <p className="principal-v1__grade-disclaimer">Perhitungan memakai skor komponen yang tercatat pada API rekap. Rata-rata tidak diberi bobot; nilai 0 tetap dihitung. Grafik ini tidak mengukur ketuntasan, mutu rapor akhir, ataupun persebaran siswa.</p>
+    </section>
+  )
+}
+
+function PeriodPanel({ year }) {
+  const hasPeriod = Boolean(year?.label)
+
+  return (
+    <section className="principal-v1__panel principal-v1__period" aria-labelledby="principal-v1-period-title">
+      <div className="principal-v1__panel-head">
+        <div>
+          <span className="principal-v1__eyebrow">KONTEKS AKADEMIK</span>
+          <h2 id="principal-v1-period-title">Periode sekolah</h2>
+          <p>Hanya tahun ajaran dan semester yang sedang aktif.</p>
+        </div>
+        {hasPeriod && <span className="principal-v1__year-status">Aktif</span>}
+      </div>
+      <div className="principal-v1__active-period">
+        <span className="principal-v1__period-icon"><VisualIcon name="jadwal" size={22} /></span>
+        <div>
+          <span className="principal-v1__period-caption">PERIODE AKTIF</span>
+          <strong>{year?.label ?? 'Belum ditentukan'}</strong>
+          <span>{year?.semester ? `Semester ${year.semester}` : 'Semester belum tersedia'}</span>
+        </div>
+      </div>
+      {!hasPeriod && (
+        <p className="principal-v1__period-warning">
+          Periode aktif tidak tersedia atau bertabrakan. Statistik periode tidak dihitung.
+        </p>
+      )}
+      <p className="principal-v1__period-helper">
+        Informasi mengikuti pengaturan periode akademik sekolah secara otomatis.
+        Riwayat dan filter periode tersedia di halaman Laporan.
+      </p>
+    </section>
+  )
+}
+
+function GradeCoveragePanel({ year, classes, date }) {
+  const [classId,setClassId]=useState('')
+  const [state,setState]=useState({key:'',status:'idle',summary:null,error:''})
+  const [retry,setRetry]=useState(0)
+  const key=`${year.id}:${classId}:${date}:${retry}`
+  useEffect(()=>{
+    let alive=true
+    if(!classId)return ()=>{alive=false}
+    const params={academic_year_id:String(year.id),view:'coverage',class_id:classId,page:'1'}
+    setState({key,status:'loading',summary:null,error:''})
+    apiClient.get(`/principal/grade-monitoring?${new URLSearchParams(params)}`).then(response=>{
+      const parsed=monitoringFrom(response,params,{id:year.id,semester:year.semester.toUpperCase()},true)
+      if(!parsed.meta.active||parsed.meta.date!==date)throw new Error('Periode berubah. Muat ulang dashboard.')
+      if(alive)setState({key,status:'ready',summary:parsed.summary,error:''})
+    }).catch(error=>{if(alive)setState({key,status:'error',summary:null,error:error?.message||'Gagal memuat penilaian.'})})
+    return ()=>{alive=false}
+  },[key])
+  const current=state.key===key?state:null
+  const s=current?.summary;const rate=s&&s['Slot saat ini']>0?100*s['Terisi saat ini']/s['Slot saat ini']:null
+  return <section className="principal-v1__panel"><div className="principal-v1__panel-head"><div><span className="principal-v1__eyebrow">KELENGKAPAN PENILAIAN</span><h2>Pantau rombel</h2><p>Slot saat ini, bukan nilai akhir atau kinerja guru.</p></div><Link to="/app/grades">Lihat penilaian</Link></div><label className="principal-v1__grade-select">Rombel<select value={classId} onChange={e=>setClassId(e.target.value)}><option value="">Pilih rombel</option>{classes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>{!classId?<p>Pilih rombel untuk melihat kelengkapan nilai.</p>:!current||current.status==='loading'?<p role="status">Memuat penilaian…</p>:current.status==='error'?<div role="alert">{current.error} <button type="button" className="principal-v1__retry" onClick={()=>setRetry(n=>n+1)}>Coba lagi</button></div>:s&&<><p>{rate===null?'Belum ada slot yang dapat dihitung.':`${rate.toLocaleString('id-ID',{maximumFractionDigits:1})}% slot terisi`}</p><div className="principal-v1__coverage-grid">{['Slot saat ini','Terisi saat ini','Belum dinilai','Slot anomali','Catatan valid'].map(k=><div key={k}><small>{k}</small><strong>{formatPrincipalNumber(s[k])}</strong></div>)}</div></>}</section>
+}
+
+export default function KepalaSekolahDashboard() {
+  const [attempt, setAttempt] = useState(0)
+  const [state, setState] = useState({ loading: true, data: null, error: null })
+  const [analyticsAttempt, setAnalyticsAttempt] = useState(0)
+  const [analytics, setAnalytics] = useState({ loading: false, data: null, error: null })
+  const [gradeAttempt, setGradeAttempt] = useState(0)
+  const [gradeState, setGradeState] = useState({ loading: false, data: null, error: null })
+
+  useEffect(() => {
+    let active = true
+    setState({ loading: true, data: null, error: null })
+
+    dashboardApi.getPrincipalDashboard()
+      .then((response) => { if (!Object.hasOwn(response?.data||{},'active_state')) throw new Error('Kontrak dashboard baru tidak tersedia.'); return normalizePrincipalDashboard(response) })
+      .then((data) => {
+        if (active) setState({ loading: false, data, error: null })
+      })
+      .catch((error) => {
+        if (active) setState({ loading: false, data: null, error: error?.message || 'Permintaan data gagal.' })
+      })
+
+    return () => { active = false }
+  }, [attempt])
+
+  const yearId = state.data?.year?.id
+  useEffect(() => {
+    let active = true
+    if (!Number.isSafeInteger(yearId) || yearId <= 0) {
+      setAnalytics({ loading: false, data: null, error: null })
+      return () => { active = false }
+    }
+
+    setAnalytics({ loading: true, data: null, error: null })
+    const windows = principalAttendanceMonths(new Date(`${state.data.date}T12:00:00+07:00`))
+    Promise.all(windows.map((month) => principalAttendanceApi.getMonthlyRecap({
+      academicYearId: yearId,
+      from: month.from,
+      to: month.to,
+    })))
+      .then((responses) => normalizePrincipalAttendance(windows, responses.map((response,index)=>{if(response?.meta?.academic_year_id!==yearId||response.meta.date_from!==windows[index].from||response.meta.date_to!==windows[index].to||response.meta.date!==state.data.date)throw new Error('Konteks presensi berubah. Muat ulang.');return response})))
+      .then((data) => {
+        if (active) setAnalytics({ loading: false, data, error: null })
+      })
+      .catch((error) => {
+        if (active) setAnalytics({ loading: false, data: null, error: error?.message || 'Gagal memuat rekap.' })
+      })
+
+    return () => { active = false }
+  }, [yearId, state.data?.date, attempt, analyticsAttempt])
+
+
+  useEffect(() => {
+    let active = true
+    if (!Number.isSafeInteger(yearId) || yearId <= 0) {
+      setGradeState({ loading: false, data: null, error: null })
+      return () => { active = false }
+    }
+
+    setGradeState({ loading: true, data: null, error: null })
+    principalGradeApi.getRecap({ academicYearId: yearId })
+      .then(response=>{if(response?.meta?.academic_year_id!==yearId||response.meta.date!==state.data.date)throw new Error('Konteks nilai berubah. Muat ulang.');return normalizePrincipalGradeRecap(response)})
+      .then((data) => {
+        if (active) setGradeState({ loading: false, data, error: null })
+      })
+      .catch((error) => {
+        if (active) setGradeState({ loading: false, data: null, error: error?.message || 'Gagal memuat rekap nilai.' })
+      })
+
+    return () => { active = false }
+  }, [yearId, state.data?.date, attempt, gradeAttempt])
+
+  if (state.loading) return <LoadingDashboard />
+  if (state.error || !state.data) {
+    return <DashboardError error={state.error} onRetry={() => setAttempt((value) => value + 1)} />
+  }
+
+  const { metrics, classes, year } = state.data
+
+  return (
+    <main className="dashboard-page principal-v1">
+      <header className="principal-v1__hero">
+        <div className="principal-v1__hero-text">
+          <span className="principal-v1__hero-kicker"><span aria-hidden="true" /> PUSAT MONITORING AKADEMIK</span>
+          <h1>Dashboard Kepala Sekolah</h1>
+          <p>Ikhtisar akademik · {state.data.date} WIB · {state.data.activeState==='conflict'?'Konflik periode aktif':year?.label?`${year.label} · ${year.semester}`:'Belum ada periode aktif'}</p>
+          <div className="principal-v1__hero-actions">
+            <button type="button" className="principal-v1__primary-link" onClick={()=>{setAttempt(v=>v+1);setAnalytics({loading:true,data:null,error:null});setGradeState({loading:true,data:null,error:null})}}><VisualIcon name="refresh" size={17}/> Muat ulang</button>
+            <span className="principal-v1__read-only"><VisualIcon name="shield" size={17} /> Mode monitoring · baca saja</span>
+          </div>
         </div>
       </header>
 
-      <section className="principal-dashboard__section">
-        <div className="principal-dashboard__section-heading">
+      <section aria-labelledby="principal-v1-metrics-title" className="principal-v1__section">
+        <div className="principal-v1__section-heading">
           <div>
-            <span className="principal-dashboard__section-eyebrow">
-              RINGKASAN AKADEMIK
-            </span>
+            <span className="principal-v1__eyebrow">OVERVIEW SEKOLAH</span>
+            <h2 id="principal-v1-metrics-title">Angka inti akademik</h2>
+            <p>Ditampilkan langsung dari data yang terdaftar, tanpa estimasi atau angka contoh.</p>
+          </div>
+          <span className="principal-v1__period-chip">{year?.label ? `${year.label} · ${year.semester ?? 'Semester —'}` : 'Periode belum aktif'}</span>
+        </div>
+        <div className="principal-v1__metrics-grid">
+          {metrics.map((item) => <MetricCard key={item.key} metric={item} />)}
+        </div>
+      </section>
 
-            <h2>Data akademik sekolah</h2>
+      <div className="principal-v1__insights-grid">
+        <DistributionPanel classes={classes} levels={state.data.levels} studentMetric={metrics.find((item) => item.key === 'siswa')} />
+        <PeriodPanel year={year} />
+      </div>
 
-            <p className="principal-dashboard__section-description">
-              Ringkasan berdasarkan data yang tersedia di sistem.
-            </p>
+      {state.data.warnings?.map(w=><p key={w} className="principal-v1__period-warning" role="alert">{w}</p>)}
+      {state.data.coverage&&<section className="principal-v1__panel"><div className="principal-v1__panel-head"><div><span className="principal-v1__eyebrow">PERHATIAN MANAJEMEN</span><h2>Kelengkapan pencatatan hari ini</h2><p>Pola jadwal selesai dengan roster, bukan penilaian kinerja atau bukti KBM.</p></div><Link to="/app/attendance">Lihat presensi</Link></div><p>{(()=>{const c=state.data.coverage;const n=c.Lengkap+c.Sebagian+c['Belum tercatat'];return n?`${(100*c.Lengkap/n).toLocaleString('id-ID',{maximumFractionDigits:1})}% · ${c.Lengkap} dari ${n} jadwal selesai lengkap`:'Belum ada jadwal selesai dengan siswa.'})()}</p><div className="principal-v1__coverage-grid">{['Lengkap','Sebagian','Belum tercatat','Belum selesai','Tanpa siswa'].map(k=><div key={k}><small>{k}</small><strong>{state.data.coverage[k]}</strong></div>)}</div></section>}
+      <PrincipalAttendanceAnalytics
+        year={year}
+        state={analytics}
+        onRetry={() => setAnalyticsAttempt((value) => value + 1)}
+      />
+
+      {year&&<GradeCoveragePanel key={`${year.id}:${state.data.date}:${attempt}`} year={year} classes={classes} date={state.data.date}/>}
+      <PrincipalGradeAnalytics
+        year={year}
+        state={gradeState}
+        onRetry={() => setGradeAttempt((value) => value + 1)}
+      />
+
+      <section className="principal-v1__section" aria-labelledby="principal-v1-monitoring-title">
+        <div className="principal-v1__section-heading">
+          <div>
+            <span className="principal-v1__eyebrow">AKSES MONITORING</span>
+            <h2 id="principal-v1-monitoring-title">Telusuri lebih dalam</h2>
+            <p>Masuk ke modul yang sudah tersedia sesuai otorisasi Kepala Sekolah.</p>
           </div>
         </div>
-
-        <div className="principal-dashboard__summary-grid">
-          {cards.map((card) => (
-            <SummaryCard
-              key={card.label}
-              label={card.label}
-              value={card.value}
-              icon={card.icon}
-              description={card.description}
-            />
+        <div className="principal-v1__shortcuts">
+          {shortcuts.map((item) => (
+            <Link key={item.path} to={item.path} className="principal-v1__shortcut">
+              <span className={`principal-v1__shortcut-icon principal-v1__shortcut-icon--${item.icon}`}><VisualIcon name={item.icon} size={21} /></span>
+              <strong>{item.title}</strong>
+              <p>{item.description}</p>
+              <span className="principal-v1__shortcut-arrow"><VisualIcon name="arrow" size={17} /></span>
+            </Link>
           ))}
         </div>
       </section>
-    </section>
+
+      <p className="principal-v1__footer-note">Data ringkasan mengikuti otorisasi backend. Pengelolaan data dilakukan melalui peran operasional yang berwenang.</p>
+    </main>
   )
 }

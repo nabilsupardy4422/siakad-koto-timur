@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { validStart, endYear, formPayload, activationPayload, lockedPeriod, canImport, errorMessages } from '../src/pages/academic-years/academicYearLogic.js';
+import navigation from '../src/Config/navigation.js';
+import { selectVisibleSidebarItems } from '../src/app/sidebarNavigation.js';
+
+test('year range is four digits with room for consecutive end', () => { for (const year of ['', 'abc', '0999', '202', '9999', '2026.5', ' 2026']) assert.equal(validStart(year), false); assert.equal(endYear('2026'), '2027'); assert.equal(endYear('9998'), '9999'); });
+test('create/edit payload computes end and cannot combine edit and activation', () => { const form = { tahun_mulai: '2026', tahun_selesai: 2030, semester: 'GANJIL', is_active: true }; assert.deepEqual(formPayload(form), { tahun_mulai: 2026, tahun_selesai: 2027, semester: 'GANJIL', is_active: false }); assert.equal(formPayload(form, true).is_active, true); assert.equal(formPayload({ ...form, semester: 'other' }), null); });
+test('activation preserves identity', () => assert.deepEqual(activationPayload({ tahun_mulai: 2025, tahun_selesai: 2026, semester: 'GENAP', is_active: false }), { tahun_mulai: 2025, tahun_selesai: 2026, semester: 'GENAP', is_active: true }));
+test('lock state fails closed and active always protected', () => { assert.equal(lockedPeriod({ is_active: true, identity_locked: false }), true); assert.equal(lockedPeriod({ is_active: false, identity_locked: true }), true); assert.equal(lockedPeriod({ is_active: false }), true); assert.equal(lockedPeriod({ is_active: false, identity_locked: false }), false); });
+test('only complete nonempty all-valid preview permits import', () => { const valid = { summary: { total_rows: 1, valid_rows: 1, invalid_rows: 0 }, rows: [{ valid: true }] }; assert.equal(canImport(valid), true); assert.equal(canImport(null), false); assert.equal(canImport({ ...valid, rows: [] }), false); assert.equal(canImport({ ...valid, rows: [{ valid: false }] }), false); assert.equal(canImport({ ...valid, summary: { total_rows: 0, valid_rows: 0, invalid_rows: 0 }, rows: [] }), false); });
+test('validation errors preserve every row message', () => assert.deepEqual(errorMessages({ payload: { data: { errors: { file: ['Baris 2', 'Baris 3'] } } } }), ['Baris 2', 'Baris 3']));
+test('Tugas removed from TU sidebar only', () => { for (const role of ['TU', 'GURU', 'SISWA']) assert.equal(selectVisibleSidebarItems(navigation, role, ['assignments.view']).some(item => item.path === '/app/assignments'), role !== 'TU'); });
+test('page uses internal modal and notification, retains template and invalidation', () => { const source = readFileSync(new URL('../src/pages/academic-years/AcademicYearsPage.jsx', import.meta.url), 'utf8'); assert.match(source, /WorkspaceModal/); assert.match(source, /ToastNotification/); assert.match(source, /academicYearApi\.downloadTemplate/); assert.doesNotMatch(source, /\b(?:alert|confirm|prompt)\s*\(/); assert.match(source, /setPreview\(null\)/); });
+
+test('activation precondition records the displayed active IDs, including empty recovery', () => { const period = { tahun_mulai: 2026, tahun_selesai: 2027, semester: "GENAP" }; assert.deepEqual(activationPayload(period, [{ id: "7" }]).expected_active_ids, [7]); assert.deepEqual(activationPayload(period, []).expected_active_ids, []); });

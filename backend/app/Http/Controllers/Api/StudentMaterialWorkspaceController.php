@@ -33,7 +33,12 @@ final class StudentMaterialWorkspaceController extends Controller
 
         $year = isset($input['academic_year_id'])
             ? TahunAkademik::findOrFail($input['academic_year_id'])
-            : TahunAkademik::where('is_active', true)->first();
+            : null;
+        if (!isset($input['academic_year_id'])) {
+            $active = TahunAkademik::where('is_active', true)->limit(2)->get();
+            if ($active->count() === 1) $year = $active->first();
+        }
+        abort_if($year?->is_active && TahunAkademik::where('is_active', true)->count() !== 1, 409, 'Periode aktif belum tunggal.');
         if (!$year) {
             return response()->json(['message' => 'Periode akademik tidak tersedia.'], 409);
         }
@@ -55,6 +60,7 @@ final class StudentMaterialWorkspaceController extends Controller
                 ->where('siswa_id', $studentId)
                 ->whereNotNull('tanggal_mulai')
                 ->whereDate('tanggal_mulai', '<=', $today)
+                ->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai', '>=', 'tanggal_mulai'))
                 ->whereHas('kelas', fn ($q) => $q->where('tahun_akademik_id', $year->id))
                 ->pluck('kelas_id')->unique()->map(fn ($id) => (int) $id)->all();
         }

@@ -185,6 +185,8 @@ class SubmissionController extends Controller
                 $files,
                 &$storedPaths
             ) {
+                \App\Support\MembershipWriteGuard::lock([(int)$student->id]);
+                abort_unless(\App\Support\MembershipWriteGuard::effective((int)$assignment->jadwalPelajaran->kelas_id,(int)$student->id,today('Asia/Jakarta')->toDateString()) && $this->studentCanAccessAssignment($student,$assignment),403,'Keanggotaan berubah. Muat ulang.');
                 $submission = new SubmissionTugas();
                 $submission->assignment_id = $assignment->id;
                 $submission->siswa_id = $student->id;
@@ -308,6 +310,8 @@ class SubmissionController extends Controller
                 $files,
                 &$storedPaths
             ) {
+                \App\Support\MembershipWriteGuard::lock([(int)$submission->siswa_id]);
+                abort_unless(\App\Support\MembershipWriteGuard::effective((int)$assignment->jadwalPelajaran->kelas_id,(int)$submission->siswa_id,today('Asia/Jakarta')->toDateString()),403,'Keanggotaan berubah. Muat ulang.');
                 if (array_key_exists('jawaban', $data)) {
                     $submission->jawaban = $this->normalizeAnswer(
                         $data['jawaban']

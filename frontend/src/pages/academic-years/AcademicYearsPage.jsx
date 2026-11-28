@@ -1,1011 +1,175 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Select from '../../components/ui/Select';
+import PageHeader from '../../components/ui/PageHeader';
+import WorkspaceModal from '../../components/ui/WorkspaceModal';
+import ToastNotification from '../../components/ui/ToastNotification';
+import LoadingState from '../../components/ui/LoadingState';
+import ErrorState from '../../components/ui/ErrorState';
+import EmptyState from '../../components/ui/EmptyState';
+import { academicYearApi } from '../../services/academicYearApi';
+import { yearLabel, semesterLabel, validStart, endYear, activePeriod, lockedPeriod, formPayload, activationPayload, canImport, errorMessages } from './academicYearLogic';
+import './AcademicYearsPage.css';
 
-import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
-import EmptyState from "../../components/ui/EmptyState";
-import ErrorState from "../../components/ui/ErrorState";
-import Input from "../../components/ui/Input";
-import LoadingState from "../../components/ui/LoadingState";
-import Modal from "../../components/ui/Modal";
-import PageHeader from "../../components/ui/PageHeader";
-import Select from "../../components/ui/Select";
-
-import { academicYearApi } from "../../services/academicYearApi";
-
-import "./AcademicYearsPage.css";
-
-const initialForm = {
-  tahun_mulai: "",
-  tahun_selesai: "",
-  semester: "",
-  is_active: "",
+const icons = {
+  plus: <path d="M12 5v14M5 12h14" />,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18m-13 5h2m4 0h2m-8 3h2" /></>,
+  download: <path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4" />,
+  upload: <path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4" />,
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" /></>,
+  arrow: <path d="M4 12h15m-6-6 6 6-6 6" />,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6m0-10h.01" /></>,
 };
-
-const semesterOptions = [
-  { value: "GANJIL", label: "Ganjil" },
-  { value: "GENAP", label: "Genap" },
-];
-
-const statusOptions = [
-  { value: "1", label: "Aktif" },
-  { value: "0", label: "Tidak aktif" },
-];
-
-function normalizeAcademicYear(item) {
-  return {
-    ...item,
-    id: item.id,
-    tahun_mulai: String(item.tahun_mulai ?? ""),
-    tahun_selesai: String(item.tahun_selesai ?? ""),
-    semester: item.semester ?? "",
-    is_active:
-      item.is_active === true || item.is_active === 1 || item.is_active === "1",
-  };
-}
-
-function getFieldError(errors, field) {
-  const value = errors?.[field];
-
-  if (Array.isArray(value)) {
-    return value[0] || "";
-  }
-
-  return value || "";
-}
-
-function getAcademicYearLabel(item) {
-  return `${item.tahun_mulai}/${item.tahun_selesai}`;
-}
-
-function getSemesterLabel(semester) {
-  if (semester === "GANJIL") return "Ganjil";
-  if (semester === "GENAP") return "Genap";
-  return semester || "-";
-}
+function Icon({ name, size = 18 }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icons[name]}</svg>; }
+function PeriodStatus({ period }) { return <span className={`ay-status ${activePeriod(period) ? 'is-active' : ''}`}><i />{activePeriod(period) ? 'Aktif' : 'Tidak aktif'}</span>; }
+function Errors({ messages }) { return messages.length > 0 && <div className="ay-alert ay-alert--error" role="alert"><Icon name="info" /><div>{messages.map((message, i) => <p key={i}>{message}</p>)}</div></div>; }
+const semesters = [{ value: 'GANJIL', label: 'Ganjil' }, { value: 'GENAP', label: 'Genap' }];
 
 export default function AcademicYearsPage() {
-  const [academicYears, setAcademicYears] = useState([]);
-
+  const [periods, setPeriods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState(null);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("create");
-  const [editingId, setEditingId] = useState(null);
-
-  const [form, setForm] = useState(initialForm);
+  const [dialog, setDialog] = useState(null);
+  const [form, setForm] = useState({ tahun_mulai: '', semester: 'GANJIL' });
   const [fieldErrors, setFieldErrors] = useState({});
-  const [submitError, setSubmitError] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [previewFilter, setPreviewFilter] = useState('all');
+  const [confirmImport, setConfirmImport] = useState(false);
+  const generation = useRef(0);
+  const operation = useRef(false);
+  const downloadLock = useRef(false);
+  const clearNotice = useCallback(() => setNotice(null), []);
+  const active = periods.filter(activePeriod);
+  const current = active.length === 1 ? active[0] : null;
+  const inconsistent = periods.length > 0 && active.length !== 1;
 
-  const [successMessage, setSuccessMessage] = useState("");
-
-
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [importPreview, setImportPreview] = useState(null);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importError, setImportError] = useState("");
-  const [importSuccess, setImportSuccess] = useState("");
-  const [templateError, setTemplateError] = useState("");
-  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
-
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
-
-  async function loadAcademicYears() {
-    setLoading(true);
-    setListError(null);
-
+  const load = useCallback(async () => {
+    const request = ++generation.current;
+    setLoading(true); setListError(null);
     try {
       const response = await academicYearApi.getAll();
-      const data = Array.isArray(response?.data) ? response.data : [];
-
-      setAcademicYears(data.map(normalizeAcademicYear));
-    } catch (error) {
-      setListError(error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadAcademicYears();
+      if (!Array.isArray(response?.data)) throw new Error('Respons periode dari server tidak sesuai.');
+      if (request === generation.current) setPeriods(response.data);
+    } catch (error) { if (request === generation.current) setListError(error); }
+    finally { if (request === generation.current) setLoading(false); }
   }, []);
-
-  function openCreateModal() {
-    setModalMode("create");
-    setEditingId(null);
-    setForm(initialForm);
-    setFieldErrors({});
-    setSubmitError(null);
-    setSuccessMessage("");
-    setModalOpen(true);
+  useEffect(() => { load(); return () => { generation.current++; }; }, [load]);
+  function open(kind, period = null) {
+    setMessages([]); setFieldErrors({}); setNotice(null);
+    setForm({ tahun_mulai: period ? String(period.tahun_mulai) : '', semester: period?.semester || 'GANJIL' });
+    setFile(null); setPreview(null); setPreviewFilter('all'); setConfirmImport(false);
+    setDialog({ kind, period, activeSnapshot: active });
   }
-
-  function openEditModal(item) {
-    setModalMode("edit");
-    setEditingId(item.id);
-
-    setForm({
-      tahun_mulai: String(item.tahun_mulai ?? ""),
-      tahun_selesai: String(item.tahun_selesai ?? ""),
-      semester: item.semester ?? "",
-      is_active: item.is_active ? "1" : "0",
-    });
-
-    setFieldErrors({});
-    setSubmitError(null);
-    setSuccessMessage("");
-    setModalOpen(true);
+  function close() { if (!operation.current) setDialog(null); }
+  async function run(action) {
+    if (operation.current) return;
+    operation.current = true; setBusy(true); setMessages([]);
+    try { await action(); }
+    catch (error) { setMessages(errorMessages(error)); setFieldErrors(error?.validationErrors || {}); }
+    finally { operation.current = false; setBusy(false); }
   }
-
-  function closeModal() {
-    if (saving) return;
-
-    setModalOpen(false);
-    setEditingId(null);
-    setForm(initialForm);
-    setFieldErrors({});
-    setSubmitError(null);
+  async function finish(title, message) {
+    setDialog(null); setNotice({ type: 'success', title, message }); await load();
   }
-
-  function handleChange(event) {
+  function updateForm(event) {
     const { name, value } = event.target;
-
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-
-    setFieldErrors((current) => ({
-      ...current,
-      [name]: "",
-    }));
-
-    setSubmitError(null);
+    setForm(old => ({ ...old, [name]: value })); setFieldErrors({}); setMessages([]);
   }
-
-  function validateForm() {
-    const errors = {};
-
-    const tahunMulai = String(form.tahun_mulai ?? "").trim();
-    const tahunSelesai = String(form.tahun_selesai ?? "").trim();
-
-    if (!tahunMulai) {
-      errors.tahun_mulai = "Tahun mulai wajib diisi.";
-    } else if (!/^\d{4}$/.test(tahunMulai)) {
-      errors.tahun_mulai = "Tahun mulai harus terdiri dari 4 digit.";
-    }
-
-    if (!tahunSelesai) {
-      errors.tahun_selesai = "Tahun selesai wajib diisi.";
-    } else if (!/^\d{4}$/.test(tahunSelesai)) {
-      errors.tahun_selesai = "Tahun selesai harus terdiri dari 4 digit.";
-    }
-
-    if (
-      tahunMulai &&
-      tahunSelesai &&
-      /^\d{4}$/.test(tahunMulai) &&
-      /^\d{4}$/.test(tahunSelesai) &&
-      Number(tahunSelesai) < Number(tahunMulai)
-    ) {
-      errors.tahun_selesai =
-        "Tahun selesai tidak boleh lebih kecil dari tahun mulai.";
-    }
-
-    if (!form.semester) {
-      errors.semester = "Semester wajib dipilih.";
-    }
-
-    if (form.is_active !== "1" && form.is_active !== "0") {
-      errors.is_active = "Status wajib dipilih.";
-    }
-
-    return errors;
-  }
-
-  async function handleSubmit(event) {
+  function save(event) {
     event.preventDefault();
-
-    setSuccessMessage("");
-    setSubmitError(null);
-
-    const errors = validateForm();
-
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    setSaving(true);
-
-    const payload = {
-      tahun_mulai: Number(form.tahun_mulai),
-      tahun_selesai: Number(form.tahun_selesai),
-      semester: form.semester,
-      is_active: form.is_active === "1",
-    };
-
-    try {
-      if (modalMode === "edit") {
-        await academicYearApi.update(editingId, payload);
-        setSuccessMessage("Tahun akademik berhasil diperbarui.");
-      } else {
-        await academicYearApi.create(payload);
-        setSuccessMessage("Tahun akademik berhasil ditambahkan.");
+    const payload = formPayload(form, dialog.kind === 'create' && periods.length === 0);
+    if (!payload) { setFieldErrors({ tahun_mulai: !validStart(form.tahun_mulai) ? ['Masukkan tahun mulai antara 1000 dan 9998.'] : [], semester: !semesters.some(s => s.value === form.semester) ? ['Pilih semester.'] : [] }); return; }
+    run(async () => {
+      const result = dialog.kind === 'edit' ? await academicYearApi.update(dialog.period.id, payload) : await academicYearApi.create(payload);
+      await finish(dialog.kind === 'edit' ? 'Periode diperbarui' : 'Periode berhasil dibuat', `${yearLabel(result.data)} · Semester ${semesterLabel(result.data.semester)} · ${activePeriod(result.data) ? 'Aktif' : 'Tidak aktif'}`);
+    });
+  }
+  function activate() {
+    run(async () => {
+      try {
+        await academicYearApi.update(dialog.period.id, activationPayload(dialog.period, dialog.activeSnapshot));
+      } catch (error) {
+        if (error?.status !== 409) throw error;
+        setDialog(null);
+        setNotice({ type: 'warning', title: 'Periode aktif telah berubah', message: 'Tinjau data terbaru, lalu konfirmasi ulang aktivasi.' });
+        await load();
+        return;
       }
-
-      setModalOpen(false);
-      setEditingId(null);
-      setForm(initialForm);
-      setFieldErrors({});
-      setSubmitError(null);
-
-      await loadAcademicYears();
-    } catch (error) {
-      if (error?.status === 422) {
-        setFieldErrors(error.validationErrors || {});
-      }
-
-      setSubmitError(error);
-    } finally {
-      setSaving(false);
-    }
+      await finish('Periode berhasil diaktifkan', `${yearLabel(dialog.period)} · Semester ${semesterLabel(dialog.period.semester)} sekarang aktif.`);
+    });
   }
-
-  function openDeleteModal(item) {
-    if (deletingId !== null) return;
-
-    setSuccessMessage("");
-    setListError(null);
-    setDeleteTarget(item);
+  function remove() {
+    run(async () => {
+      await academicYearApi.delete(dialog.period.id);
+      await finish('Periode dihapus', `${yearLabel(dialog.period)} · Semester ${semesterLabel(dialog.period.semester)} telah dihapus.`);
+    });
   }
-
-  function closeDeleteModal() {
-    if (deletingId !== null) return;
-
-    setDeleteTarget(null);
-  }
-
-  async function confirmDelete() {
-    if (!deleteTarget || deletingId !== null) return;
-
-    const item = deleteTarget;
-
-    setDeletingId(item.id);
-    setSuccessMessage("");
-    setListError(null);
-
+  async function download() {
+    if (downloadLock.current) return;
+    downloadLock.current = true; setDownloading(true);
     try {
-      await academicYearApi.delete(item.id);
-
-      setDeleteTarget(null);
-      setSuccessMessage(
-        `Tahun akademik ${getAcademicYearLabel(item)} berhasil dihapus.`,
-      );
-
-      await loadAcademicYears();
-    } catch (error) {
-      setDeleteTarget(null);
-      setListError(error);
-    } finally {
-      setDeletingId(null);
-    }
+      const blob = await academicYearApi.downloadTemplate();
+      const url = URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = url; link.download = 'template_tahun_akademik.xlsx'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNotice({ type: 'success', title: 'Template siap diunduh', message: 'Gunakan empat kolom pada template untuk mengisi periode.' });
+    } catch (error) { setNotice({ type: 'error', title: 'Template gagal diunduh', message: errorMessages(error)[0] }); }
+    finally { downloadLock.current = false; setDownloading(false); }
   }
-
-  function openImportModal() {
-  setImportFile(null);
-  setImportPreview(null);
-  setImportError("");
-  setImportSuccess("");
-  setImportModalOpen(true);
+  function changeFile(event) {
+    const next = event.target.files?.[0] || null; setFile(null); setPreview(null); setPreviewFilter('all'); setConfirmImport(false); setMessages([]);
+    if (!next) return;
+    if (!/\.xlsx$/i.test(next.name) || next.size > 2 * 1024 * 1024) { setMessages(['Gunakan file .xlsx dengan ukuran maksimal 2 MB.']); event.target.value = ''; return; }
+    setFile(next);
+  }
+  function multipart() { const data = new FormData(); data.append('file', file); return data; }
+  function checkFile() {
+    if (!file) return;
+    run(async () => {
+      setPreview(null); setConfirmImport(false); setPreviewFilter('all');
+      const response = await academicYearApi.previewImport(multipart()); const result = response?.data;
+      if (!result?.summary || !Array.isArray(result.rows)) throw new Error('Respons preview tidak sesuai.');
+      setPreview(result);
+    });
+  }
+  function importFile() {
+    if (!file || !canImport(preview) || !confirmImport) return;
+    run(async () => {
+      try { const response = await academicYearApi.importExcel(multipart()); await finish('Import berhasil', `${response.data.imported_rows} periode berhasil disimpan.`); }
+      catch (error) { setPreview(null); setConfirmImport(false); throw error; }
+    });
 }
-
-function closeImportModal() {
-  if (importLoading) return;
-
-  setImportModalOpen(false);
-  setImportFile(null);
-  setImportPreview(null);
-  setImportError("");
-}
-
-async function handleDownloadTemplate() {
-  if (downloadingTemplate) return;
-
-  setTemplateError("");
-  setDownloadingTemplate(true);
-
-  try {
-    const blob = await academicYearApi.downloadTemplate();
-
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "template_tahun_akademik.xlsx";
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    setTemplateError(error.message || "Template Excel gagal diunduh.");
-  } finally {
-    setDownloadingTemplate(false);
-  }
-}
-
-function handleImportFileChange(event) {
-  const file = event.target.files?.[0] || null;
-
-  setImportFile(file);
-  setImportPreview(null);
-  setImportError("");
-
-  if (!file) return;
-
-  if (!file.name.toLowerCase().endsWith(".xlsx")) {
-    setImportFile(null);
-    setImportError("File harus menggunakan format .xlsx.");
-    event.target.value = "";
-    return;
-  }
-
-  if (file.size > 2 * 1024 * 1024) {
-    setImportFile(null);
-    setImportError("Ukuran file maksimal 2 MB.");
-    event.target.value = "";
-  }
-}
-
-function getImportResponseData(response) {
-  return response?.data?.data ?? response?.data ?? {};
-}
-
-function getImportErrorMessage(error) {
-  const errors = error?.validationErrors || error?.errors || {};
-  const firstError = Object.values(errors)
-    .flat()
-    .find(Boolean);
-
-  return (
-    firstError ||
-    error?.payload?.message ||
-    error?.message ||
-    "Terjadi kesalahan saat memproses import."
-  );
-}
-
-async function handlePreviewImport() {
-  if (!importFile || importLoading) return;
-
-  setImportLoading(true);
-  setImportError("");
-  setImportPreview(null);
-
-  try {
-    const formData = new FormData();
-    formData.append("file", importFile);
-
-    const response = await academicYearApi.previewImport(formData);
-
-    const data = getImportResponseData(response);
-
-    if (!data.summary || !Array.isArray(data.rows)) {
-      throw new Error("Format respons preview dari server tidak sesuai.");
-    }
-
-    setImportPreview(data);
-  } catch (error) {
-    setImportError(getImportErrorMessage(error));
-  } finally {
-    setImportLoading(false);
-  }
-}
-
-async function handleConfirmImport() {
-  if (
-    !importFile ||
-    !importPreview ||
-    importPreview.summary?.invalid_rows > 0 ||
-    importLoading
-  ) {
-    return;
-  }
-
-  const confirmed = window.confirm(
-    `Import ${importPreview.summary.total_rows} tahun akademik ke sistem?`,
-  );
-
-  if (!confirmed) return;
-
-  setImportLoading(true);
-  setImportError("");
-
-  try {
-    const formData = new FormData();
-    formData.append("file", importFile);
-
-    const response = await academicYearApi.importExcel(formData);
-
-    const data = getImportResponseData(response);
-
-    setImportModalOpen(false);
-    setImportFile(null);
-    setImportPreview(null);
-
-    setSuccessMessage(
-      response?.message ||
-        `Berhasil mengimpor ${data.imported_rows ?? importPreview.summary.total_rows} tahun akademik.`,
-    );
-
-    await loadAcademicYears();
-  } catch (error) {
-    setImportError(getImportErrorMessage(error));
-  } finally {
-    setImportLoading(false);
-  }
-}
-
-  if (loading) {
-    return <LoadingState message="Memuat data tahun akademik..." />;
-  }
-
-  if (listError && academicYears.length === 0) {
-    return (
-      <ErrorState
-        message={listError.message || "Data tahun akademik tidak dapat dimuat."}
-      />
-    );
-  }
-
-  return (
-    <div className="academic-years-page">
-      <PageHeader
-        eyebrow="Data Akademik"
-        title="Tahun Akademik"
-        description="Kelola periode tahun akademik sekolah."
-        actions={
-          <div className="academic-years-page__header-actions">
-            <Button
-              type="button"
-              onClick={handleDownloadTemplate}
-              disabled={downloadingTemplate}
-            >
-              {downloadingTemplate ? "Mengunduh..." : "Download Template"}
-            </Button>
-
-            <Button
-              type="button"
-              onClick={openImportModal}
-            >
-              Import Excel
-            </Button>
-
-            <Button type="button" onClick={openCreateModal}>
-              + Tambah Tahun Akademik
-            </Button>
-          </div>
-        }
-      />
-
-      {templateError && (
-        <div
-          className="academic-years-page__alert academic-years-page__alert--error"
-          role="alert"
-        >
-          {templateError}
-        </div>
-      )}
-
-      {successMessage && (
-        <div
-          className="academic-years-page__alert academic-years-page__alert--success"
-          role="status"
-        >
-          {successMessage}
-        </div>
-      )}
-
-      {listError && academicYears.length > 0 && (
-        <div
-          className="academic-years-page__alert academic-years-page__alert--error"
-          role="alert"
-        >
-          {listError.message ||
-            "Terjadi kesalahan saat memproses data tahun akademik."}
-
-          <Button
-            type="button"
-            size="small"
-            variant="secondary"
-            onClick={loadAcademicYears}
-          >
-            Muat Ulang
-          </Button>
-        </div>
-      )}
-
-      <Card className="academic-years-page__list-card">
-        <div className="academic-years-page__list-header">
-          <div>
-            <span className="academic-years-page__eyebrow">Data Akademik</span>
-
-            <h2 className="academic-years-page__title">
-              Daftar Tahun Akademik
-            </h2>
-
-            <p className="academic-years-page__description">
-              Daftar periode akademik yang tersedia dalam sistem.
-            </p>
-          </div>
-
-          <span className="academic-years-page__count">
-            {academicYears.length} periode
-          </span>
-        </div>
-
-        {academicYears.length === 0 ? (
-          <EmptyState
-            title="Belum ada tahun akademik"
-            message="Belum terdapat periode tahun akademik yang tersimpan."
-            action={
-              <Button type="button" onClick={openCreateModal}>
-                Tambah Tahun Akademik
-              </Button>
-            }
-          />
-        ) : (
-          <div className="academic-years-page__table-wrapper">
-            <table className="academic-years-page__table">
-              <thead>
-                <tr>
-                  <th>Tahun Akademik</th>
-                  <th>Semester</th>
-                  <th>Status</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {academicYears.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong>{getAcademicYearLabel(item)}</strong>
-                    </td>
-
-                    <td>{getSemesterLabel(item.semester)}</td>
-
-                    <td>
-                      <span
-                        className={
-                          item.is_active
-                            ? "academic-years-page__status academic-years-page__status--active"
-                            : "academic-years-page__status"
-                        }
-                      >
-                        {item.is_active ? "Aktif" : "Tidak aktif"}
-                      </span>
-                    </td>
-
-                    <td>
-                      <div className="academic-years-page__actions">
-                        <Button
-                          type="button"
-                          size="small"
-                          onClick={() => openEditModal(item)}
-                          disabled={deletingId === item.id}
-                        >
-                          Edit
-                        </Button>
-
-                        <Button
-                          type="button"
-                          size="small"
-                          variant="secondary"
-                          onClick={() => openDeleteModal(item)}
-                          disabled={deletingId !== null}
-                        >
-                          {deletingId === item.id ? "Menghapus..." : "Hapus"}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-
-            {/* Modal Import Excel */}
-      {/* Modal Import Excel */}
-<Modal
-  open={importModalOpen}
-  title="Import Tahun Akademik"
-  description="Import beberapa periode tahun akademik menggunakan file Excel."
-  onClose={closeImportModal}
-  size="large"
-  footer={
-    <>
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={importLoading}
-        onClick={closeImportModal}
-      >
-        Tutup
-      </Button>
-
-      {!importPreview && (
-        <Button
-          type="button"
-          loading={importLoading}
-          disabled={!importFile || importLoading}
-          onClick={handlePreviewImport}
-        >
-          Preview Data
-        </Button>
-      )}
-
-      {importPreview && (
-        <Button
-          type="button"
-          loading={importLoading}
-          disabled={
-            importLoading ||
-            importPreview.summary?.invalid_rows > 0 ||
-            importPreview.summary?.valid_rows === 0
-          }
-          onClick={handleConfirmImport}
-        >
-          Konfirmasi Import
-        </Button>
-      )}
-    </>
-  }
->
-  <div className="academic-years-page__import-card">
-  <div className="academic-years-page__import-heading">
-    <h3>Petunjuk Import</h3>
-    <p>
-      Gunakan template resmi Tahun Akademik. Pastikan data
-      tahun mulai, tahun selesai, semester, dan status
-      telah diisi sesuai ketentuan.
-    </p>
-  </div>
-
-  <div className="academic-years-page__import-info">
-    <strong>Ketentuan file:</strong>
-    <br />
-    Format: .xlsx
-    <br />
-    Pastikan nama kolom sesuai template resmi.
-    <br />
-    Periksa kembali data sebelum melakukan import.
-  </div>
-
-  <div className="academic-years-page__file-control">
-    <label
-      htmlFor="academic-year-import-file"
-      className="academic-years-page__file-label"
-    >
-      Pilih File Excel
-    </label>
-
-    <input
-      id="academic-year-import-file"
-      className="academic-years-page__file-input"
-      type="file"
-      accept=".xlsx"
-      onChange={handleImportFileChange}
-      disabled={importLoading}
-    />
-
-    {importFile && (
-      <p className="academic-years-page__selected-file">
-        File dipilih: <strong>{importFile.name}</strong>
-      </p>
-    )}
-  </div>
-
-  {importError && (
-    <div
-      className="academic-years-page__import-error"
-      role="alert"
-    >
-      {importError}
-    </div>
-  )}
-
-  {importPreview && (
-    <div className="academic-years-page__preview">
-      <div className="academic-years-page__preview-heading">
-        <h3>Hasil Preview Import</h3>
-        <p>
-          Periksa hasil validasi sebelum mengimpor data.
-        </p>
-      </div>
-
-      <div className="academic-years-page__preview-summary">
-        <div className="academic-years-page__preview-stat">
-          <span>Total Data</span>
-          <strong>
-            {importPreview.summary?.total_rows ?? 0}
-          </strong>
-        </div>
-
-        <div className="academic-years-page__preview-stat academic-years-page__preview-stat--valid">
-          <span>Data Valid</span>
-          <strong>
-            {importPreview.summary?.valid_rows ?? 0}
-          </strong>
-        </div>
-
-        <div className="academic-years-page__preview-stat academic-years-page__preview-stat--invalid">
-          <span>Data Tidak Valid</span>
-          <strong>
-            {importPreview.summary?.invalid_rows ?? 0}
-          </strong>
-        </div>
-      </div>
-
-      <div className="academic-years-page__preview-table-wrapper">
-        <table className="academic-years-page__preview-table">
-          <thead>
-            <tr>
-              <th>Baris</th>
-              <th>Tahun Akademik</th>
-              <th>Semester</th>
-              <th>Status</th>
-              <th>Validasi</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {(importPreview.rows || []).map((row) => (
-              <tr key={row.row}>
-                <td>{row.row}</td>
-
-                <td>
-                  {row.tahun_mulai}/{row.tahun_selesai}
-                </td>
-
-                <td>{row.semester}</td>
-
-                <td>
-                  {String(row.is_active) === "1"
-                    ? "Aktif"
-                    : "Tidak aktif"}
-                </td>
-
-                <td>
-                  <span
-                    className={`academic-years-page__preview-status ${
-                      row.valid
-                        ? "academic-years-page__preview-status--valid"
-                        : "academic-years-page__preview-status--invalid"
-                    }`}
-                  >
-                    {row.valid ? "Valid" : "Tidak Valid"}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {importPreview.summary?.invalid_rows > 0 && (
-        <div className="academic-years-page__preview-note">
-          Import belum dapat dilakukan karena masih ada{" "}
-          {importPreview.summary.invalid_rows} baris yang
-          tidak valid. Perbaiki file Excel, kemudian unggah
-          ulang untuk melakukan preview.
-        </div>
-      )}
-
-      {importPreview.summary?.invalid_rows === 0 &&
-        importPreview.summary?.valid_rows > 0 && (
-          <div className="academic-years-page__import-info">
-            Semua data telah lolos validasi. Kamu dapat
-            melanjutkan dengan menekan tombol
-            <strong> Konfirmasi Import</strong>.
-          </div>
-        )}
-    </div>
-  )}
-</div>
-</Modal>
-
-      {/* Modal tambah dan edit tahun akademik */}
-      {modalOpen && (
-        <div
-          className="academic-years-page__modal-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) {
-              closeModal();
-            }
-          }}
-        >
-          <div
-            className="academic-years-page__modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="academic-year-modal-title"
-          >
-            <div className="academic-years-page__modal-header">
-              <div>
-                <h2
-                  id="academic-year-modal-title"
-                  className="academic-years-page__modal-title"
-                >
-                  {modalMode === "edit"
-                    ? "Edit Tahun Akademik"
-                    : "Tambah Tahun Akademik"}
-                </h2>
-
-                <p className="academic-years-page__modal-description">
-                  {modalMode === "edit"
-                    ? "Perbarui informasi periode akademik yang dipilih."
-                    : "Tambahkan periode akademik baru ke dalam sistem."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="academic-years-page__modal-close"
-                onClick={closeModal}
-                disabled={saving}
-                aria-label="Tutup modal"
-              >
-                ×
-              </button>
-            </div>
-
-            <form className="academic-years-page__form" onSubmit={handleSubmit}>
-              {submitError && submitError.status !== 422 && (
-                <div
-                  className="academic-years-page__alert academic-years-page__alert--error"
-                  role="alert"
-                >
-                  {submitError.message || "Data tidak dapat disimpan."}
-                </div>
-              )}
-
-              <div className="academic-years-page__fields">
-                <Input
-                  id="tahun_mulai"
-                  name="tahun_mulai"
-                  label="Tahun Mulai"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={form.tahun_mulai}
-                  placeholder="Contoh: 2026"
-                  required
-                  disabled={saving}
-                  error={getFieldError(fieldErrors, "tahun_mulai")}
-                  onChange={handleChange}
-                />
-
-                <Input
-                  id="tahun_selesai"
-                  name="tahun_selesai"
-                  label="Tahun Selesai"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={form.tahun_selesai}
-                  placeholder="Contoh: 2027"
-                  required
-                  disabled={saving}
-                  error={getFieldError(fieldErrors, "tahun_selesai")}
-                  onChange={handleChange}
-                />
-
-                <Select
-                  id="semester"
-                  name="semester"
-                  label="Semester"
-                  value={form.semester}
-                  options={semesterOptions}
-                  placeholder="Pilih semester"
-                  required
-                  disabled={saving}
-                  error={getFieldError(fieldErrors, "semester")}
-                  onChange={handleChange}
-                />
-
-                <Select
-                  id="is_active"
-                  name="is_active"
-                  label="Status"
-                  value={form.is_active}
-                  options={statusOptions}
-                  placeholder="Pilih status"
-                  required
-                  disabled={saving}
-                  error={getFieldError(fieldErrors, "is_active")}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="academic-years-page__modal-footer">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={closeModal}
-                  disabled={saving}
-                >
-                  Batal
-                </Button>
-
-                <Button type="submit" loading={saving}>
-                  {modalMode === "edit" ? "Perbarui" : "Simpan"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal konfirmasi hapus */}
-      <Modal
-        open={Boolean(deleteTarget)}
-        title="Hapus Tahun Akademik"
-        description="Periksa periode yang akan dihapus sebelum melanjutkan."
-        onClose={closeDeleteModal}
-        size="small"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={closeDeleteModal}
-              disabled={deletingId !== null}
-            >
-              Batal
-            </Button>
-
-            <Button
-              type="button"
-              onClick={confirmDelete}
-              disabled={deletingId !== null}
-              loading={deletingId !== null}
-            >
-              {deletingId !== null ? "Menghapus..." : "Ya, Hapus"}
-            </Button>
-          </>
-        }
-      >
-        {deleteTarget && (
-          <div className="academic-years-page__delete-content">
-            <p>Apakah kamu yakin ingin menghapus tahun akademik berikut?</p>
-
-            <div className="academic-years-page__delete-summary">
-              <strong>{getAcademicYearLabel(deleteTarget)}</strong>
-
-              <span>Semester {getSemesterLabel(deleteTarget.semester)}</span>
-
-              <span>
-                Status: {deleteTarget.is_active ? "Aktif" : "Tidak aktif"}
-              </span>
-            </div>
-
-            <p className="academic-years-page__delete-warning">
-              Jika periode ini masih digunakan oleh data akademik lain, sistem
-              dapat menolak penghapusan. Data hanya akan dihapus jika diizinkan
-              oleh backend.
-            </p>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
+  const visibleRows = preview?.rows.filter(row => previewFilter === 'all' || (previewFilter === 'valid' ? row.valid : !row.valid)) || [];
+  const disabled = loading || Boolean(listError) || busy;
+  return <div className="ay-v2">
+    <PageHeader eyebrow="Data Akademik / Administrasi" title="Tahun Akademik" description="Atur periode pembelajaran dan jaga kesinambungan riwayat akademik sekolah." actions={<Button size="large" disabled={disabled || inconsistent} onClick={() => open('create')}><Icon name="plus" /> Tambah Periode</Button>} />
+    {loading ? <LoadingState message="Memuat periode akademik..." /> : listError ? <ErrorState message={listError.message} onRetry={load} /> : <>
+      <section className="ay-hero" aria-label="Periode akademik aktif">
+        <div className="ay-hero-copy"><p className="ay-kicker"><span className={current ? 'ay-live-dot' : 'ay-muted-dot'} /> PERIODE AKADEMIK AKTIF</p><h2>{current ? yearLabel(current) : 'Belum ditetapkan'}</h2><p className="ay-hero-semester">{current ? `Semester ${semesterLabel(current.semester)}` : active.length > 1 ? 'Lebih dari satu periode aktif' : 'Tidak ada periode aktif'}</p><p className="ay-hero-caption">{current ? 'Konteks pembelajaran yang sedang digunakan oleh sistem.' : 'Tentukan satu periode aktif untuk menetapkan konteks akademik.'}</p></div>
+        <div className="ay-hero-art" aria-hidden="true"><svg viewBox="0 0 220 160" fill="none"><path d="M20 135 110 15l90 120M40 135 110 40l70 95" stroke="currentColor" opacity=".15" /><rect x="62" y="32" width="108" height="100" rx="10" stroke="currentColor" strokeWidth="2" /><path d="M62 60h108M87 23v19m57-19v19" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />{[0, 1, 2, 3, 4, 5].map(i => <rect key={i} x={81 + i % 3 * 28} y={76 + Math.floor(i / 3) * 24} width="13" height="13" rx="3" fill="currentColor" opacity={i === 4 ? 1 : .26} />)}</svg></div>
+      </section>
+      {inconsistent && <div className="ay-alert" role="alert"><Icon name="info" /><div><strong>Periode perlu dipulihkan</strong><p>Pilih satu periode melalui tindakan Aktifkan. Pembuatan dan import ditahan sampai konteks aktif kembali konsisten.</p></div></div>}
+      <section className="ay-panel" aria-label="Daftar periode">
+        <div className="ay-panel-head"><div><h2>Daftar periode</h2><p>{periods.length} periode terdaftar · Riwayat tetap tersimpan.</p></div><div className="ay-tools"><Button variant="outline" loading={downloading} onClick={download}><Icon name="download" /> Download Template</Button><Button variant="outline" disabled={inconsistent} onClick={() => open('import')}><Icon name="upload" /> Import Excel</Button></div></div>
+        {periods.length === 0 ? <EmptyState title="Belum ada periode akademik" message="Tambahkan periode pertama untuk memulai pengelolaan data sekolah." action={<Button onClick={() => open('create')}>Tambah periode pertama</Button>} /> : <div className="ay-table-scroll" tabIndex={0} role="region" aria-label="Tabel periode akademik, dapat digulir"><table className="ay-table"><thead><tr><th>Tahun akademik</th><th>Semester</th><th>Status</th><th>Pengelolaan</th><th>Tindakan</th></tr></thead><tbody>{periods.map(period => <tr key={period.id} className={activePeriod(period) ? 'ay-current-row' : ''}><td><strong>{yearLabel(period)}</strong>{Number(period.tahun_selesai) !== Number(period.tahun_mulai) + 1 && <small className="ay-invalid-year">Format tahun lama tidak berurutan</small>}</td><td>{semesterLabel(period.semester)}</td><td><PeriodStatus period={period} /></td><td>{lockedPeriod(period) ? <span className="ay-lock"><Icon name="lock" size={15} /> {activePeriod(period) ? 'Periode aktif' : period.identity_locked === true ? 'Sudah digunakan' : 'Status kunci belum diketahui'}</span> : <span className="ay-editable">Dapat diedit</span>}</td><td><div className="ay-row-actions">{(!activePeriod(period) || inconsistent) && <Button size="small" variant="outline" onClick={() => open('activate', period)}>Aktifkan</Button>}{lockedPeriod(period) ? <Button size="small" variant="ghost" onClick={() => open('detail', period)}>Detail</Button> : <><Button size="small" variant="ghost" disabled={inconsistent} onClick={() => open('edit', period)}>Edit</Button><Button size="small" variant="ghost" className="ay-delete" onClick={() => open('delete', period)}>Hapus</Button></>}</div></td></tr>)}</tbody></table></div>}
+        {periods.length > 0 && <p className="ay-scroll-hint">Geser tabel ke samping untuk melihat seluruh tindakan.</p>}
+      </section>
+      <aside className="ay-footnote"><Icon name="info" /><div><strong>Riwayat akademik tetap terlindungi.</strong><p>Aktivasi tidak memindahkan kelas, jadwal, atau data akademik. Identitas periode aktif dan periode yang sudah digunakan tidak dapat diubah.</p></div></aside>
+    </>}
+    {dialog && ['create', 'edit'].includes(dialog.kind) && <WorkspaceModal compact className="ay-dialog" eyebrow="DATA AKADEMIK" title={dialog.kind === 'edit' ? 'Edit periode' : 'Tambah periode'} description="Tentukan tahun ajaran dan semester." busy={busy} onClose={close} footer={<><Button variant="secondary" disabled={busy} onClick={close}>Batal</Button><Button type="submit" form="ay-form" loading={busy}>Simpan periode</Button></>}>
+      <form id="ay-form" noValidate onSubmit={save} className="ay-form"><Errors messages={messages} /><div className="ay-fields"><Input id="ay-start" name="tahun_mulai" label="Tahun mulai" value={form.tahun_mulai} inputMode="numeric" maxLength={4} required disabled={busy} error={fieldErrors.tahun_mulai?.[0]} onChange={updateForm} /><Input id="ay-end" label="Tahun selesai" value={endYear(form.tahun_mulai)} readOnly hint="Dihitung otomatis" error={fieldErrors.tahun_selesai?.[0]} /></div><Select id="ay-semester" name="semester" label="Semester" value={form.semester} options={semesters} required disabled={busy} onChange={updateForm} error={fieldErrors.semester?.[0]} /><div className="ay-inset"><strong>{endYear(form.tahun_mulai) ? `${form.tahun_mulai}/${endYear(form.tahun_mulai)}` : 'Tahun belum valid'}</strong><p>Semester {semesterLabel(form.semester)} · {dialog.kind === 'create' && periods.length === 0 ? 'Periode pertama otomatis aktif.' : 'Disimpan sebagai periode tidak aktif.'}</p></div></form>
+    </WorkspaceModal>}
+    {dialog && ['activate', 'delete', 'detail'].includes(dialog.kind) && <WorkspaceModal compact className="ay-dialog" eyebrow="DATA AKADEMIK" title={dialog.kind === 'activate' ? 'Aktifkan periode akademik?' : dialog.kind === 'delete' ? 'Hapus periode?' : 'Detail periode'} busy={busy} onClose={close} footer={<><Button variant="secondary" disabled={busy} onClick={close}>{dialog.kind === 'detail' ? 'Tutup' : 'Batal'}</Button>{dialog.kind === 'activate' && <Button loading={busy} onClick={activate}>Aktifkan Periode</Button>}{dialog.kind === 'delete' && <Button variant="danger" loading={busy} onClick={remove}>Hapus Periode</Button>}</>}>
+      <div className="ay-form"><Errors messages={messages} />{dialog.kind === 'activate' && <><div className="ay-inset"><small>PERIODE SAAT INI</small><strong>{current ? yearLabel(current) : active.length > 1 ? 'Beberapa periode aktif' : 'Tidak ada periode aktif'}</strong>{current && <p>Semester {semesterLabel(current.semester)}</p>}</div><div className="ay-transition"><Icon name="arrow" /> Beralih ke</div></>}<div className="ay-inset ay-target"><small>{dialog.kind === 'activate' ? 'PERIODE TUJUAN' : 'PERIODE'}</small><strong>{yearLabel(dialog.period)}</strong><p>Semester {semesterLabel(dialog.period.semester)}</p><PeriodStatus period={dialog.period} /></div>{dialog.kind === 'activate' ? <><p>Periode lain akan dinonaktifkan. Konteks kelas, jadwal, presensi, penilaian dan Wali Kelas mengikuti periode tujuan. Riwayat tidak dihapus atau disalin.</p><div className="ay-alert"><Icon name="info" /><p>Pastikan data akademik periode tujuan telah diperiksa. Periode historis juga dapat diaktifkan kembali.</p></div></> : dialog.kind === 'delete' ? <p>Hanya periode tidak aktif yang belum digunakan dapat dihapus. Tindakan ini tidak dapat dibatalkan.</p> : <p>Identitas periode {activePeriod(dialog.period) ? 'aktif' : 'yang sudah digunakan atau belum dapat diverifikasi'} dilindungi. Tahun dan semester tidak dapat diedit melalui halaman ini.</p>}</div>
+    </WorkspaceModal>}
+    {dialog?.kind === 'import' && <WorkspaceModal className="ay-dialog" eyebrow="IMPORT EXCEL" title={confirmImport ? 'Konfirmasi import' : 'Import tahun akademik'} description="Validasi seluruh baris sebelum menyimpan data." busy={busy} onClose={close} footer={<><Button variant="secondary" disabled={busy} onClick={confirmImport ? () => setConfirmImport(false) : close}>{confirmImport ? 'Kembali' : 'Batal'}</Button>{confirmImport ? <Button loading={busy} disabled={!canImport(preview)} onClick={importFile}>Simpan {preview?.summary.total_rows} periode</Button> : <><Button variant="outline" disabled={!file || busy} onClick={checkFile} loading={busy}>Validasi File</Button><Button disabled={!canImport(preview) || busy} onClick={() => setConfirmImport(true)}>Lanjutkan</Button></>}</>}>
+      <div className="ay-form"><Errors messages={messages} />{confirmImport ? <div className="ay-inset"><strong>{preview.summary.total_rows} periode siap disimpan</strong><p>{periods.length === 0 ? 'Satu periode pertama sesuai kolom is_active akan aktif.' : 'Periode baru disimpan tidak aktif. Periode berjalan tidak berubah.'} Semua baris divalidasi ulang oleh server.</p></div> : <><div className="ay-upload"><Icon name="upload" size={26} /><div><strong>Unggah template yang sudah diisi</strong><p>.xlsx · Maksimal 2 MB dan 1.000 baris · Satu worksheet</p></div><label htmlFor="ay-file">Pilih file Excel</label><input id="ay-file" type="file" accept=".xlsx" disabled={busy} onChange={changeFile} />{file && <p className="ay-filename">{file.name}</p>}</div><p className="ay-help">{periods.length === 0 ? 'Import pertama: isi tepat satu is_active = 1, sisanya 0.' : 'Isi is_active = 0 pada seluruh baris. Aktivasi dilakukan setelah import.'} Tahun selesai harus satu tahun setelah tahun mulai.</p>{preview && <><div className="ay-preview-stats">{[['Total', preview.summary.total_rows], ['Valid', preview.summary.valid_rows], ['Bermasalah', preview.summary.invalid_rows]].map(([label, value]) => <div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div><div className="ay-preview-filter" aria-label="Filter hasil validasi">{[['all', 'Semua'], ['valid', 'Valid'], ['invalid', 'Bermasalah']].map(([value, label]) => <button type="button" key={value} aria-pressed={previewFilter === value} onClick={() => setPreviewFilter(value)}>{label}</button>)}</div><div className="ay-table-scroll" tabIndex={0} role="region" aria-label="Preview import"><table className="ay-table ay-preview-table"><thead><tr><th>Baris</th><th>Periode</th><th>Status</th><th>Validasi</th></tr></thead><tbody>{visibleRows.map(row => <tr key={row.row}><td>{row.row}</td><td><strong>{yearLabel(row)}</strong><small>{semesterLabel(row.semester)}</small></td><td>{String(row.is_active) === '1' ? 'Aktif' : String(row.is_active) === '0' ? 'Tidak aktif' : 'Tidak valid'}</td><td>{row.valid ? <span className="ay-valid">Valid</span> : <div className="ay-row-errors"><strong>Tidak valid</strong><ul>{row.errors.map((error, i) => <li key={i}>{error}</li>)}</ul></div>}</td></tr>)}{visibleRows.length === 0 && <tr><td colSpan={4}>Tidak ada baris dalam filter ini.</td></tr>}</tbody></table></div><p className="ay-help">{canImport(preview) ? 'Seluruh data valid. Lanjutkan ke konfirmasi penyimpanan.' : 'Perbaiki baris bermasalah, lalu pilih ulang file. Tidak ada data yang disimpan.'}</p></>}</>}</div>
+    </WorkspaceModal>}
+    <ToastNotification notice={notice} onClose={clearNotice} />
+  </div>;
 }

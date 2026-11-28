@@ -1,5 +1,11 @@
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import ToastNotification from '../../components/ui/ToastNotification'
+import IdentityDirectoryDetail from '../identity/IdentityDirectoryDetail.jsx'
+import WorkspaceModal from '../../components/ui/WorkspaceModal'
+import { DirectoryIdentity, DirectoryCompleteness, DirectoryOverview, ImportProgress, ImportPreviewScroll } from '../identity/IdentityDirectoryUI.jsx'
+
 
 import { useAuth } from '../../context/useAuth'
 import PageHeader from '../../components/ui/PageHeader'
@@ -19,6 +25,8 @@ import { teacherApi } from '../../services/teacherApi'
 import './TeachersPage.css'
 
 const initialForm = {
+  registration_mode: 'new_account',
+  username: '',
   user_id: '',
   nip: '',
   nama_lengkap: '',
@@ -32,6 +40,7 @@ const columns = [
   { key: 'nip', label: 'NIP' },
   { key: 'gender', label: 'Jenis Kelamin' },
   { key: 'status', label: 'Status Akun' },
+  { key: 'completeness', label: 'Biodata' },
   { key: 'actions', label: 'Aksi' },
 ]
 
@@ -50,6 +59,18 @@ function getApiMessage(error, fallback) {
 
 export default function TeachersPage() {
   const { role, permissions = [] } = useAuth()
+  const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const entryHandled = useRef('')
+  const formRequest = useRef(0)
+  const detailRequest = useRef(0)
+  const [detail, setDetail] = useState(null)
+  const [detailError, setDetailError] = useState('')
+  const [accountFilter, setAccountFilter] = useState('')
+  const [genderFilter, setGenderFilter] = useState('')
+  const [completeFilter, setCompleteFilter] = useState('')
+  const [pageSize, setPageSize] = useState('15')
+
   const canManage =
     role?.code === 'TU' || permissions.includes('teachers.create')
 
@@ -58,6 +79,8 @@ export default function TeachersPage() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [sortOrder, setSortOrder] = useState('asc')
+  const listRequest = useRef(0)
 
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -74,12 +97,14 @@ export default function TeachersPage() {
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState({})
   const [submitError, setSubmitError] = useState(null)
+  const [overviewRevision, setOverviewRevision] = useState(0)
   const [successMessage, setSuccessMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   // State Import Excel
 const [importModalOpen, setImportModalOpen] = useState(false)
+const [importMode, setImportMode] = useState('new_account')
 const [selectedExcel, setSelectedExcel] = useState(null)
 const [previewData, setPreviewData] = useState(null)
 const [importError, setImportError] = useState('')
@@ -88,6 +113,7 @@ const [importing, setImporting] = useState(false)
 const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   const loadTeachers = useCallback(async () => {
+    const requestId = ++listRequest.current
     setLoading(true)
     setListError(null)
 
@@ -95,24 +121,56 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
       const response = await teacherApi.getAll({
         search,
         page,
-        page_size: 15,
+        page_size: Number(pageSize),
+        account_state: canManage ? accountFilter : '',
+        gender: canManage ? genderFilter : '',
+        completeness: canManage ? completeFilter : '',
+
+        sort_order: sortOrder,
       })
 
+      if (requestId !== listRequest.current) return
       setTeachers(Array.isArray(response?.data) ? response.data : [])
       setMeta((current) => ({
         ...current,
         ...(response?.meta || {}),
       }))
     } catch (error) {
-      setListError(error)
+      if (requestId === listRequest.current) setListError(error)
     } finally {
-      setLoading(false)
+      if (requestId === listRequest.current) setLoading(false)
     }
-  }, [page, search])
+  }, [page, search, sortOrder, pageSize, canManage, accountFilter, genderFilter, completeFilter])
 
   useEffect(() => {
     loadTeachers()
+    return () => { listRequest.current += 1 }
   }, [loadTeachers])
+
+  async function openDetail(id) {
+    const generation = ++detailRequest.current
+    setDetailError('')
+    try {
+      const response = await teacherApi.getById(id)
+      if (!response?.data || String(response.data.id) !== String(id)) throw new Error('Identitas profil tidak sesuai.')
+      if (generation === detailRequest.current) setDetail(response.data)
+    } catch (error) {if (generation === detailRequest.current) setDetailError(getApiMessage(error,'Detail gagal dimuat.'))}
+  }
+
+  useEffect(() => {
+    if (!canManage) return
+    const key = params.toString()
+    if (!key) {entryHandled.current = ''; return}
+    if (entryHandled.current === key) return
+    entryHandled.current = key
+    const accountId = params.get('link_user')
+    const profileId = params.get('profile_id')
+    if (accountId && /^[1-9]\d*$/.test(accountId)) openCreateModal(accountId)
+    else if (profileId && /^[1-9]\d*$/.test(profileId)) openDetail(profileId)
+    else if (params.get('register') === '1') openCreateModal()
+    else if (params.get('import') === '1') openImportModal()
+    setParams({}, {replace:true})
+  }, [params, canManage])
 
   function resetForm() {
     setForm(initialForm)
@@ -123,32 +181,51 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   function closeModal() {
     if (saving) return
-
+    formRequest.current += 1
     setModalOpen(false)
     resetForm()
   }
 
-  async function openCreateModal() {
+  async function openCreateModal(linkUserId = null) {
+    const generation = ++formRequest.current
+    const requestedId = typeof linkUserId === 'string' ? linkUserId : null
     resetForm()
     setSuccessMessage('')
     setAccounts([])
-    setModalOpen(true)
+    if (!requestedId) setModalOpen(true)
 
     try {
       const response = await teacherApi.getAvailableAccounts()
-      setAccounts(Array.isArray(response?.data) ? response.data : [])
+      if (generation !== formRequest.current) return
+      const available = Array.isArray(response?.data) ? response.data : []
+      setAccounts(available)
+      if (requestedId) {
+        const account = available.find(a => String(a.id) === requestedId)
+        if (!account) {
+          setModalOpen(false)
+          setDetailError('Akun tidak lagi tersedia untuk dihubungkan. Periksa status dan profilnya di Manajemen Akun.')
+          return
+        }
+        setForm({...initialForm, registration_mode:'existing_account', user_id:String(account.id), nama_lengkap:account.name || ''})
+        setModalOpen(true)
+      }
     } catch (error) {
+      if (generation !== formRequest.current) return
       setAccounts([])
-      setSubmitError(error)
+      if (requestedId) setDetailError(getApiMessage(error,'Akun gagal dimuat.'))
+      else setSubmitError(error)
     }
   }
 
   async function openEditModal(teacher) {
+    formRequest.current += 1
     resetForm()
     setSuccessMessage('')
     setEditingTeacher(teacher)
 
     setForm({
+      registration_mode: 'existing_account',
+      username: '',
       user_id: String(teacher.user_id ?? ''),
       nip: teacher.nip ?? '',
       nama_lengkap: teacher.nama_lengkap ?? '',
@@ -159,44 +236,7 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
     setModalOpen(true)
 
-    try {
-      const response = await teacherApi.getAvailableAccounts()
-      const available = Array.isArray(response?.data) ? response.data : []
-      const currentAccount = teacher.user
-
-      if (
-        currentAccount &&
-        !available.some(
-          (account) => String(account.id) === String(teacher.user_id),
-        )
-      ) {
-        setAccounts([
-          {
-            id: teacher.user_id,
-            username: currentAccount.username,
-            name: currentAccount.name,
-            email: currentAccount.email,
-          },
-          ...available,
-        ])
-      } else {
-        setAccounts(available)
-      }
-    } catch (error) {
-      setAccounts(
-        teacher.user
-          ? [
-              {
-                id: teacher.user_id,
-                username: teacher.user.username,
-                name: teacher.user.name,
-                email: teacher.user.email,
-              },
-            ]
-          : [],
-      )
-      setSubmitError(error)
-    }
+    setAccounts(teacher.user ? [{id:teacher.user_id, username:teacher.user.username, name:teacher.user.name}] : [])
   }
 
   function handleChange(event) {
@@ -223,12 +263,13 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (saving) return
     setFieldErrors({})
     setSubmitError(null)
 
     const localErrors = {}
 
-    if (!form.user_id) {
+    if ((editingTeacher || form.registration_mode === 'existing_account') && !form.user_id) {
       localErrors.user_id = 'Akun Guru wajib dipilih.'
     }
 
@@ -248,7 +289,12 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
     setSaving(true)
 
     const payload = {
-      user_id: Number(form.user_id),
+      ...(editingTeacher ? { user_id: Number(form.user_id), profile_version: editingTeacher.profile_version } : {
+        registration_mode: form.registration_mode,
+        ...(form.registration_mode === 'new_account'
+          ? (form.username.trim() ? { username: form.username.trim() } : {})
+          : { user_id: Number(form.user_id) }),
+      }),
       nip: form.nip.trim(),
       nama_lengkap: form.nama_lengkap.trim(),
       jenis_kelamin: form.jenis_kelamin || null,
@@ -259,9 +305,11 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
     try {
       if (editingTeacher) {
         await teacherApi.update(editingTeacher.id, payload)
+        setOverviewRevision(value=>value+1)
         setSuccessMessage('Data Guru berhasil diperbarui.')
       } else {
         await teacherApi.create(payload)
+        setOverviewRevision(value=>value+1)
         setSuccessMessage('Data Guru berhasil ditambahkan.')
       }
 
@@ -298,6 +346,7 @@ const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 
     try {
       await teacherApi.delete(teacher.id)
+        setOverviewRevision(value=>value+1)
       setDeleteTarget(null)
       setSuccessMessage(
         `Data Guru ${getTeacherName(teacher)} berhasil dihapus.`,
@@ -386,6 +435,7 @@ async function handlePreviewImport() {
 
   const formData = new FormData()
   formData.append('file', selectedExcel)
+  formData.append('registration_mode', importMode)
 
   setPreviewLoading(true)
   setImportError('')
@@ -418,7 +468,7 @@ async function handlePreviewImport() {
 }
 
 async function handleConfirmImport() {
-  if (!selectedExcel || !previewData) return
+  if (!selectedExcel || !previewData?.preview_token) return
 
   if (previewData.summary?.invalid_rows > 0) {
     setImportError(
@@ -432,31 +482,28 @@ async function handleConfirmImport() {
     return
   }
 
-  const confirmed = window.confirm(
-    `Impor ${previewData.summary.valid_rows} data Guru ke dalam sistem?`,
-  )
-
-  if (!confirmed) return
-
+  if (importing || previewLoading) return
   const formData = new FormData()
   formData.append('file', selectedExcel)
+  formData.append('registration_mode', importMode)
+  if (previewData.preview_token) formData.append('preview_token', previewData.preview_token)
 
   setImporting(true)
   setImportError('')
 
   try {
     const response = await teacherApi.importExcel(formData)
+    setOverviewRevision(value=>value+1)
 
     const importedRows =
-      response?.data?.imported_rows ??
-      previewData.summary.valid_rows
+      response?.data?.imported_rows
 
     setImportModalOpen(false)
     setSelectedExcel(null)
     setPreviewData(null)
 
     setSuccessMessage(
-      `${importedRows} data Guru berhasil diimpor.`,
+      Number.isInteger(importedRows) ? `${importedRows} data Guru berhasil diimpor.` : 'Import selesai. Muat ulang daftar untuk memeriksa hasil.',
     )
 
     setPage(1)
@@ -490,8 +537,9 @@ async function handleConfirmImport() {
   }))
 
   return (
-    <section className="teachers-page">
+    <section className="teachers-page identity-directory-page">
       <PageHeader
+  eyebrow="Administrasi akademik"
   title="Data Guru"
   description="Kelola identitas dan informasi dasar Guru."
   actions={
@@ -499,15 +547,17 @@ async function handleConfirmImport() {
       <div className="teachers-page__header-actions">
         <Button
           type="button"
+          variant="secondary"
           onClick={handleDownloadTemplate}
           loading={downloadingTemplate}
           disabled={downloadingTemplate}
         >
-          Download Template
+          Unduh Template
         </Button>
 
         <Button
           type="button"
+          variant="secondary"
           onClick={openImportModal}
         >
           Import Excel
@@ -524,12 +574,10 @@ async function handleConfirmImport() {
   }
 />
 
-      {successMessage && (
-        <div className="teachers-page__success" role="status" aria-live="polite">
-          {successMessage}
-        </div>
-      )}
-
+      <ToastNotification notice={successMessage ? {type:'success', title:'Berhasil', message:successMessage} : null} onClose={() => setSuccessMessage('')}/>
+      {detailError && <ErrorState message={detailError}/>}
+      {detail && <IdentityDirectoryDetail profile={detail} student={false} onClose={() => setDetail(null)} onDelete={canManage ? () => {const target=detail;setDetail(null);handleDelete(target)} : null} onEdit={canManage ? () => {const target=detail;setDetail(null);openEditModal(target)} : null} onAccount={canManage && detail.user_id ? () => navigate(`/app/users?user_id=${detail.user_id}`) : null}/>}
+            {canManage && <DirectoryOverview api={teacherApi} student={false} revision={overviewRevision}/>}
       <Card className="teachers-page__card">
         <div className="teachers-page__list-header">
           <div>
@@ -538,7 +586,7 @@ async function handleConfirmImport() {
             <p>Data identitas Guru yang tersimpan di sistem.</p>
           </div>
 
-          <span className="teachers-page__count">{meta.total} Guru</span>
+          <span className="teachers-page__count" aria-live="polite">{loading ? "Memuat…" : listError ? "Tidak tersedia" : `${meta.total} hasil`}</span>
         </div>
 
         <form className="teachers-page__search" onSubmit={handleSearch}>
@@ -547,23 +595,42 @@ async function handleConfirmImport() {
             name="search"
             label="Cari Guru"
             value={searchInput}
-            placeholder="Cari nama atau NIP"
+            placeholder="Cari nama, NIP atau username"
             onChange={(event) => setSearchInput(event.target.value)}
           />
 
+          <Select id="teacher-sort" label="Urutan nama" value={sortOrder}
+            options={[{value: 'asc', label: 'A–Z'}, {value: 'desc', label: 'Z–A'}]}
+            onChange={event => {setSortOrder(event.target.value || 'asc'); setPage(1)}} />
+          {canManage && <>
+            <Select id="teacher-accountFilter" label="Status akun" value={accountFilter} placeholder="Semua status" options={[{value:'ready',label:'Siap digunakan'},{value:'pending',label:'Menunggu aktivasi'},{value:'inactive',label:'Nonaktif'}]} onChange={e=>{setAccountFilter(e.target.value);setPage(1)}}/>
+          </>}
           <div className="teachers-page__search-actions">
             <Button type="submit">Cari</Button>
             <Button
+              variant="secondary"
               type="button"
               onClick={() => {
                 setSearchInput('')
                 setSearch('')
+                setSortOrder('asc')
+                setAccountFilter(''); setGenderFilter(''); setCompleteFilter(''); setPageSize('15')
                 setPage(1)
               }}
             >
               Reset
             </Button>
           </div>
+          <details className="identity-directory-advanced">
+            <summary>Filter lanjutan & tampilan {(completeFilter || genderFilter) ? <span className="identity-filter-active">Filter aktif</span> : null}</summary>
+            <div className="identity-directory-advanced-grid">
+          {canManage && <>
+            <Select id="teacher-completeFilter" label="Kelengkapan biodata" value={completeFilter} placeholder="Semua biodata" options={[{value:'complete',label:'Lengkap'},{value:'incomplete',label:'Belum lengkap'}]} onChange={e=>{setCompleteFilter(e.target.value);setPage(1)}}/>
+            <Select id="teacher-genderFilter" label="Jenis kelamin" value={genderFilter} placeholder="Semua" options={[{value:'L',label:'Laki-laki'},{value:'P',label:'Perempuan'}]} onChange={e=>{setGenderFilter(e.target.value);setPage(1)}}/>
+          </>}
+          <Select id="teacher-pageSize" label="Data per halaman" value={pageSize} options={['15','25','50','100'].map(x=>({value:x,label:x}))} onChange={e=>{setPageSize(e.target.value);setPage(1)}}/>
+            </div>
+          </details>
         </form>
 
         {loading && <LoadingState message="Memuat data Guru..." />}
@@ -579,7 +646,7 @@ async function handleConfirmImport() {
 
         {!loading && !listError && teachers.length === 0 && (
           <EmptyState
-            title="Belum ada data Guru"
+            title={search || accountFilter || completeFilter || genderFilter ? "Guru tidak ditemukan" : "Belum ada data Guru"}
             description={
               search
                 ? 'Tidak ditemukan Guru yang sesuai dengan pencarian.'
@@ -591,18 +658,15 @@ async function handleConfirmImport() {
         {!loading && !listError && teachers.length > 0 && (
           <>
             <Table
-              columns={columns}
+              scrollLabel="Tabel Data Guru"
+              columns={canManage ? columns : columns.filter(c => !['status','completeness','placement'].includes(c.key))}
               data={teachers}
               rowKey="id"
               renderCell={(teacher, column) => {
                 switch (column.key) {
                   case 'identity':
                     return (
-                      <div className="teachers-page__identity">
-                        <strong>{getTeacherName(teacher)}</strong>
-                        <span>{teacher.user?.username || '-'}</span>
-                        <small>{teacher.user?.email || '-'}</small>
-                      </div>
+                      <DirectoryIdentity name={getTeacherName(teacher)} username={teacher.user?.username} email={teacher.user?.email} showAccount={canManage}/>
                     )
 
                   case 'nip':
@@ -615,36 +679,17 @@ async function handleConfirmImport() {
 
                   case 'status':
                     return teacher.user?.account_status === 'active' ? (
-                      <Badge variant="success">Aktif</Badge>
+                      <Badge variant={teacher.user.requires_activation === true ? "warning" : teacher.user.requires_activation === false ? "success" : "neutral"}>{teacher.user.requires_activation === true ? "Menunggu aktivasi" : teacher.user.requires_activation === false ? "Siap digunakan" : "Status belum diketahui"}</Badge>
                     ) : (
                       <Badge variant="neutral">
-                        {teacher.user?.account_status || 'Tidak diketahui'}
+                        {teacher.user?.account_status === 'inactive' ? 'Nonaktif' : 'Status belum diketahui'}
                       </Badge>
                     )
 
+                  case 'completeness':
+                    return <DirectoryCompleteness value={teacher.completeness}/>
                   case 'actions':
-                    return canManage ? (
-                      <div className="teachers-page__actions">
-                        <Button
-                          type="button"
-                          disabled={deletingId !== null}
-                          onClick={() => openEditModal(teacher)}
-                        >
-                          Edit
-                        </Button>
-
-                        <Button
-                          type="button"
-                          loading={deletingId === teacher.id}
-                          disabled={deletingId !== null}
-                          onClick={() => handleDelete(teacher)}
-                        >
-                          Hapus
-                        </Button>
-                      </div>
-                    ) : (
-                      <Badge variant="neutral">Lihat</Badge>
-                    )
+                    return <Button variant="secondary" onClick={() => openDetail(teacher.id)}>Lihat detail <span aria-hidden="true">›</span></Button>
 
                   default:
                     return '-'
@@ -684,16 +729,15 @@ async function handleConfirmImport() {
         )}
       </Card>
 
-      <Modal
-        open={importModalOpen}
+      {importModalOpen && <WorkspaceModal className="identity-import-workspace" busy={previewLoading || importing} eyebrow="IMPORT EXCEL"
         title="Import Data Guru"
         description="Unggah file Excel untuk menambahkan data Guru secara massal."
         onClose={closeImportModal}
-        size="large"
         footer={
           <>
             <Button
               type="button"
+              variant="secondary"
               disabled={previewLoading || importing}
               onClick={closeImportModal}
             >
@@ -707,7 +751,7 @@ async function handleConfirmImport() {
                 disabled={!selectedExcel || previewLoading}
                 onClick={handlePreviewImport}
               >
-                Preview Data
+                Periksa Data
               </Button>
             )}
 
@@ -719,23 +763,25 @@ async function handleConfirmImport() {
                   importing ||
                   previewLoading ||
                   previewData.summary?.invalid_rows > 0 ||
-                  previewData.summary?.valid_rows === 0
+                  previewData.summary?.valid_rows === 0 || !previewData.preview_token
                 }
                 onClick={handleConfirmImport}
               >
-                Konfirmasi Import
+                Konfirmasi Import {previewData.summary?.valid_rows ?? 0} Guru
               </Button>
             )}
           </>
         }
       >
         <div className="teachers-page__import-card">
-          <div className="teachers-page__import-heading">
+          <ImportProgress preview={Boolean(previewData)} busy={previewLoading || importing} importing={importing}/>
+          <details className="identity-import-settings" open={!previewData && !previewLoading}>
+            <summary><span>File &amp; pengaturan</span><span className="identity-import-filename">{selectedExcel?.name || 'Pilih file'}</span></summary>
+            <div className="identity-import-settings-body">
+          <details className="identity-import-guide"><summary>Ketentuan file dan template</summary>          <div className="teachers-page__import-heading">
             <h3>Petunjuk Import</h3>
             <p>
-              Gunakan template resmi Data Guru. Pastikan username
-              merupakan akun aktif dengan role GURU dan belum
-              memiliki profil Guru.
+              Gunakan template resmi. Pilih pendaftaran baru untuk membuat akun dan profil sekaligus, atau penghubungan jika akun sudah terdaftar.
             </p>
           </div>
 
@@ -748,9 +794,13 @@ async function handleConfirmImport() {
             <br />
             Maksimal data: 1.000 baris
             <br />
-            Kolom wajib: username, nip, nama_lengkap.
+            Kolom wajib: nip, nama_lengkap. Username wajib untuk penghubungan akun existing.
           </div>
 
+<Button variant="secondary" disabled={previewLoading || importing || downloadingTemplate} loading={downloadingTemplate} onClick={handleDownloadTemplate}>Unduh template Guru</Button></details>
+          <Select id="teacher-import-mode" label="Mode import" value={importMode} disabled={previewLoading || importing}
+            options={[{value:'new_account',label:'Pendaftaran akun dan profil baru'},{value:'existing_account',label:'Hubungkan akun existing'}]}
+            onChange={event => {setImportMode(event.target.value || 'new_account'); setPreviewData(null); setImportError('')}} />
           <div className="teachers-page__file-control">
             <label
               htmlFor="teacher-excel-file"
@@ -774,6 +824,9 @@ async function handleConfirmImport() {
               </p>
             )}
           </div>
+
+            </div>
+          </details>
 
           {importError && (
             <div
@@ -816,7 +869,7 @@ async function handleConfirmImport() {
                 </div>
               </div>
 
-              <div className="teachers-page__preview-table-wrapper">
+              <ImportPreviewScroll className="teachers-page__preview-table-wrapper" label="Preview import Guru">
                 <table className="teachers-page__preview-table">
                   <thead>
                     <tr>
@@ -833,7 +886,7 @@ async function handleConfirmImport() {
                     {(previewData.rows || []).map((row) => (
                       <tr key={row.row}>
                         <td>{row.row}</td>
-                        <td>{row.username || '-'}</td>
+                        <td>{row.username || '-'}{row.registration_mode === 'existing_account' && <small className="identity-directory-completeness-cell"> · Akun: {row.existing_name || 'Belum diketahui'}</small>}</td>
                         <td>{row.nip || '-'}</td>
                         <td>{row.nama_lengkap || '-'}</td>
                         <td>
@@ -856,7 +909,7 @@ async function handleConfirmImport() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ImportPreviewScroll>
 
               {previewData.summary?.invalid_rows > 0 && (
                 <div className="teachers-page__preview-note">
@@ -878,7 +931,7 @@ async function handleConfirmImport() {
             </div>
           )}
         </div>
-      </Modal>
+      </WorkspaceModal>}
 
       <Modal
         open={Boolean(deleteTarget)}
@@ -915,7 +968,7 @@ async function handleConfirmImport() {
             <strong>{deleteTarget ? getTeacherName(deleteTarget) : ''}</strong>?
           </p>
           <p className="teachers-page__delete-warning">
-            Tindakan ini tidak dapat dibatalkan.
+            Profil hanya dapat dihapus jika belum memiliki histori akademik. Akun terkait akan dinonaktifkan, bukan dihapus.
           </p>
           {deleteError && (
             <div className="teachers-page__delete-error" role="alert">
@@ -930,19 +983,17 @@ async function handleConfirmImport() {
         </div>
       </Modal>
 
-      <Modal
-        open={modalOpen}
+      {modalOpen && <WorkspaceModal className="identity-form-workspace" busy={saving} eyebrow="IDENTITAS AKADEMIK"
         title={editingTeacher ? 'Edit Data Guru' : 'Tambah Guru'}
         description={
           editingTeacher
             ? 'Perbarui informasi Guru yang dipilih.'
-            : 'Pilih akun Guru, lalu lengkapi identitasnya.'
+            : 'Daftarkan identitas resmi dan akun, atau hubungkan akun yang sudah ada.'
         }
         onClose={closeModal}
-        size="large"
         footer={
           <>
-            <Button type="button" disabled={saving} onClick={closeModal}>
+            <Button variant="secondary" type="button" disabled={saving} onClick={closeModal}>
               Batal
             </Button>
 
@@ -965,6 +1016,13 @@ async function handleConfirmImport() {
 
         <form id="teacher-form" onSubmit={handleSubmit}>
           <div className="teachers-page__form-grid">
+            <div className="identity-form-section"><strong>Akun pengguna</strong><span>Atur hubungan akun dan identitas resmi.</span></div>
+            {!editingTeacher && (
+              <Select id="registration_mode" name="registration_mode" label="Cara pendaftaran"
+                value={form.registration_mode} required disabled={saving} onChange={handleChange}
+                options={[{ value: 'new_account', label: 'Buat profil dan akun baru' }, { value: 'existing_account', label: 'Hubungkan akun yang sudah ada' }]} />
+            )}
+            {(editingTeacher || form.registration_mode === 'existing_account') ? (
             <Select
               id="user_id"
               name="user_id"
@@ -975,10 +1033,19 @@ async function handleConfirmImport() {
               placeholder="Pilih akun Guru"
               options={accountOptions}
               error={getFieldError(fieldErrors, 'user_id')}
-              hint="Akun aktif dengan role Guru yang belum memiliki profil."
+              hint={editingTeacher ? "Akun terhubung tidak dapat diganti." : "Akun aktif dengan role Guru yang belum memiliki profil."}
               onChange={handleChange}
             />
+            ) : (
+              <Input id="username" name="username" label="Username (opsional)"
+                value={form.username} disabled={saving} maxLength={100} onChange={handleChange}
+                placeholder={form.nip || 'Otomatis mengikuti NIP'}
+                error={getFieldError(fieldErrors, 'username')}
+                hint="Akun baru membutuhkan aktivasi. Password dibuat sendiri oleh pemilik akun." />
+            )}
 
+
+            <div className="identity-form-section"><strong>Identitas resmi</strong><span>Gunakan data yang tercatat di sekolah.</span></div>
             <Input
               id="nip"
               name="nip"
@@ -1016,6 +1083,7 @@ async function handleConfirmImport() {
               onChange={handleChange}
             />
 
+            <div className="identity-form-section"><strong>Informasi kontak</strong><span>Opsional, dapat dilengkapi kemudian.</span></div>
             <Input
               id="no_telepon"
               name="no_telepon"
@@ -1042,7 +1110,7 @@ async function handleConfirmImport() {
             </div>
           </div>
         </form>
-      </Modal>
+      </WorkspaceModal>}
     </section>
   )
 }

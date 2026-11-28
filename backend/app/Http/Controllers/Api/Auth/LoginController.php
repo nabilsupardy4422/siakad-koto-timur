@@ -9,6 +9,7 @@ use App\Support\ApiResponse;
 use App\Support\Permissions;
 use App\Support\UserAssignments;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -125,71 +126,90 @@ class LoginController extends Controller
             );
         }
 
-        // =====================================
-        // CEK STATUS AKUN
-        // =====================================
+        // Serialize issuance with password reset, role changes and deactivation.
+        // A credential verified before a concurrent change cannot mint a token afterwards.
+        return DB::transaction(function () use ($user, $accountKey): JsonResponse {
+            $locked = User::query()->with(['role', 'guru'])->lockForUpdate()->find($user->id);
+            if (! $locked || ! hash_equals($user->password, $locked->password)
+                || $locked->username !== $user->username || (int) $locked->role_id !== (int) $user->role_id) {
+                return ApiResponse::message('Akun berubah. Silakan login kembali.', null, 401);
+            }
+            $user = $locked;
 
-        if ($user->account_status !== 'active') {
-            return ApiResponse::message(
-                'Akun tidak aktif.',
-                null,
-                403
-            );
-        }
+            // =====================================
+            // CEK STATUS AKUN
+            // =====================================
 
-        // =====================================
-        // CEK AKTIVASI
-        // =====================================
+            if ($user->account_status !== 'active') {
+                return ApiResponse::message(
+                    'Akun tidak aktif.',
+                    null,
+                    403
+                );
+            }
 
-        if ($user->requires_activation) {
-            return ApiResponse::message(
-                'Akun belum diaktivasi. Gunakan kode aktivasi dari Tata Usaha.',
-                null,
-                403
-            );
-        }
+            // =====================================
+            // CEK AKTIVASI
+            // =====================================
 
-        // =====================================
-        // LOGIN BERHASIL
-        // =====================================
+            if ($user->requires_activation) {
+                return ApiResponse::message(
+                    'Akun belum diaktivasi. Gunakan kode aktivasi dari Tata Usaha.',
+                    null,
+                    403
+                );
+            }
 
-        // Bersihkan percobaan gagal untuk
-        // kombinasi akun dan IP ini.
-        RateLimiter::clear($accountKey);
+            // =====================================
+            // LOGIN BERHASIL
+            // =====================================
 
-        $user->update([
-            'last_login_at' => now(),
-        ]);
+            // Bersihkan percobaan gagal untuk
+            // kombinasi akun dan IP ini.
+            RateLimiter::clear($accountKey);
 
-        $token = $user
-            ->createToken('siakad-api')
-            ->plainTextToken;
+            $user->update([
+                'last_login_at' => now(),
+            ]);
 
-        return ApiResponse::success([
-            'token' => $token,
-            'token_type' => 'Bearer',
+            $token = $user
+                ->createToken('siakad-api')
+                ->plainTextToken;
 
-            'user' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                'name' => $user->name,
-                'email' => $user->email,
-                'account_status' =>
-                    $user->account_status,
+            return ApiResponse::success([
+                'token' => $token,
+                'token_type' => 'Bearer',
 
-                'role' => [
-                    'code' => $user->role->code,
-                    'name' => $user->role->name,
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'account_status' =>
+                        $user->account_status,
+
+                    'role' => [
+                        'code' => $user->role->code,
+                        'name' => $user->role->name,
+                    ],
+                    // Selaraskan identitas akademik dengan GET /api/me.
+                    // Guru dapat langsung membuka jadwal/presensi/nilai tanpa refresh.
+                    // Jangan pernah memakai users.id sebagai pengganti guru.id.
+                    'guru' => $user->guru ? [
+                        'id' => $user->guru->id,
+                        'nip' => $user->guru->nip,
+                        'nama_lengkap' => $user->guru->nama_lengkap,
+                    ] : null,
                 ],
-            ],
 
-            'permissions' => Permissions::forRole(
-                $user->role->code
-            ),
+                'permissions' => Permissions::forRole(
+                    $user->role->code
+                ),
 
-            'assignments' => UserAssignments::forUser(
-                $user
-            ),
-        ]);
+                'assignments' => UserAssignments::forUser(
+                    $user
+                ),
+            ]);
+        }, 3);
     }
 }

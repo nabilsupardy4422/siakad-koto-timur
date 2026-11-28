@@ -26,46 +26,34 @@ class StudentController extends Controller
             ? $request->integer('academic_year_id')
             : null;
 
+        $directory = $user->role?->code === 'TU' && $request->boolean('directory_context');
+        $period = $directory ? \App\Support\StudentPlacement::period($request) : null;
+        $request->attributes->set('student_directory_period', $period);
         $students = Siswa::query()
             ->with('user')
-            ->when(
-                $request->filled('class_id'),
-                function (Builder $query) use ($request): void {
-                    $classId = $request->integer('class_id');
-
-                    $query->whereHas(
-                        'anggotaKelas',
-                        function (Builder $query) use ($classId): void {
-                            $query->where('kelas_id', $classId);
+            ->when(! $directory && $user->role?->code !== 'GURU' && ($request->filled('class_id') || $academicYearId !== null),
+                function (Builder $query) use ($request, $academicYearId): void {
+                    $query->whereHas('anggotaKelas', function (Builder $membership) use ($request, $academicYearId): void {
+                        if ($request->filled('class_id')) {
+                            $membership->where('kelas_id', $request->integer('class_id'));
                         }
-                    );
-                }
-            )
-            ->when(
-                $academicYearId !== null,
-                function (Builder $query) use ($academicYearId): void {
-                    $query->whereHas(
-                        'anggotaKelas.kelas',
-                        function (Builder $query) use ($academicYearId): void {
-                            $query->where(
-                                'tahun_akademik_id',
-                                $academicYearId
-                            );
+                        if ($academicYearId !== null) {
+                            $membership->whereHas('kelas', fn (Builder $class) => $class->where('tahun_akademik_id', $academicYearId));
                         }
-                    );
-                }
-            )
+                    });
+                })
             ->when(
                 $request->filled('search'),
-                function (Builder $query) use ($request): void {
+                function (Builder $query) use ($request, $user): void {
                     $search = $request->string('search')->toString();
 
-                    $query->where(function (Builder $query) use ($search): void {
+                    $query->where(function (Builder $query) use ($search, $user): void {
                         $query->where(
                             'nisn',
                             'like',
                             "%{$search}%"
                         )
+                            ->orWhere('nipd', 'like', "%{$search}%")
                             ->orWhere(
                                 'nis',
                                 'like',
@@ -75,21 +63,44 @@ class StudentController extends Controller
                                 'nama_lengkap',
                                 'like',
                                 "%{$search}%"
-                            );
+                            )->when($user->role?->code === 'TU', fn ($q) => $q->orWhereHas('user', fn ($u) => $u->where('username', 'like', "%{$search}%")));
                     });
                 }
             );
 
+        if ($directory) {
+            \App\Support\IdentityDirectory::apply($students, $request, true);
+            $request->validate(['class_id' => ['sometimes', 'integer', 'exists:kelas,id'], 'placement_state' => ['sometimes', 'in:unassigned']]);
+            \App\Support\StudentPlacement::load($students, $period);
+            if ($request->filled('class_id') || $request->filled('placement_state')) {
+                if ($period === null) {
+                    abort(422, 'Periode akademik belum tersedia.');
+                }
+                $historical = ! \App\Models\TahunAkademik::query()->whereKey($period)->where('is_active', true)->exists();
+                $classId = $request->filled('class_id') ? $request->integer('class_id') : null;
+                if ($classId !== null && ! \App\Models\Kelas::query()->whereKey($classId)->where('tahun_akademik_id', $period)->exists()) {
+                    abort(422, 'Kelas tidak sesuai periode.');
+                }
+                $membership = fn (Builder $q) => \App\Support\StudentPlacement::scope($q, $period, $classId, ! $historical);
+                if ($request->input('placement_state') === 'unassigned') {
+                    $students->whereDoesntHave('anggotaKelas', fn (Builder $q) => \App\Support\StudentPlacement::scope($q, $period, null, ! $historical));
+                } else {
+                    $students->whereHas('anggotaKelas', $membership);
+                }
+            }
+        }
+
         $this->applyViewScope(
             $students,
             $user,
-            $academicYearId
+            $academicYearId,
+            $request->filled('class_id') ? $request->integer('class_id') : null
         );
 
         $students = $students
-             ->orderBy('nama_lengkap', 'asc')
+             ->orderBy('nama_lengkap', $request->input('sort_order') === 'desc' ? 'desc' : 'asc')
     ->orderBy('id', 'asc')
-    ->paginate($request->integer('page_size', 15))
+    ->paginate(min(100, max(1, $request->integer('page_size', $request->integer('per_page', 15)))))
     ->withQueryString();
 
         return ApiResponse::collection(
@@ -105,7 +116,7 @@ class StudentController extends Controller
 
     public function store(StoreStudentRequest $request): JsonResponse
     {
-        $student = Siswa::create($request->validated());
+        $student = app(\App\Services\AcademicIdentityService::class)->register('SISWA', $request->validated());
 
         $student->load('user');
 
@@ -129,7 +140,8 @@ class StudentController extends Controller
         if (! $this->canViewStudent(
             $student,
             $user,
-            $academicYearId
+            $academicYearId,
+            $request->filled('class_id') ? $request->integer('class_id') : null
         )) {
             return response()->json([
                 'message' => 'Anda tidak memiliki akses ke resource ini.',
@@ -137,6 +149,13 @@ class StudentController extends Controller
         }
 
         $student->load('user');
+        if ($user->role?->code === 'TU' && $request->boolean('directory_context')) {
+            $period = \App\Support\StudentPlacement::period($request);
+            $request->attributes->set('student_directory_period', $period);
+            $query = Siswa::query()->whereKey($student->id)->with('user');
+            \App\Support\StudentPlacement::load($query, $period);
+            $student = $query->firstOrFail();
+        }
 
         return ApiResponse::success(
             new StudentResource($student)
@@ -147,7 +166,7 @@ class StudentController extends Controller
         UpdateStudentRequest $request,
         Siswa $student
     ): JsonResponse {
-        $student->update($request->validated());
+        $student = app(\App\Services\AcademicIdentityService::class)->update($student, $request->validated());
 
         $student->load('user');
 
@@ -158,7 +177,7 @@ class StudentController extends Controller
 
     public function destroy(Siswa $student): JsonResponse
     {
-        $student->delete();
+        app(\App\Services\AcademicIdentityService::class)->remove($student);
 
         return ApiResponse::message(
             'Data siswa berhasil dihapus.'
@@ -168,7 +187,8 @@ class StudentController extends Controller
     private function applyViewScope(
         Builder $query,
         User $user,
-        ?int $academicYearId = null
+        ?int $academicYearId = null,
+        ?int $classId = null
     ): void {
         $role = $user->role?->code;
 
@@ -204,92 +224,44 @@ class StudentController extends Controller
             return;
         }
 
+        // A single membership must satisfy BOTH the requested context and
+        // the authorization scope. Separate whereHas clauses leak membership
+        // information when a student belongs to two different classes.
         $teachingClasses = JadwalPelajaran::query()
             ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                function (Builder $query) use ($academicYearId): void {
-                    $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    );
-                }
-            )
+            ->whereHas('kelas', fn (Builder $class) => $class->whereColumn('kelas.tahun_akademik_id', 'jadwal_pelajaran.tahun_akademik_id'))
+            ->when($academicYearId !== null, fn (Builder $q) => $q->where('tahun_akademik_id', $academicYearId))
             ->pluck('kelas_id');
-
         $waliClasses = HomeroomReadAccess::currentAssignments((int) $guruId, $academicYearId)->pluck('kelas_id');
+        $today = now('Asia/Jakarta')->toDateString();
 
-        $classIds = $teachingClasses
-            ->merge($waliClasses)
-            ->unique()
-            ->values();
-
-        if ($classIds->isEmpty()) {
-            $query->whereRaw('1 = 0');
-
-            return;
-        }
-
-        $query->whereHas(
-            'anggotaKelas',
-            function (Builder $query) use ($classIds): void {
-                $query->whereIn('kelas_id', $classIds);
+        $query->whereHas('anggotaKelas', function (Builder $membership) use ($teachingClasses, $waliClasses, $classId, $today): void {
+            if ($classId !== null) {
+                $membership->where('kelas_id', $classId);
             }
-        );
+            $membership->where(function (Builder $scope) use ($teachingClasses, $waliClasses, $today): void {
+                // Preserve the historical teaching scope. Homeroom-only access
+                // to the generic student directory requires effective membership;
+                // historical roster remains on the dedicated homeroom endpoint.
+                $scope->whereIn('kelas_id', $teachingClasses)
+                    ->orWhere(function (Builder $homeroom) use ($waliClasses, $today): void {
+                        $homeroom->whereIn('kelas_id', $waliClasses)
+                            ->whereDate('tanggal_mulai', '<=', $today)
+                            ->where(fn (Builder $end) => $end->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today));
+                    });
+            });
+        });
     }
 
     private function canViewStudent(
         Siswa $student,
         User $user,
-        ?int $academicYearId = null
+        ?int $academicYearId = null,
+        ?int $classId = null
     ): bool {
-        $role = $user->role?->code;
-
-        if (in_array($role, ['TU', 'KEPALA_SEKOLAH'], true)) {
-            return true;
-        }
-
-        if ($role === 'SISWA') {
-            return $user->siswa?->id === $student->id;
-        }
-
-        if ($role !== 'GURU') {
-            return false;
-        }
-
-        $guruId = $user->guru?->id;
-
-        if ($guruId === null) {
-            return false;
-        }
-
-        $teachingClasses = JadwalPelajaran::query()
-            ->where('guru_id', $guruId)
-            ->when(
-                $academicYearId !== null,
-                function (Builder $query) use ($academicYearId): void {
-                    $query->where(
-                        'tahun_akademik_id',
-                        $academicYearId
-                    );
-                }
-            )
-            ->pluck('kelas_id');
-
-        $waliClasses = HomeroomReadAccess::currentAssignments((int) $guruId, $academicYearId)->pluck('kelas_id');
-
-        $classIds = $teachingClasses
-            ->merge($waliClasses)
-            ->unique()
-            ->values();
-
-        if ($classIds->isEmpty()) {
-            return false;
-        }
-
-        return $student->anggotaKelas()
-            ->whereIn('kelas_id', $classIds)
-            ->exists();
+        $query = Siswa::query()->whereKey($student->id);
+        $this->applyViewScope($query, $user, $academicYearId, $classId);
+        return $query->exists();
     }
 
     public function availableAccounts(): JsonResponse
@@ -300,7 +272,7 @@ class StudentController extends Controller
             ->whereHas('role', function (Builder $query): void {
                 $query->where('code', 'SISWA');
             })
-            ->whereDoesntHave('siswa')
+            ->whereDoesntHave('siswa')->whereDoesntHave('guru')
             ->orderBy('name')
             ->get();
 

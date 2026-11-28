@@ -10,6 +10,7 @@ use App\Models\JadwalPelajaran;
 use App\Models\TahunAkademik;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Services\ScheduleWriteService;
 use App\Support\StudentScheduleAccess;
 use App\Support\TeachingAssignmentScope;
 use Illuminate\Database\Eloquent\Builder;
@@ -199,9 +200,11 @@ class ScheduleController extends Controller
     public function store(
         StoreScheduleRequest $request
     ): JsonResponse {
-        $schedule = JadwalPelajaran::create(
-            $request->validated()
-        );
+        $schedule = ScheduleWriteService::transaction(function () use ($request) {
+            $data = $request->validated();
+            ScheduleWriteService::validate($data);
+            return JadwalPelajaran::create($data);
+        });
 
         return ApiResponse::message(
             'Jadwal pelajaran berhasil ditambahkan.',
@@ -311,9 +314,15 @@ class ScheduleController extends Controller
         UpdateScheduleRequest $request,
         JadwalPelajaran $schedule
     ): JsonResponse {
-        $schedule->update(
-            $request->validated()
-        );
+        $schedule = ScheduleWriteService::transaction(function () use ($request, $schedule) {
+            $row = JadwalPelajaran::query()->lockForUpdate()->findOrFail($schedule->id);
+            $version = $request->validate(['version'=>'sometimes|required|string|size:64'])['version'] ?? null;
+            ScheduleWriteService::assertMutable($row, $version);
+            $data = array_replace($row->only($row->getFillable()), $request->validated());
+            ScheduleWriteService::validate($data, $row->id);
+            $row->update($request->validated());
+            return $row;
+        });
 
         return ApiResponse::message(
             'Jadwal pelajaran berhasil diperbarui.',
@@ -332,9 +341,14 @@ class ScheduleController extends Controller
      * Menghapus jadwal pelajaran.
      */
     public function destroy(
-        JadwalPelajaran $schedule
+        Request $request, JadwalPelajaran $schedule
     ): JsonResponse {
-        $schedule->delete();
+        ScheduleWriteService::transaction(function () use ($request, $schedule) {
+            $row = JadwalPelajaran::query()->lockForUpdate()->findOrFail($schedule->id);
+            $version = $request->validate(['version'=>'sometimes|required|string|size:64'])['version'] ?? null;
+            ScheduleWriteService::assertMutable($row, $version);
+            $row->delete();
+        });
 
         return ApiResponse::message(
             'Jadwal pelajaran berhasil dihapus.'

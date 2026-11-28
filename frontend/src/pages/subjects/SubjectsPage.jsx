@@ -1,711 +1,154 @@
-
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/useAuth'
 import { subjectApi } from '../../services/subjectApi'
 import PageHeader from '../../components/ui/PageHeader'
-import Card from '../../components/ui/Card'
-import Table from '../../components/ui/Table'
-import Input from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
-import Badge from '../../components/ui/Badge'
-import Modal from '../../components/ui/Modal'
+import Input from '../../components/ui/Input'
+import WorkspaceModal from '../../components/ui/WorkspaceModal.jsx'
+import ToastNotification from '../../components/ui/ToastNotification.jsx'
+import HorizontalScrollControls from '../../components/ui/HorizontalScrollControls.jsx'
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
+import { DEFAULT_SUBJECT_FILTERS, subjectForm, validateSubjectForm, subjectPayload, kkmView, subjectDirectoryResponse } from './subjectDirectoryLogic.js'
 import './SubjectsPage.css'
 
-const INITIAL_FORM = {
-  kode: '',
-  nama: '',
-  kkm: '',
+const dateLabel = value => {
+  const date = value ? new Date(value) : null
+  return date && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'long', timeZone: 'Asia/Jakarta' }).format(date) : 'Belum tercatat'
+}
+const errorMessage = error => error?.message || 'Terjadi kesalahan. Silakan coba lagi.'
+
+function SubjectIcon({ kind }) {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round">
+    {kind === 'book' ? <><path d="M4 4h7a3 3 0 0 1 3 3v14a4 4 0 0 0-4-3H4zM14 7a3 3 0 0 1 3-3h3v14h-2a4 4 0 0 0-4 3"/><path d="M7 8h3m-3 4h3"/></> : kind === 'calendar' ? <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 3 3 5-5"/></> : <><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6m-6 4h6m-6 4h3"/></>}
+  </svg>
 }
 
-const DEFAULT_PER_PAGE = 20
-const NOTIFICATION_DURATION = 4500
-
-function formatKkm(value) {
-  if (value === null || value === undefined || value === '') {
-    return '—'
-  }
-
-  const number = Number(value)
-
-  if (!Number.isFinite(number)) {
-    return '—'
-  }
-
-  return number.toLocaleString('id-ID', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  })
+function Filter({ label, value, onChange, options }) {
+  return <label className="subject-filter"><span>{label}</span><select value={value} onChange={e => onChange(e.target.value)}>{options.map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>
 }
 
-function formatDate(value) {
-  if (!value) return '—'
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return '—'
-  }
-
-  return date.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
+function SubjectKkm({ value }) {
+  const view = kkmView(value)
+  return <span className={`subject-kkm ${view.state}`} title={view.raw ? `Nilai legacy: ${view.raw}` : undefined}>{view.label}{view.raw && <small> · {view.raw}</small>}</span>
 }
 
-function getErrorMessage(error, fallback) {
-  return error?.message || fallback
-}
-
-function getFieldError(errors, field) {
-  const value = errors?.[field]
-
-  if (Array.isArray(value)) {
-    return value[0] || ''
+function SubjectDialog({ modal, canManage, onClose, onSaved, notify }) {
+  const [mode, setMode] = useState(modal.mode)
+  const [subject, setSubject] = useState(null)
+  const [form, setForm] = useState(subjectForm())
+  const [errors, setErrors] = useState({})
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(modal.mode === 'detail')
+  const [retry, setRetry] = useState(0)
+  const guard = useRef(false)
+  useEffect(() => {
+    if (modal.mode !== 'detail') return undefined
+    let live = true
+    setLoading(true); setError(''); setSubject(null)
+    subjectApi.getById(modal.id).then(response => {
+      if (!live) return
+      const row = response?.data
+      if (!row || String(row.id) !== String(modal.id) || (canManage && (!Number.isInteger(row.schedule_count) || !row.version || !row.usage_context))) throw new Error('Detail penggunaan tidak tersedia. Periksa backend.')
+      setSubject(row); setForm(subjectForm(row))
+    }).catch(e => { if (live) setError(errorMessage(e)) }).finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [modal, canManage, retry])
+  const locked = subject?.schedule_count > 0
+  const change = (field, value) => { setForm(old => ({ ...old, [field]: value })); setErrors(old => ({ ...old, [field]: '' })); setError('') }
+  const submit = async event => {
+    event?.preventDefault()
+    if (!canManage || guard.current || (mode !== 'create' && (!subject?.version || locked))) return
+    if (mode !== 'delete') {
+      const next = validateSubjectForm(form); setErrors(next)
+      if (Object.keys(next).length) return
+    }
+    guard.current = true; setBusy(true); setError('')
+    try {
+      const result = mode === 'delete' ? await subjectApi.delete(subject.id, subject.version) : mode === 'edit' ? await subjectApi.update(subject.id, subjectPayload(form, subject.version)) : await subjectApi.create(subjectPayload(form))
+      notify('success', result?.message || 'Perubahan berhasil disimpan.')
+      onSaved(mode)
+    } catch (e) {
+      setError(errorMessage(e)); setErrors(e?.errors || {})
+      if (e?.status === 409) notify('warning', 'Data telah berubah atau sudah digunakan. Buka ulang detail sebelum mencoba lagi.')
+    } finally { guard.current = false; setBusy(false) }
   }
-
-  return typeof value === 'string' ? value : ''
+  const fieldError = key => Array.isArray(errors[key]) ? errors[key][0] : errors[key]
+  const back = () => { setMode('detail'); setError(''); setErrors({}); setForm(subjectForm(subject)); setRetry(n => n + 1) }
+  const title = { detail: 'Detail mata pelajaran', create: 'Tambah mata pelajaran', edit: 'Edit mata pelajaran', delete: 'Hapus mata pelajaran' }[mode]
+  const formId = 'subject-directory-form'
+  return <WorkspaceModal title={title} eyebrow="Administrasi akademik" description="Identitas katalog dan perlindungan riwayat akademik." busy={busy} onClose={onClose} compact={mode !== 'detail'} className="subject-dialog" footer={<>
+    <Button variant="outline" disabled={busy} onClick={mode === 'edit' || mode === 'delete' ? back : onClose}>{mode === 'detail' ? 'Tutup' : 'Batal'}</Button>
+    {mode === 'detail' && canManage && subject && !locked && !loading && <><Button variant="danger" onClick={() => setMode('delete')}>Hapus</Button><Button onClick={() => setMode('edit')}>Edit identitas</Button></>}
+    {['create', 'edit'].includes(mode) && <Button type="submit" form={formId} loading={busy}>Simpan mata pelajaran</Button>}
+    {mode === 'delete' && <Button variant="danger" loading={busy} onClick={submit}>Hapus permanen</Button>}
+  </>}>
+    {loading ? <LoadingState/> : mode === 'detail' ? !subject ? <ErrorState message={error} onRetry={() => setRetry(n => n + 1)}/> : <>
+      <div className="subject-detail-banner"><span className="subject-mark"><SubjectIcon kind="book"/></span><div><strong>{subject.nama}</strong><span>{subject.kode}</span></div></div>
+      <dl className="subject-detail-grid"><div><dt>KKM</dt><dd><SubjectKkm value={subject.kkm}/></dd></div><div><dt>Terakhir diperbarui</dt><dd>{dateLabel(subject.updated_at)}</dd></div></dl>
+      {canManage && <><h3 className="subject-subtitle">Penggunaan seluruh periode</h3><div className="subject-usage-grid">{[['Jadwal', subject.schedule_count], ['Periode', subject.usage_context.periods], ['Kelas', subject.usage_context.classes], ['Guru', subject.usage_context.teachers]].map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div><p className="subject-note">{locked ? 'Identitas dan KKM dikunci karena mapel telah digunakan dalam jadwal. Riwayat akademik tetap dipertahankan.' : 'Belum terhubung ke jadwal. Identitas masih dapat diubah atau dihapus.'}</p></>}
+    </> : mode === 'delete' ? <><div className="subject-detail-banner"><div><strong>{subject.nama}</strong><span>{subject.kode}</span></div></div><p className="subject-note">Mapel yang belum digunakan dapat dihapus permanen. Backend memeriksa ulang relasi sebelum menyimpan perubahan.</p></> : <form id={formId} className="subject-form" onSubmit={submit} noValidate>
+      <Input id="subject-code" label="Kode mata pelajaran" value={form.kode} maxLength={50} required disabled={busy} onChange={e => change('kode', e.target.value)} error={fieldError('kode')} placeholder="Contoh: KKA" hint="Kode unik; kode baru disimpan dalam huruf kapital ASCII."/>
+      <Input id="subject-name" label="Nama mata pelajaran" value={form.nama} maxLength={255} required disabled={busy} onChange={e => change('nama', e.target.value)} error={fieldError('nama')} placeholder="Nama resmi sekolah"/>
+      <Input id="subject-kkm" label="KKM (opsional)" value={form.kkm} inputMode="decimal" disabled={busy} onChange={e => change('kkm', e.target.value)} error={fieldError('kkm')} placeholder="0–100" hint="Kosongkan bila belum ditetapkan sekolah. Nol tetap merupakan nilai."/>
+    </form>}
+    {error && mode !== 'detail' && <p className="subject-error" role="alert">{error}</p>}
+  </WorkspaceModal>
 }
 
 export default function SubjectsPage() {
   const { role } = useAuth()
   const canManage = role?.code === 'TU'
-
-  const [subjects, setSubjects] = useState([])
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    per_page: DEFAULT_PER_PAGE,
-    total: 0,
-    last_page: 1,
-  })
-
-  const [search, setSearch] = useState('')
+  const [draft, setDraft] = useState({ ...DEFAULT_SUBJECT_FILTERS })
+  const [filters, setFilters] = useState({ ...DEFAULT_SUBJECT_FILTERS })
+  const [page, setPage] = useState(1)
+  const [revision, setRevision] = useState(0)
+  const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [pageError, setPageError] = useState('')
-
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingSubject, setEditingSubject] = useState(null)
-  const [form, setForm] = useState(INITIAL_FORM)
-  const [formErrors, setFormErrors] = useState({})
-  const [formError, setFormError] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
-
-  const [notification, setNotification] = useState(null)
-
-  const showNotification = useCallback((type, message) => {
-    setNotification({
-      id: Date.now(),
-      type,
-      message,
-    })
-  }, [])
-
+  const [error, setError] = useState('')
+  const [modal, setModal] = useState(null)
+  const [notice, setNotice] = useState(null)
+  const scrollRef = useRef(null)
+  const dismiss = useCallback(() => setNotice(null), [])
+  const notify = (type, message) => setNotice({ type, title: type === 'success' ? 'Berhasil' : 'Perhatian', message })
   useEffect(() => {
-    if (!notification) return undefined
-
-    const timeoutId = setTimeout(() => {
-      setNotification(null)
-    }, NOTIFICATION_DURATION)
-
-    return () => clearTimeout(timeoutId)
-  }, [notification])
-
-  const loadSubjects = useCallback(async (page = 1) => {
-    setLoading(true)
-    setPageError('')
-
-    try {
-      const response = await subjectApi.getAll({
-        page,
-        per_page: pagination.per_page || DEFAULT_PER_PAGE,
-      })
-
-      const rows = Array.isArray(response?.data) ? response.data : []
-      const meta = response?.meta || {}
-
-      setSubjects(rows)
-      setPagination({
-        current_page: Number(meta.current_page) || page,
-        per_page: Number(meta.per_page) || DEFAULT_PER_PAGE,
-        total: Number(meta.total) || 0,
-        last_page: Math.max(1, Number(meta.last_page) || 1),
-      })
-    } catch (error) {
-      setPageError(
-        getErrorMessage(
-          error,
-          'Data mata pelajaran gagal dimuat. Silakan coba kembali.',
-        ),
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [pagination.per_page])
-
-  useEffect(() => {
-    loadSubjects(1)
-  }, [loadSubjects])
-
-  const filteredSubjects = useMemo(() => {
-    const keyword = search.trim().toLocaleLowerCase('id-ID')
-
-    if (!keyword) return subjects
-
-    return subjects.filter((subject) => {
-      const kode = String(subject.kode || '').toLocaleLowerCase('id-ID')
-      const nama = String(subject.nama || '').toLocaleLowerCase('id-ID')
-
-      return kode.includes(keyword) || nama.includes(keyword)
-    })
-  }, [subjects, search])
-
-  const setField = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }))
-
-    setFormErrors((current) => ({
-      ...current,
-      [field]: '',
-    }))
-
-    setFormError('')
-  }
-
-  const openCreateModal = () => {
-    setEditingSubject(null)
-    setForm(INITIAL_FORM)
-    setFormErrors({})
-    setFormError('')
-    setModalOpen(true)
-  }
-
-  const openEditModal = (subject) => {
-    setEditingSubject(subject)
-    setForm({
-      kode: subject.kode || '',
-      nama: subject.nama || '',
-      kkm:
-        subject.kkm === null || subject.kkm === undefined
-          ? ''
-          : String(subject.kkm),
-    })
-    setFormErrors({})
-    setFormError('')
-    setModalOpen(true)
-  }
-
-  const closeFormModal = () => {
-    if (saving) return
-
-    setModalOpen(false)
-    setEditingSubject(null)
-    setForm(INITIAL_FORM)
-    setFormErrors({})
-    setFormError('')
-  }
-
-  const validateForm = () => {
-    const errors = {}
-    const kode = form.kode.trim()
-    const nama = form.nama.trim()
-    const kkm = form.kkm.trim()
-
-    if (!kode) {
-      errors.kode = 'Kode mata pelajaran wajib diisi.'
-    } else if (kode.length > 50) {
-      errors.kode = 'Kode maksimal 50 karakter.'
-    }
-
-    if (!nama) {
-      errors.nama = 'Nama mata pelajaran wajib diisi.'
-    } else if (nama.length > 255) {
-      errors.nama = 'Nama maksimal 255 karakter.'
-    }
-
-    if (kkm !== '') {
-      const number = Number(kkm)
-
-      if (!Number.isFinite(number)) {
-        errors.kkm = 'KKM harus berupa angka.'
-      } else if (number < 0 || number > 999.99) {
-        errors.kkm = 'KKM harus berada pada rentang 0–999,99.'
-      }
-    }
-
-    setFormErrors(errors)
-
-    return Object.keys(errors).length === 0
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-
-    if (!canManage || saving) return
-    if (!validateForm()) return
-
-    setSaving(true)
-    setFormError('')
-
-    const isEditing = Boolean(editingSubject)
-
-    const payload = {
-      kode: form.kode.trim(),
-      nama: form.nama.trim(),
-      kkm: form.kkm.trim() === '' ? null : Number(form.kkm),
-    }
-
-    try {
-      const response = isEditing
-        ? await subjectApi.update(editingSubject.id, payload)
-        : await subjectApi.create(payload)
-
-      setModalOpen(false)
-      setEditingSubject(null)
-      setForm(INITIAL_FORM)
-      setFormErrors({})
-
-      showNotification(
-        'success',
-        response?.message ||
-          (isEditing
-            ? 'Data mata pelajaran berhasil diperbarui.'
-            : 'Data mata pelajaran berhasil ditambahkan.'),
-      )
-
-      await loadSubjects(
-        isEditing ? pagination.current_page : 1,
-      )
-    } catch (error) {
-      if (error?.errors && typeof error.errors === 'object') {
-        setFormErrors((current) => ({
-          ...current,
-          ...Object.fromEntries(
-            Object.entries(error.errors).map(([key, value]) => [
-              key,
-              Array.isArray(value) ? value[0] : String(value),
-            ]),
-          ),
-        }))
-      }
-
-      const message = getErrorMessage(
-        error,
-        'Data mata pelajaran gagal disimpan. Silakan coba kembali.',
-      )
-
-      setFormError(message)
-      showNotification('error', message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const openDeleteModal = (subject) => {
-    setDeleteTarget(subject)
-    setDeleteError('')
-  }
-
-  const closeDeleteModal = () => {
-    if (deleting) return
-
-    setDeleteTarget(null)
-    setDeleteError('')
-  }
-
-  const handleDelete = async () => {
-    if (!canManage || !deleteTarget || deleting) return
-
-    setDeleting(true)
-    setDeleteError('')
-
-    try {
-      const response = await subjectApi.delete(deleteTarget.id)
-
-      const nextPage =
-        subjects.length === 1 && pagination.current_page > 1
-          ? pagination.current_page - 1
-          : pagination.current_page
-
-      setDeleteTarget(null)
-
-      showNotification(
-        'success',
-        response?.message || 'Data mata pelajaran berhasil dihapus.',
-      )
-
-      await loadSubjects(nextPage)
-    } catch (error) {
-      const message = getErrorMessage(
-        error,
-        'Data mata pelajaran gagal dihapus. Silakan coba kembali.',
-      )
-
-      setDeleteError(message)
-      showNotification('error', message)
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  const columns = [
-    { key: 'number', label: 'No.' },
-    { key: 'kode', label: 'Kode Mata Pelajaran' },
-    { key: 'nama', label: 'Nama Mata Pelajaran' },
-    { key: 'kkm', label: 'KKM' },
-    { key: 'updated_at', label: 'Terakhir Diperbarui' },
-    ...(canManage ? [{ key: 'actions', label: 'Aksi' }] : []),
-  ]
-
-  const renderCell = (subject, column) => {
-    switch (column.key) {
-      case 'number':
-        return (
-          <span className="subjects-page__number">
-            {(pagination.current_page - 1) * pagination.per_page +
-              subjects.indexOf(subject) +
-              1}
-          </span>
-        )
-
-      case 'kode':
-        return (
-          <span className="subjects-page__code">
-            {subject.kode || '—'}
-          </span>
-        )
-
-      case 'nama':
-        return (
-          <span className="subjects-page__name">
-            {subject.nama || '—'}
-          </span>
-        )
-
-      case 'kkm':
-        return subject.kkm === null || subject.kkm === undefined ? (
-          <Badge variant="neutral">Belum ditentukan</Badge>
-        ) : (
-          <Badge variant="info">{formatKkm(subject.kkm)}</Badge>
-        )
-
-      case 'updated_at':
-        return (
-          <span className="subjects-page__date">
-            {formatDate(subject.updated_at)}
-          </span>
-        )
-
-      case 'actions':
-        return (
-          <div className="subjects-page__actions">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => openEditModal(subject)}
-            >
-              Edit
-            </Button>
-
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => openDeleteModal(subject)}
-            >
-              Hapus
-            </Button>
-          </div>
-        )
-
-      default:
-        return '—'
-    }
-  }
-
-  return (
-    <div className="subjects-page">
-      {notification && (
-        <div
-          key={notification.id}
-          className={`subjects-page__notification subjects-page__notification--${notification.type}`}
-          role={notification.type === 'error' ? 'alert' : 'status'}
-          aria-live={notification.type === 'error' ? 'assertive' : 'polite'}
-        >
-          <span className="subjects-page__notification-icon" aria-hidden="true">
-            {notification.type === 'success' ? '✓' : '!'}
-          </span>
-
-          <p className="subjects-page__notification-message">
-            {notification.message}
-          </p>
-
-          <button
-            type="button"
-            className="subjects-page__notification-close"
-            aria-label="Tutup notifikasi"
-            onClick={() => setNotification(null)}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      <PageHeader
-        title="Mata Pelajaran"
-        description="Kelola data mata pelajaran yang digunakan dalam kegiatan belajar mengajar."
-      />
-
-      <Card>
-        <div className="subjects-page__toolbar">
-          <div className="subjects-page__toolbar-info">
-            <h2 className="subjects-page__section-title">
-              Daftar Mata Pelajaran
-            </h2>
-
-            <p className="subjects-page__section-description">
-              {pagination.total} mata pelajaran terdaftar
-            </p>
-          </div>
-
-          <div className="subjects-page__toolbar-actions">
-            <div className="subjects-page__search">
-              <Input
-                id="subject-search"
-                name="subject-search"
-                label="Cari mata pelajaran"
-                value={search}
-                placeholder="Cari kode atau nama..."
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
-
-            {canManage && (
-              <Button type="button" onClick={openCreateModal}>
-                + Tambah Mata Pelajaran
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <p className="subjects-page__search-note">
-          Pencarian berlaku pada data di halaman yang sedang ditampilkan.
-        </p>
-
-        {loading ? (
-          <LoadingState />
-        ) : pageError ? (
-          <div className="subjects-page__error">
-            <ErrorState message={pageError} />
-
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => loadSubjects(pagination.current_page)}
-            >
-              Coba Lagi
-            </Button>
-          </div>
-        ) : filteredSubjects.length === 0 ? (
-          <EmptyState
-            title={
-              search.trim()
-                ? 'Mata pelajaran tidak ditemukan'
-                : 'Belum ada mata pelajaran'
-            }
-            description={
-              search.trim()
-                ? 'Tidak ada data pada halaman ini yang cocok dengan kata kunci pencarian.'
-                : 'Data mata pelajaran yang tersedia akan ditampilkan di sini.'
-            }
-          />
-        ) : (
-          <>
-            <Table
-              columns={columns}
-              data={filteredSubjects}
-              rowKey="id"
-              renderCell={renderCell}
-            />
-
-            <div className="subjects-page__pagination">
-              <span className="subjects-page__pagination-info">
-                Halaman {pagination.current_page} dari {pagination.last_page}
-                {' · '}
-                Total {pagination.total} data
-              </span>
-
-              <div className="subjects-page__pagination-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={loading || pagination.current_page <= 1}
-                  onClick={() => loadSubjects(pagination.current_page - 1)}
-                >
-                  Sebelumnya
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={
-                    loading ||
-                    pagination.current_page >= pagination.last_page
-                  }
-                  onClick={() => loadSubjects(pagination.current_page + 1)}
-                >
-                  Berikutnya
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </Card>
-
-      <Modal
-        open={modalOpen}
-        title={
-          editingSubject
-            ? 'Edit Mata Pelajaran'
-            : 'Tambah Mata Pelajaran'
-        }
-        description={
-          editingSubject
-            ? 'Perbarui informasi mata pelajaran berikut.'
-            : 'Isi informasi untuk menambahkan mata pelajaran baru.'
-        }
-        onClose={closeFormModal}
-        size="medium"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={saving}
-              onClick={closeFormModal}
-            >
-              Batal
-            </Button>
-
-            <Button
-              type="submit"
-              form="subject-form"
-              disabled={saving}
-            >
-              {saving
-                ? 'Menyimpan...'
-                : editingSubject
-                  ? 'Simpan Perubahan'
-                  : 'Simpan Mata Pelajaran'}
-            </Button>
-          </>
-        }
-      >
-        <form
-          id="subject-form"
-          className="subjects-page__form"
-          onSubmit={handleSubmit}
-          noValidate
-        >
-          {formError && (
-            <div className="subjects-page__form-error" role="alert">
-              {formError}
-            </div>
-          )}
-
-          <Input
-            id="subject-kode"
-            name="kode"
-            label="Kode Mata Pelajaran"
-            value={form.kode}
-            onChange={(event) => setField('kode', event.target.value)}
-            placeholder="Contoh: MTK-001"
-            required
-            maxLength={50}
-            error={getFieldError(formErrors, 'kode')}
-          />
-
-          <Input
-            id="subject-nama"
-            name="nama"
-            label="Nama Mata Pelajaran"
-            value={form.nama}
-            onChange={(event) => setField('nama', event.target.value)}
-            placeholder="Contoh: Matematika"
-            required
-            maxLength={255}
-            error={getFieldError(formErrors, 'nama')}
-          />
-
-          <Input
-            id="subject-kkm"
-            name="kkm"
-            label="KKM"
-            value={form.kkm}
-            onChange={(event) => setField('kkm', event.target.value)}
-            placeholder="Contoh: 75"
-            inputType="number"
-            error={getFieldError(formErrors, 'kkm')}
-            hint="Opsional. Kosongkan jika KKM belum ditentukan."
-          />
-        </form>
-      </Modal>
-
-      <Modal
-        open={Boolean(deleteTarget)}
-        title="Hapus Mata Pelajaran"
-        description="Pastikan data yang dipilih memang akan dihapus."
-        onClose={closeDeleteModal}
-        size="small"
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={deleting}
-              onClick={closeDeleteModal}
-            >
-              Batal
-            </Button>
-
-            <Button
-              type="button"
-              variant="danger"
-              disabled={deleting}
-              onClick={handleDelete}
-            >
-              {deleting ? 'Menghapus...' : 'Ya, Hapus'}
-            </Button>
-          </>
-        }
-      >
-        <div className="subjects-page__delete-content">
-          {deleteError && (
-            <div className="subjects-page__form-error" role="alert">
-              {deleteError}
-            </div>
-          )}
-
-          <p>Anda akan menghapus mata pelajaran:</p>
-
-          <div className="subjects-page__delete-summary">
-            <strong>{deleteTarget?.nama}</strong>
-            <span>Kode: {deleteTarget?.kode}</span>
-          </div>
-
-          <p className="subjects-page__delete-warning">
-            Tindakan ini tidak dapat dibatalkan. Jika data masih digunakan
-            oleh jadwal atau data lain, server mungkin menolak penghapusan.
-          </p>
-        </div>
-      </Modal>
-    </div>
-  )
+    let live = true
+    setLoading(true); setError(''); setResult(null)
+    subjectApi.getAll({ ...filters, usage: canManage ? filters.usage : '', page }).then(response => {
+      if (!live) return
+      const next = subjectDirectoryResponse(response, canManage)
+      if (page > next.meta.last_page) { setPage(next.meta.last_page); return }
+      setResult(next)
+    }).catch(e => { if (live) setError(errorMessage(e)) }).finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [filters, page, revision, canManage])
+  const refresh = () => setRevision(n => n + 1)
+  const apply = e => { e.preventDefault(); setFilters({ ...draft, search: draft.search.trim() }); setPage(1) }
+  const reset = () => { setDraft({ ...DEFAULT_SUBJECT_FILTERS }); setFilters({ ...DEFAULT_SUBJECT_FILTERS }); setPage(1) }
+  const filter = (key, value) => setDraft(old => ({ ...old, [key]: value }))
+  const meta = result?.meta
+  const summary = meta?.summary
+  return <main className="subjects-v2">
+    <PageHeader eyebrow="Administrasi akademik" title="Mata Pelajaran" description="Kelola katalog mata pelajaran, kriteria ketuntasan dan penggunaan akademik." actions={canManage && <Button onClick={() => setModal({ mode: 'create' })}>+ Tambah mapel</Button>}/>
+    {canManage && <section aria-label="Ringkasan katalog" className="subject-overview" aria-busy={loading}><div className="subject-overview-head"><strong>Ringkasan katalog</strong><span>Seluruh data · di luar filter</span></div><div className="subject-stat-grid">{[['total','Total mata pelajaran','Katalog sekolah','book'],['used','Mapel terjadwal','Digunakan di seluruh periode','calendar'],['unset','KKM belum diisi','Belum ditetapkan sekolah','clipboard']].map(([key,label,note,kind]) => <article key={key} className="subject-stat"><div><h2>{label}</h2><strong>{loading ? '…' : summary ? summary[key].toLocaleString('id-ID') : '—'}</strong><p>{error ? 'Data tidak tersedia' : note}</p></div><span className={`subject-stat-icon ${kind}`}><SubjectIcon kind={kind}/></span></article>)}</div>{summary?.invalid > 0 && <p className="subject-note">{summary.invalid} mapel memiliki KKM legacy di luar rentang. Tinjau dengan filter KKM; tidak ada data yang diubah otomatis.</p>}</section>}
+    <section className="subject-directory" aria-label="Daftar mata pelajaran">
+      <header className="subject-section-head"><div><span>DATA AKADEMIK</span><h2>Daftar Mata Pelajaran</h2><p>Kode dan nama resmi mata pelajaran sekolah.</p></div><span className="subject-count">{meta ? `${meta.total} hasil` : '—'}</span></header>
+      <form className="subject-filters" onSubmit={apply}>
+        <label className="subject-filter subject-search"><span>Cari mata pelajaran</span><input value={draft.search} maxLength={255} placeholder="Kode atau nama mapel" onChange={e => filter('search', e.target.value)}/></label>
+        <Filter label="Urutan nama" value={draft.sort_order} onChange={v => filter('sort_order',v)} options={ [['asc','A–Z'],['desc','Z–A']] }/>
+        {canManage && <Filter label="Penggunaan" value={draft.usage} onChange={v => filter('usage',v)} options={ [['','Semua'],['used','Terjadwal'],['unused','Belum terjadwal']] }/>}
+        <Filter label="Status KKM" value={draft.kkm_state} onChange={v => filter('kkm_state',v)} options={ [['','Semua'],['set','Sudah diisi'],['unset','Belum diisi'],['invalid','Perlu ditinjau']] }/>
+        <div className="subject-filter-actions"><Button type="submit">Cari</Button><Button variant="outline" onClick={reset}>Reset</Button></div>
+      </form>
+      {loading ? <LoadingState message="Memuat katalog mata pelajaran…"/> : error ? <ErrorState message={error} onRetry={refresh}/> : !result?.rows.length ? <EmptyState title="Tidak ada mata pelajaran" message="Tidak ada data yang cocok. Ubah filter atau tambahkan mata pelajaran baru." action={<Button variant="outline" onClick={reset}>Reset filter</Button>}/> : <>
+        <HorizontalScrollControls scrollRef={scrollRef} label="Tabel mata pelajaran" endLabel="Ke aksi"/>
+        <div ref={scrollRef} className="subject-table-scroll" tabIndex={0} role="region" aria-label="Tabel mata pelajaran"><table className="subject-table"><thead><tr><th scope="col">Mata pelajaran</th><th scope="col">KKM</th>{canManage && <th scope="col">Penggunaan</th>}<th scope="col">Diperbarui</th><th scope="col">Aksi</th></tr></thead><tbody>{result.rows.map(row => <tr key={row.id}><td><div className="subject-identity"><span className="subject-mark"><SubjectIcon kind="book"/></span><div><strong>{row.nama}</strong><span>{row.kode}</span></div></div></td><td><SubjectKkm value={row.kkm}/></td>{canManage && <td><span className={`subject-status ${row.schedule_count > 0 ? 'used' : ''}`}>{row.schedule_count > 0 ? `${row.schedule_count} jadwal` : 'Belum terjadwal'}</span></td>}<td>{dateLabel(row.updated_at)}</td><td><Button variant="outline" size="small" onClick={() => setModal({ mode: 'detail', id: row.id })}>Lihat detail ›</Button></td></tr>)}</tbody></table></div>
+      </>}
+      <footer className="subject-pagination"><Filter label="Data per halaman" value={String(filters.page_size)} onChange={v => { setDraft(old => ({ ...old, page_size: Number(v) })); setFilters(old => ({ ...old, page_size: Number(v) })); setPage(1) }} options={[15,25,50,100].map(n => [String(n), String(n)])}/><span aria-live="polite">{meta ? `Halaman ${meta.current_page} dari ${meta.last_page} · ${meta.total} hasil` : '—'}</span><div><Button variant="outline" disabled={loading || !meta || page <= 1} onClick={() => setPage(n => n-1)}>Sebelumnya</Button><Button variant="outline" disabled={loading || !meta || page >= meta.last_page} onClick={() => setPage(n => n+1)}>Berikutnya</Button></div></footer>
+    </section>
+    {modal && <SubjectDialog modal={modal} canManage={canManage} onClose={() => setModal(null)} notify={notify} onSaved={mode => { setModal(null); if (mode === 'create') reset(); refresh() }}/>}
+    <ToastNotification notice={notice} onClose={dismiss}/>
+  </main>
 }

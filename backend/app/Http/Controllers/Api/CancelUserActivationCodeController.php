@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\ActivationCodeMonitor;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,8 +31,9 @@ class CancelUserActivationCodeController extends Controller
         // PROSES PEMBATALAN DALAM TRANSAKSI
         // =====================================
 
+        $data=$request->validate(['code_version'=>['required','string','regex:/^[a-f0-9]{64}$/']]);
         $result = DB::transaction(
-            function () use ($user): array {
+            function () use ($user, $request, $data): array {
 
                 // Kunci akun agar pembatalan
                 // tidak berbenturan dengan
@@ -50,7 +52,7 @@ class CancelUserActivationCodeController extends Controller
                 // yang belum diaktivasi.
 
                 if (
-                    ! $target->requires_activation ||
+                    $target->account_status !== 'active' || ! $target->requires_activation ||
                     ! in_array(
                         $target->role?->code,
                         ['GURU', 'SISWA'],
@@ -70,6 +72,9 @@ class CancelUserActivationCodeController extends Controller
                 // Database hanya menyimpan hash
                 // kode, bukan kode aslinya.
 
+                $token=DB::table('user_activation_tokens')->where('user_id',$target->id)->lockForUpdate()->first();
+                abort_unless(hash_equals(ActivationCodeMonitor::version((int)$request->user()->id,$target->id,$token),$data['code_version']),409,'Kode berubah. Periksa ulang sebelum membatalkan.');
+                abort_if($token && $token->used_at !== null,422,'Kode sudah digunakan.');
                 $deleted = DB::table(
                     'user_activation_tokens'
                 )

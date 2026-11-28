@@ -175,7 +175,7 @@ class GradeTest extends TestCase
         return AnggotaKelas::create([
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
-            'tanggal_mulai' => today()->subDay()->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDay()->toDateString(),
             'tanggal_selesai' => null,
         ]);
     }
@@ -532,7 +532,7 @@ class GradeTest extends TestCase
             'guru_id' => $waliGuru->id,
             'kelas_id' => $class->id,
             'tahun_akademik_id' => $academicYear->id,
-            'tanggal_mulai' => today()->subDay()->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDay()->toDateString(),
             'tanggal_selesai' => null,
         ]);
 

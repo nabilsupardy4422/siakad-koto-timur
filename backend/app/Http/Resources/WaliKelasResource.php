@@ -11,6 +11,7 @@ class WaliKelasResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'version' => \App\Services\HomeroomAssignmentService::version($this->resource),
 
             'guru_id' => $this->guru_id,
             'kelas_id' => $this->kelas_id,
@@ -18,6 +19,9 @@ class WaliKelasResource extends JsonResource
 
             'tanggal_mulai' => $this->tanggal_mulai?->toDateString(),
             'tanggal_selesai' => $this->tanggal_selesai?->toDateString(),
+            'cancelled_at' => $this->cancelled_at?->toISOString(),
+            'cancel_reason' => $this->when($request->user()?->role?->code === 'TU', $this->cancel_reason),
+            'cancelled_by' => $this->when($request->user()?->role?->code === 'TU', $this->cancelled_by),
 
             'guru' => $this->whenLoaded('guru', function (): array {
                 return [

@@ -6,6 +6,11 @@ use App\Exports\ScheduleExport;
 use App\Imports\ScheduleImport;
 use App\Http\Controllers\Controller;
 use App\Support\ApiResponse;
+use App\Models\TahunAkademik;
+use App\Models\JadwalPelajaran;
+use App\Services\ScheduleWriteService;
+use App\Services\ScheduleWorkbookService;
+use App\Support\HomeroomContinuationToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -20,8 +25,13 @@ class ScheduleExcelController extends Controller
     /**
      * Download template Excel jadwal pelajaran.
      */
-    public function template()
+    public function template(Request $request)
     {
+        $params=$request->validate(['academic_year_id'=>'nullable|integer|exists:tahun_akademik,id']);
+        if (!empty($params['academic_year_id'])) {
+            $path=ScheduleWorkbookService::template(TahunAkademik::findOrFail($params['academic_year_id']));
+            return response()->download($path,'template-jadwal-pelajaran.xlsx')->deleteFileAfterSend(true);
+        }
         $template = new class implements FromArray, WithHeadings, WithColumnFormatting {
             public function array(): array
             {
@@ -66,6 +76,9 @@ class ScheduleExcelController extends Controller
     public function import(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'academic_year_id'=>'required|integer|exists:tahun_akademik,id',
+            'mode'=>'required|in:preview,commit',
+            'token'=>'required_if:mode,commit|nullable|string|max:100',
             'file' => [
                 'required',
                 'file',
@@ -75,17 +88,23 @@ class ScheduleExcelController extends Controller
         ]);
 
         try {
-            Excel::import(
-                new ScheduleImport(),
-                $validated['file']
-            );
-
-            return ApiResponse::message(
-                'Data jadwal pelajaran berhasil diimport.',
-                [
-                    'status' => 'success',
-                ]
-            );
+            $action = function () use ($request, $validated) {
+                $period=(int)$validated['academic_year_id'];
+                $import = new ScheduleImport($period);
+                Excel::import($import, $validated['file']);
+                $rows=$import->sheet->rows;
+                $state=['schedule-import',(int)$request->user()->id,$period,hash_file('sha256',$validated['file']->getRealPath()),$rows];
+                $key=(string)config('app.key'); $now=time();
+                if ($validated['mode']==='preview') return ApiResponse::success(['rows'=>$rows,'token'=>HomeroomContinuationToken::issue($state,$now,$key),'count'=>count($rows)]);
+                abort_unless(HomeroomContinuationToken::verify($validated['token'],$state,$now,$key),409,'Preview berubah atau kedaluwarsa. Lakukan preview ulang.');
+                foreach ($rows as $row) {
+                    try { ScheduleWriteService::validate($row['data']); }
+                    catch (ValidationException $e) { throw ValidationException::withMessages(['baris_'.$row['row_number']=>array_merge(...array_values($e->errors()))]); }
+                    JadwalPelajaran::create($row['data']);
+                }
+                return ApiResponse::message('Data jadwal pelajaran berhasil diimport.', ['status'=>'success','count'=>count($rows)]);
+            };
+            return $validated['mode']==='preview' ? $action() : ScheduleWriteService::transaction($action);
         } catch (ValidationException $exception) {
             return ApiResponse::message(
                 'Import jadwal gagal. Periksa kembali data Excel.',
@@ -103,6 +122,8 @@ class ScheduleExcelController extends Controller
     public function export(Request $request)
     {
         $validated = $request->validate([
+            'format'=>'nullable|in:data,teacher,class,batch',
+            'include_inactive'=>'nullable|boolean',
             'academic_year_id' => [
                 'nullable',
                 'integer',
@@ -135,6 +156,15 @@ class ScheduleExcelController extends Controller
             ],
         ]);
 
+        $kind=$validated['format'] ?? 'data';
+        if ($kind!=='data') {
+            $periodId=$validated['academic_year_id'] ?? null;
+            abort_unless($periodId,422,'Pilih periode akademik.');
+            $id=$kind==='teacher'?($validated['teacher_id']??null):($validated['class_id']??null);
+            abort_if($kind!=='batch' && !$id,422,'Pilih guru atau rombel.');
+            [$path,$name]=ScheduleWorkbookService::distribution(TahunAkademik::findOrFail($periodId),$kind,$id,$request->boolean('include_inactive'));
+            return response()->download($path,$name)->deleteFileAfterSend(true);
+        }
         $filters = array_filter(
             $validated,
             fn ($value) => $value !== null && $value !== ''

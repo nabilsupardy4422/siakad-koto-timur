@@ -692,3 +692,9 @@
 @media (prefers-reduced-motion: reduce) {
   .login-brand-art img { transition: none !important; animation: none !important; transform: none !important; }
 }
+
+/* 2.7.1 — a deliberately neutral state, not a failed authentication. */
+.login-google-unavailable { box-sizing: border-box; width: 100%; padding: 12px 14px; border: 1px solid #d6e2ed; border-radius: 8px; background: #f3f7fa; color: #48647d; font-size: 12px; line-height: 1.6; }
+.login-google-unavailable strong { display: flex; align-items: center; gap: 8px; color: #173b62; font-size: 13px; }
+.login-google-unavailable strong svg { flex: 0 0 auto; }
+.login-google-unavailable p { margin: 6px 0 0; overflow-wrap: anywhere; }

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import ToastNotification from '../../components/ui/ToastNotification'
+import IdentityDirectoryDetail from '../identity/IdentityDirectoryDetail.jsx'
+import WorkspaceModal from '../../components/ui/WorkspaceModal'
+import { DirectoryIdentity, DirectoryCompleteness, DirectoryOverview, ImportProgress, ImportPreviewScroll } from '../identity/IdentityDirectoryUI.jsx'
+import { placementLabel } from '../identity/identityDirectoryLogic.js'
+import { academicYearApi } from '../../services/academicYearApi'
+import { classApi } from '../../services/classApi'
+
 
 import { useAuth } from '../../context/useAuth'
 import PageHeader from '../../components/ui/PageHeader'
@@ -18,9 +27,11 @@ import { studentApi } from '../../services/studentApi'
 import './StudentsPage.css'
 
 const initialForm = {
+  registration_mode: 'new_account',
+  username: '',
   user_id: '',
   nisn: '',
-  nis: '',
+  nipd: '',
   nama_lengkap: '',
   jenis_kelamin: '',
   tanggal_lahir: '',
@@ -32,8 +43,11 @@ const initialForm = {
 const columns = [
   { key: 'identity', label: 'Identitas Siswa' },
   { key: 'nisn', label: 'NISN' },
-  { key: 'nis', label: 'NIS' },
+  { key: 'nipd', label: 'NIPD' },
   { key: 'gender', label: 'Jenis Kelamin' },
+  { key: 'status', label: 'Status Akun' },
+  { key: 'completeness', label: 'Biodata' },
+  { key: 'placement', label: 'Kelas' },
   { key: 'actions', label: 'Aksi' },
 ]
 
@@ -52,6 +66,23 @@ function getApiMessage(error, fallback) {
 
 export default function StudentsPage() {
   const { role, permissions = [] } = useAuth()
+  const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const entryHandled = useRef('')
+  const formRequest = useRef(0)
+  const detailRequest = useRef(0)
+  const [detail, setDetail] = useState(null)
+  const [detailError, setDetailError] = useState('')
+  const [accountFilter, setAccountFilter] = useState('')
+  const [genderFilter, setGenderFilter] = useState('')
+  const [completeFilter, setCompleteFilter] = useState('')
+  const [pageSize, setPageSize] = useState('15')
+  const [period, setPeriod] = useState('')
+  const [periods, setPeriods] = useState([])
+  const [classes, setClasses] = useState([])
+  const [classFilter, setClassFilter] = useState('')
+  const [contextError, setContextError] = useState('')
+
   const canManage =
     role?.code === 'TU' || permissions.includes('students.create')
 
@@ -60,6 +91,8 @@ export default function StudentsPage() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [sortOrder, setSortOrder] = useState('asc')
+  const listRequest = useRef(0)
 
   const [meta, setMeta] = useState({
     current_page: 1,
@@ -75,6 +108,7 @@ export default function StudentsPage() {
   const [form, setForm] = useState(initialForm)
   const [fieldErrors, setFieldErrors] = useState({})
   const [submitError, setSubmitError] = useState(null)
+  const [overviewRevision, setOverviewRevision] = useState(0)
   const [successMessage, setSuccessMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -88,8 +122,10 @@ const [previewLoading, setPreviewLoading] = useState(false)
 const [importing, setImporting] = useState(false)
 const [downloadingTemplate, setDownloadingTemplate] = useState(false)
 const [excludedRows, setExcludedRows] = useState([])
+const [originalPreviewRows, setOriginalPreviewRows] = useState([])
 
   const loadStudents = useCallback(async () => {
+    const requestId = ++listRequest.current
     setLoading(true)
     setListError(null)
 
@@ -97,24 +133,92 @@ const [excludedRows, setExcludedRows] = useState([])
       const response = await studentApi.getAll({
         search,
         page,
-        page_size: 15,
+        page_size: Number(pageSize),
+        account_state: canManage ? accountFilter : '',
+        gender: canManage ? genderFilter : '',
+        completeness: canManage ? completeFilter : '',
+        directory_context: canManage ? 1 : '',
+        academic_year_id: canManage ? period : '',
+        class_id: canManage && classFilter !== 'unassigned' ? classFilter : '',
+        placement_state: canManage && classFilter === 'unassigned' ? 'unassigned' : '',
+        sort_order: sortOrder,
       })
 
+      if (requestId !== listRequest.current) return
       setStudents(Array.isArray(response?.data) ? response.data : [])
       setMeta((current) => ({
         ...current,
         ...(response?.meta || {}),
       }))
     } catch (error) {
-      setListError(error)
+      if (requestId === listRequest.current) setListError(error)
     } finally {
-      setLoading(false)
+      if (requestId === listRequest.current) setLoading(false)
     }
-  }, [page, search])
+  }, [page, search, sortOrder, pageSize, canManage, accountFilter, genderFilter, completeFilter, period, classFilter])
 
   useEffect(() => {
     loadStudents()
+    return () => { listRequest.current += 1 }
   }, [loadStudents])
+
+  async function openDetail(id) {
+    const generation = ++detailRequest.current
+    setDetailError('')
+    try {
+      const response = await studentApi.getById(id, {directory_context:1, academic_year_id:period})
+      if (!response?.data || String(response.data.id) !== String(id)) throw new Error('Identitas profil tidak sesuai.')
+      if (generation === detailRequest.current) setDetail(response.data)
+    } catch (error) {if (generation === detailRequest.current) setDetailError(getApiMessage(error,'Detail gagal dimuat.'))}
+  }
+
+  useEffect(() => {
+    if (!canManage) return
+    const key = params.toString()
+    if (!key) {entryHandled.current = ''; return}
+    if (entryHandled.current === key) return
+    entryHandled.current = key
+    const accountId = params.get('link_user')
+    const profileId = params.get('profile_id')
+    if (accountId && /^[1-9]\d*$/.test(accountId)) openCreateModal(accountId)
+    else if (profileId && /^[1-9]\d*$/.test(profileId)) openDetail(profileId)
+    else if (params.get('register') === '1') openCreateModal()
+    else if (params.get('import') === '1') openImportModal()
+    setParams({}, {replace:true})
+  }, [params, canManage])
+
+  useEffect(() => {
+    if (!canManage) return
+    let live = true
+    academicYearApi.getAll().then(r => {
+      if (!Array.isArray(r?.data)) throw new Error('Data periode tidak valid.')
+      if (live) setPeriods(r.data)
+    }).catch(e => {if(live) setContextError(e.message || 'Periode gagal dimuat.')})
+    return () => {live=false}
+  }, [canManage])
+  const activePeriods = periods.filter(y => y.is_active === true || y.is_active === 1)
+  const effectivePeriod = period || (activePeriods.length === 1 ? String(activePeriods[0].id) : '')
+  useEffect(() => {
+    setClasses([])
+    if (!canManage || !effectivePeriod) return
+    let live = true
+    async function loadClasses() {
+      try {
+        const all = []
+        let page = 1
+        while (true) {
+          const res = await classApi.getAll({academic_year_id:effectivePeriod, per_page:100, page})
+          if (!Array.isArray(res?.data) || Number(res?.meta?.current_page)!==page || !Number.isInteger(Number(res?.meta?.last_page)) || res.data.some(c=>String(c.tahun_akademik_id)!==effectivePeriod)) throw new Error('Katalog kelas tidak valid.')
+          all.push(...res.data)
+          if (page >= Number(res.meta.last_page)) break
+          if (++page > 100) throw new Error('Katalog kelas terlalu besar.')
+        }
+        if(live){setClasses(all);setContextError('')}
+      } catch(e){if(live)setContextError(e.message || 'Kelas gagal dimuat.')}
+    }
+    loadClasses()
+    return () => {live=false}
+  }, [canManage,effectivePeriod])
 
   function resetForm() {
     setForm(initialForm)
@@ -125,35 +229,54 @@ const [excludedRows, setExcludedRows] = useState([])
 
   function closeModal() {
     if (saving) return
-
+    formRequest.current += 1
     setModalOpen(false)
     resetForm()
   }
 
-  async function openCreateModal() {
+  async function openCreateModal(linkUserId = null) {
+    const generation = ++formRequest.current
+    const requestedId = typeof linkUserId === 'string' ? linkUserId : null
     resetForm()
     setSuccessMessage('')
     setAccounts([])
-    setModalOpen(true)
+    if (!requestedId) setModalOpen(true)
 
     try {
       const response = await studentApi.getAvailableAccounts()
-      setAccounts(Array.isArray(response?.data) ? response.data : [])
+      if (generation !== formRequest.current) return
+      const available = Array.isArray(response?.data) ? response.data : []
+      setAccounts(available)
+      if (requestedId) {
+        const account = available.find(a => String(a.id) === requestedId)
+        if (!account) {
+          setModalOpen(false)
+          setDetailError('Akun tidak lagi tersedia untuk dihubungkan. Periksa status dan profilnya di Manajemen Akun.')
+          return
+        }
+        setForm({...initialForm, registration_mode:'existing_account', user_id:String(account.id), nama_lengkap:account.name || ''})
+        setModalOpen(true)
+      }
     } catch (error) {
+      if (generation !== formRequest.current) return
       setAccounts([])
-      setSubmitError(error)
+      if (requestedId) setDetailError(getApiMessage(error,'Akun gagal dimuat.'))
+      else setSubmitError(error)
     }
   }
 
   async function openEditModal(student) {
+    formRequest.current += 1
     resetForm()
     setSuccessMessage('')
     setEditingStudent(student)
 
     setForm({
+      registration_mode: 'existing_account',
+      username: '',
       user_id: String(student.user_id ?? ''),
       nisn: student.nisn ?? '',
-      nis: student.nis ?? '',
+      nipd: student.nipd ?? '',
       nama_lengkap: student.nama_lengkap ?? '',
       jenis_kelamin: student.jenis_kelamin ?? '',
       tanggal_lahir: student.tanggal_lahir
@@ -166,44 +289,7 @@ const [excludedRows, setExcludedRows] = useState([])
 
     setModalOpen(true)
 
-    try {
-      const response = await studentApi.getAvailableAccounts()
-      const available = Array.isArray(response?.data) ? response.data : []
-      const currentAccount = student.user
-
-      if (
-        currentAccount &&
-        !available.some(
-          (account) => String(account.id) === String(student.user_id),
-        )
-      ) {
-        setAccounts([
-          {
-            id: student.user_id,
-            username: currentAccount.username,
-            name: currentAccount.name,
-            email: currentAccount.email,
-          },
-          ...available,
-        ])
-      } else {
-        setAccounts(available)
-      }
-    } catch (error) {
-      setAccounts(
-        student.user
-          ? [
-              {
-                id: student.user_id,
-                username: student.user.username,
-                name: student.user.name,
-                email: student.user.email,
-              },
-            ]
-          : [],
-      )
-      setSubmitError(error)
-    }
+    setAccounts(student.user ? [{id:student.user_id, username:student.user.username, name:student.user.name}] : [])
   }
 
   function handleChange(event) {
@@ -230,12 +316,13 @@ const [excludedRows, setExcludedRows] = useState([])
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (saving) return
     setFieldErrors({})
     setSubmitError(null)
 
     const localErrors = {}
 
-    if (!form.user_id) {
+    if ((editingStudent || form.registration_mode === 'existing_account') && !form.user_id) {
       localErrors.user_id = 'Akun siswa wajib dipilih.'
     }
 
@@ -255,9 +342,14 @@ const [excludedRows, setExcludedRows] = useState([])
     setSaving(true)
 
     const payload = {
-      user_id: Number(form.user_id),
+      ...(editingStudent ? { user_id: Number(form.user_id), profile_version: editingStudent.profile_version } : {
+        registration_mode: form.registration_mode,
+        ...(form.registration_mode === 'new_account'
+          ? (form.username.trim() ? { username: form.username.trim() } : {})
+          : { user_id: Number(form.user_id) }),
+      }),
       nisn: form.nisn.trim(),
-      nis: form.nis.trim() || null,
+      nipd: form.nipd.trim() || null,
       nama_lengkap: form.nama_lengkap.trim(),
       jenis_kelamin: form.jenis_kelamin || null,
       tanggal_lahir: form.tanggal_lahir || null,
@@ -269,9 +361,11 @@ const [excludedRows, setExcludedRows] = useState([])
     try {
       if (editingStudent) {
         await studentApi.update(editingStudent.id, payload)
+        setOverviewRevision(value=>value+1)
         setSuccessMessage('Data siswa berhasil diperbarui.')
       } else {
         await studentApi.create(payload)
+        setOverviewRevision(value=>value+1)
         setSuccessMessage('Data siswa berhasil ditambahkan.')
       }
 
@@ -307,6 +401,7 @@ const [excludedRows, setExcludedRows] = useState([])
 
     try {
       await studentApi.delete(student.id)
+        setOverviewRevision(value=>value+1)
       setStudentToDelete(null)
       setSuccessMessage(
         `Data siswa ${getStudentName(student)} berhasil dihapus.`,
@@ -329,6 +424,7 @@ const [excludedRows, setExcludedRows] = useState([])
   setSelectedExcel(null)
   setPreviewData(null)
   setExcludedRows([])
+  setOriginalPreviewRows([])
   setImportError('')
   setImportModalOpen(true)
   setSuccessMessage('')
@@ -341,15 +437,15 @@ function closeImportModal() {
   setSelectedExcel(null)
   setPreviewData(null)
   setExcludedRows([])
+  setOriginalPreviewRows([])
   setImportError('')
 }
 
-function toggleExcludedRow(rowNumber) {
-  setExcludedRows((current) =>
-    current.includes(rowNumber)
-      ? current.filter((row) => row !== rowNumber)
-      : [...current, rowNumber],
-  )
+async function toggleExcludedRow(rowNumber) {
+  if (previewLoading || importing) return
+  const next = excludedRows.includes(rowNumber) ? excludedRows.filter(r=>r!==rowNumber) : [...excludedRows,rowNumber]
+  setExcludedRows(next)
+  await handlePreviewImport(next)
 }
 
 async function handleDownloadTemplate() {
@@ -374,6 +470,7 @@ function handleExcelChange(event) {
   setSelectedExcel(file)
   setPreviewData(null)
   setExcludedRows([])
+  setOriginalPreviewRows([])
   setImportError('')
 
   if (!file) return
@@ -394,7 +491,8 @@ function handleExcelChange(event) {
   }
 }
 
-async function handlePreviewImport() {
+async function handlePreviewImport(exclusions = excludedRows) {
+  if (!Array.isArray(exclusions)) exclusions = excludedRows
   if (!selectedExcel) {
     setImportError('Pilih file Excel terlebih dahulu.')
     return
@@ -402,6 +500,7 @@ async function handlePreviewImport() {
 
   const formData = new FormData()
   formData.append('file', selectedExcel)
+  exclusions.forEach(row=>formData.append('excluded_rows[]',String(row)))
 
   setPreviewLoading(true)
   setImportError('')
@@ -411,6 +510,7 @@ async function handlePreviewImport() {
     const response = await studentApi.previewImport(formData)
 
     setPreviewData(response?.data || null)
+    if (exclusions.length === 0) setOriginalPreviewRows(response?.data?.rows || [])
 
     if (!response?.data?.rows) {
       setImportError('Respons preview tidak memiliki data baris.')
@@ -434,7 +534,7 @@ async function handlePreviewImport() {
 }
 
 async function handleConfirmImport() {
-  if (!selectedExcel || !previewData) return
+  if (!selectedExcel || !previewData?.preview_token) return
 
   if (previewSummary.invalid_rows > 0) {
     setImportError(
@@ -448,14 +548,11 @@ async function handleConfirmImport() {
     return
   }
 
-  const confirmed = window.confirm(
-    `Impor ${previewSummary.valid_rows} data Siswa ke dalam sistem?`,
-  )
-
-  if (!confirmed) return
+  if (importing || previewLoading) return
 
   const formData = new FormData()
   formData.append('file', selectedExcel)
+  formData.append('preview_token', previewData.preview_token)
 
   excludedRows.forEach((rowNumber) => {
     formData.append('excluded_rows[]', String(rowNumber))
@@ -466,10 +563,10 @@ async function handleConfirmImport() {
 
   try {
     const response = await studentApi.importExcel(formData)
+    setOverviewRevision(value=>value+1)
 
     const importedRows =
-      response?.data?.imported_rows ??
-      previewSummary.valid_rows
+      response?.data?.total_imported
 
     setImportModalOpen(false)
     setSelectedExcel(null)
@@ -477,7 +574,7 @@ async function handleConfirmImport() {
     setExcludedRows([])
 
     setSuccessMessage(
-      `${importedRows} data Siswa berhasil diimpor.`,
+      Number.isInteger(importedRows) ? `${importedRows} data Siswa berhasil diimpor.` : 'Import selesai. Muat ulang daftar untuk memeriksa hasil.',
     )
 
     setPage(1)
@@ -503,98 +600,9 @@ async function handleConfirmImport() {
   }
 }
 
-const duplicateError =
-  'Duplikat: nama lengkap dan NISN sama dalam file Excel.'
-
-const potentialDuplicateError =
-  'Potensi duplikat: nama lengkap sama dan terdapat NISN kosong dalam file Excel.'
-
-const conflictError =
-  'Konflik: NISN sama tetapi nama lengkap berbeda.'
-
-const activePreviewRows = (previewData?.rows || [])
-  .filter((row) => !excludedRows.includes(Number(row.row)))
-  .map((row) => {
-    const normalizedName = (row.nama_lengkap || '')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLowerCase()
-
-    const normalizedNisn = (row.nisn || '').trim()
-
-    const sameNameRows = (previewData?.rows || []).filter(
-      (otherRow) => {
-        if (excludedRows.includes(Number(otherRow.row))) return false
-
-        const otherName = (otherRow.nama_lengkap || '')
-          .trim()
-          .replace(/\s+/g, ' ')
-          .toLowerCase()
-
-        return normalizedName !== '' && normalizedName === otherName
-      },
-    )
-
-    const sameNameNisnCount = sameNameRows.filter(
-      (otherRow) =>
-        (otherRow.nisn || '').trim() === normalizedNisn &&
-        normalizedNisn !== '',
-    ).length
-
-    const hasEmptyNisn = sameNameRows.some(
-      (otherRow) => !(otherRow.nisn || '').trim(),
-    )
-
-    const sameNisnDifferentName = (previewData?.rows || []).filter(
-      (otherRow) => {
-        if (excludedRows.includes(Number(otherRow.row))) return false
-
-        const otherNisn = (otherRow.nisn || '').trim()
-
-        const otherName = (otherRow.nama_lengkap || '')
-          .trim()
-          .replace(/\s+/g, ' ')
-          .toLowerCase()
-
-        return (
-          normalizedNisn !== '' &&
-          normalizedNisn === otherNisn &&
-          normalizedName !== otherName
-        )
-      },
-    ).length
-
-    const errors = (row.errors || []).filter(
-      (error) =>
-        error !== duplicateError &&
-        error !== potentialDuplicateError &&
-        error !== conflictError,
-    )
-
-    if (sameNameNisnCount > 1) {
-      errors.push(duplicateError)
-    } else if (sameNameRows.length > 1 && hasEmptyNisn) {
-      errors.push(potentialDuplicateError)
-    }
-
-    if (sameNisnDifferentName > 0) {
-      errors.push(conflictError)
-    }
-
-    return {
-      ...row,
-      errors: [...new Set(errors)],
-      valid: errors.length === 0,
-    }
-  })
-
-  const previewSummary = {
-    total_rows: activePreviewRows.length,
-    valid_rows: activePreviewRows.filter((row) => row.valid).length,
-    invalid_rows: activePreviewRows.filter((row) => !row.valid).length,
-  }
-
-
+const activePreviewRows = previewData?.rows || []
+ const previewSummary = previewData?.summary || {total_rows:0, valid_rows:0, invalid_rows:0}
+ const displayRows = [...activePreviewRows, ...originalPreviewRows.filter(row=>excludedRows.includes(Number(row.row)))].sort((a,b)=>Number(a.row)-Number(b.row))
 
   const accountOptions = accounts.map((account) => ({
     value: String(account.id),
@@ -602,8 +610,9 @@ const activePreviewRows = (previewData?.rows || [])
   }))
 
   return (
-    <section className="students-page">
+    <section className="students-page identity-directory-page">
       <PageHeader
+  eyebrow="Administrasi akademik"
   title="Data Siswa"
   description="Kelola identitas dan informasi dasar siswa."
   actions={
@@ -611,15 +620,17 @@ const activePreviewRows = (previewData?.rows || [])
       <div className="students-page__header-actions">
         <Button
           type="button"
+          variant="secondary"
           onClick={handleDownloadTemplate}
           loading={downloadingTemplate}
           disabled={downloadingTemplate}
         >
-          Download Template
+          Unduh Template
         </Button>
 
         <Button
           type="button"
+          variant="secondary"
           onClick={openImportModal}
         >
           Import Excel
@@ -636,16 +647,11 @@ const activePreviewRows = (previewData?.rows || [])
   }
 />
 
-      {successMessage && (
-        <div
-          className="students-page__success"
-          role="status"
-          aria-live="polite"
-        >
-          {successMessage}
-        </div>
-      )}
-
+      <ToastNotification notice={successMessage ? {type:'success', title:'Berhasil', message:successMessage} : null} onClose={() => setSuccessMessage('')}/>
+      {detailError && <ErrorState message={detailError}/>}
+      {detail && <IdentityDirectoryDetail profile={detail} student={true} onClose={() => setDetail(null)} onDelete={canManage ? () => {const target=detail;setDetail(null);openDeleteConfirmation(target)} : null} onEdit={canManage ? () => {const target=detail;setDetail(null);openEditModal(target)} : null} onAccount={canManage && detail.user_id ? () => navigate(`/app/users?user_id=${detail.user_id}`) : null}/>}
+      {contextError && <ErrorState message={contextError}/>}
+            {canManage && <DirectoryOverview api={studentApi} student={true} revision={overviewRevision}/>}
       <Card className="students-page__card">
         <div className="students-page__list-header">
           <div>
@@ -654,7 +660,7 @@ const activePreviewRows = (previewData?.rows || [])
             <p>Data identitas siswa yang tersimpan di sistem.</p>
           </div>
 
-          <span className="students-page__count">{meta.total} siswa</span>
+          <span className="students-page__count" aria-live="polite">{loading ? "Memuat…" : listError ? "Tidak tersedia" : `${meta.total} hasil`}</span>
         </div>
 
         <form className="students-page__search" onSubmit={handleSearch}>
@@ -663,23 +669,45 @@ const activePreviewRows = (previewData?.rows || [])
             name="search"
             label="Cari siswa"
             value={searchInput}
-            placeholder="Cari nama, NISN, atau NIS"
+            placeholder="Cari nama, NISN, NIPD atau username"
             onChange={(event) => setSearchInput(event.target.value)}
           />
 
+          <Select id="student-sort" label="Urutan nama" value={sortOrder}
+            options={[{value: 'asc', label: 'A–Z'}, {value: 'desc', label: 'Z–A'}]}
+            onChange={event => {setSortOrder(event.target.value || 'asc'); setPage(1)}} />
+          {canManage && <>
+            <Select id="student-accountFilter" label="Status akun" value={accountFilter} placeholder="Semua status" options={[{value:'ready',label:'Siap digunakan'},{value:'pending',label:'Menunggu aktivasi'},{value:'inactive',label:'Nonaktif'}]} onChange={e=>{setAccountFilter(e.target.value);setPage(1)}}/>
+          </>}
           <div className="students-page__search-actions">
             <Button type="submit">Cari</Button>
             <Button
+              variant="secondary"
               type="button"
               onClick={() => {
                 setSearchInput('')
                 setSearch('')
+                setSortOrder('asc')
+                setAccountFilter(''); setGenderFilter(''); setCompleteFilter(''); setPageSize('15')
+                setPeriod(''); setClassFilter('')
                 setPage(1)
               }}
             >
               Reset
             </Button>
           </div>
+          <details className="identity-directory-advanced">
+            <summary>Filter lanjutan & tampilan {(completeFilter || genderFilter || period || classFilter) ? <span className="identity-filter-active">Filter aktif</span> : null}</summary>
+            <div className="identity-directory-advanced-grid">
+          {canManage && <>
+            <Select id="student-completeFilter" label="Kelengkapan biodata" value={completeFilter} placeholder="Semua biodata" options={[{value:'complete',label:'Lengkap'},{value:'incomplete',label:'Belum lengkap'}]} onChange={e=>{setCompleteFilter(e.target.value);setPage(1)}}/>
+            <Select id="student-genderFilter" label="Jenis kelamin" value={genderFilter} placeholder="Semua" options={[{value:'L',label:'Laki-laki'},{value:'P',label:'Perempuan'}]} onChange={e=>{setGenderFilter(e.target.value);setPage(1)}}/>
+            <Select id="student-period" label="Periode akademik" value={period} placeholder="Periode aktif" options={[...periods.map(y=>({value:String(y.id),label:`${y.tahun_mulai}/${y.tahun_selesai} · ${y.semester}`}))]} onChange={e=>{setPeriod(e.target.value);setClassFilter('');setClasses([]);setPage(1)}}/>
+            <Select id="student-classFilter" label="Kelas" value={classFilter} disabled={!effectivePeriod} placeholder="Semua kelas" options={[{value:'unassigned',label:'Tanpa penempatan efektif'},...classes.map(c=>({value:String(c.id),label:`${({10:"X",11:"XI",12:"XII"})[Number(c.tingkat)]||`Tingkat ${c.tingkat}`} — ${c.nama}`}))]} onChange={e=>{setClassFilter(e.target.value);setPage(1)}}/>
+          </>}
+          <Select id="student-pageSize" label="Data per halaman" value={pageSize} options={['15','25','50','100'].map(x=>({value:x,label:x}))} onChange={e=>{setPageSize(e.target.value);setPage(1)}}/>
+            </div>
+          </details>
         </form>
 
         {loading && <LoadingState message="Memuat data siswa..." />}
@@ -695,7 +723,7 @@ const activePreviewRows = (previewData?.rows || [])
 
         {!loading && !listError && students.length === 0 && (
           <EmptyState
-            title="Belum ada data siswa"
+            title={search || accountFilter || completeFilter || genderFilter || classFilter ? "Siswa tidak ditemukan" : "Belum ada data Siswa"}
             description={
               search
                 ? 'Tidak ditemukan siswa yang sesuai dengan pencarian.'
@@ -707,52 +735,36 @@ const activePreviewRows = (previewData?.rows || [])
         {!loading && !listError && students.length > 0 && (
           <>
             <Table
-              columns={columns}
+              scrollLabel="Tabel Data Siswa"
+              columns={canManage ? columns : columns.filter(c => !['status','completeness','placement'].includes(c.key))}
               data={students}
               rowKey="id"
               renderCell={(student, column) => {
                 switch (column.key) {
                   case 'identity':
                     return (
-                      <div className="students-page__identity">
-                        <strong>{getStudentName(student)}</strong>
-                        <span>{student.user?.username || '-'}</span>
-                        <small>{student.user?.email || '-'}</small>
-                      </div>
+                      <DirectoryIdentity name={getStudentName(student)} username={student.user?.username} email={student.user?.email} showAccount={canManage}/>
                     )
 
                   case 'nisn':
                     return student.nisn || '-'
 
-                  case 'nis':
-                    return student.nis || '-'
+                  case 'nipd':
+                    return student.nipd || '-'
 
                   case 'gender':
-                    return student.jenis_kelamin || '-'
+                    return student.jenis_kelamin === 'L' ? 'Laki-laki' : student.jenis_kelamin === 'P' ? 'Perempuan' : student.jenis_kelamin || '-'
 
+                  case 'status':
+                    return student.user?.account_status === 'active' ? (
+                      <Badge variant={student.user.requires_activation === true ? 'warning' : student.user.requires_activation === false ? 'success' : 'neutral'}>{student.user.requires_activation === true ? 'Menunggu aktivasi' : student.user.requires_activation === false ? 'Siap digunakan' : 'Status belum diketahui'}</Badge>
+                    ) : <Badge variant="neutral">{student.user?.account_status === 'inactive' ? 'Nonaktif' : 'Tidak diketahui'}</Badge>
+                  case 'completeness':
+                    return <DirectoryCompleteness value={student.completeness}/>
+                  case 'placement':
+                    return placementLabel(student.placement)
                   case 'actions':
-                    return canManage ? (
-                      <div className="students-page__actions">
-                        <Button
-                          type="button"
-                          disabled={deletingId !== null}
-                          onClick={() => openEditModal(student)}
-                        >
-                          Edit
-                        </Button>
-
-                        <Button
-                          type="button"
-                          loading={deletingId === student.id}
-                          disabled={deletingId !== null}
-                          onClick={() => openDeleteConfirmation(student)}
-                        >
-                          Hapus
-                        </Button>
-                      </div>
-                    ) : (
-                      <Badge variant="neutral">Lihat</Badge>
-                    )
+                    return <Button variant="secondary" onClick={() => openDetail(student.id)}>Lihat detail <span aria-hidden="true">›</span></Button>
 
                   default:
                     return '-'
@@ -792,19 +804,17 @@ const activePreviewRows = (previewData?.rows || [])
         )}
       </Card>
 
-      <Modal
-        open={modalOpen}
+      {modalOpen && <WorkspaceModal className="identity-form-workspace" busy={saving} eyebrow="IDENTITAS AKADEMIK"
         title={editingStudent ? 'Edit Data Siswa' : 'Tambah Siswa'}
         description={
           editingStudent
             ? 'Perbarui informasi siswa yang dipilih.'
-            : 'Pilih akun siswa, lalu lengkapi identitasnya.'
+            : 'Daftarkan identitas resmi dan akun, atau hubungkan akun yang sudah ada.'
         }
         onClose={closeModal}
-        size="large"
         footer={
           <>
-            <Button type="button" disabled={saving} onClick={closeModal}>
+            <Button variant="secondary" type="button" disabled={saving} onClick={closeModal}>
               Batal
             </Button>
 
@@ -827,6 +837,13 @@ const activePreviewRows = (previewData?.rows || [])
 
         <form id="student-form" onSubmit={handleSubmit}>
           <div className="students-page__form-grid">
+            <div className="identity-form-section"><strong>Akun pengguna</strong><span>Atur hubungan akun dan identitas resmi.</span></div>
+            {!editingStudent && (
+              <Select id="registration_mode" name="registration_mode" label="Cara pendaftaran"
+                value={form.registration_mode} required disabled={saving} onChange={handleChange}
+                options={[{ value: 'new_account', label: 'Buat profil dan akun baru' }, { value: 'existing_account', label: 'Hubungkan akun yang sudah ada' }]} />
+            )}
+            {(editingStudent || form.registration_mode === 'existing_account') ? (
             <Select
               id="user_id"
               name="user_id"
@@ -837,10 +854,19 @@ const activePreviewRows = (previewData?.rows || [])
               placeholder="Pilih akun siswa"
               options={accountOptions}
               error={getFieldError(fieldErrors, 'user_id')}
-              hint="Akun aktif dengan role Siswa yang belum memiliki profil."
+              hint={editingStudent ? "Akun terhubung tidak dapat diganti." : "Akun aktif dengan role Siswa yang belum memiliki profil."}
               onChange={handleChange}
             />
+            ) : (
+              <Input id="username" name="username" label="Username (opsional)"
+                value={form.username} disabled={saving} maxLength={100} onChange={handleChange}
+                placeholder={form.nisn || 'Otomatis mengikuti NISN'}
+                error={getFieldError(fieldErrors, 'username')}
+                hint="Akun baru membutuhkan aktivasi. Password dibuat sendiri oleh pemilik akun." />
+            )}
 
+
+            <div className="identity-form-section"><strong>Identitas resmi</strong><span>Gunakan data yang tercatat di sekolah.</span></div>
             <Input
               id="nisn"
               name="nisn"
@@ -856,15 +882,15 @@ const activePreviewRows = (previewData?.rows || [])
             />
 
             <Input
-              id="nis"
-              name="nis"
-              label="NIS"
+              id="nipd"
+              name="nipd"
+              label="NIPD"
               type="text"
               inputMode="numeric"
               maxLength={50}
-              value={form.nis}
+              value={form.nipd}
               disabled={saving}
-              error={getFieldError(fieldErrors, 'nis')}
+              error={getFieldError(fieldErrors, 'nipd')}
               onChange={handleChange}
             />
 
@@ -915,6 +941,7 @@ const activePreviewRows = (previewData?.rows || [])
               onChange={handleChange}
             />
 
+            <div className="identity-form-section"><strong>Informasi kontak</strong><span>Opsional, dapat dilengkapi kemudian.</span></div>
             <Input
               id="no_telepon"
               name="no_telepon"
@@ -941,18 +968,17 @@ const activePreviewRows = (previewData?.rows || [])
             </div>
           </div>
         </form>
-      </Modal>
+      </WorkspaceModal>}
 
-            <Modal
-        open={importModalOpen}
+            {importModalOpen && <WorkspaceModal className="identity-import-workspace" busy={previewLoading || importing} eyebrow="IMPORT EXCEL"
         title="Import Data Siswa"
         description="Unggah file Excel asli hasil ekspor Data Peserta Didik dari sekolah."
         onClose={closeImportModal}
-        size="large"
         footer={
           <>
             <Button
               type="button"
+              variant="secondary"
               disabled={previewLoading || importing}
               onClick={closeImportModal}
             >
@@ -966,10 +992,11 @@ const activePreviewRows = (previewData?.rows || [])
                 disabled={!selectedExcel || previewLoading}
                 onClick={handlePreviewImport}
               >
-                Preview Data
+                Periksa Data
               </Button>
             )}
 
+            {previewData && <Button type="button" variant="secondary" disabled={previewLoading || importing} onClick={()=>handlePreviewImport()}>Periksa ulang</Button>}
             {previewData && (
               <Button
                 type="button"
@@ -978,7 +1005,7 @@ const activePreviewRows = (previewData?.rows || [])
                   importing ||
                   previewLoading ||
                   previewSummary.invalid_rows > 0 ||
-                  previewSummary.valid_rows === 0
+                  previewSummary.valid_rows === 0 || !previewData.preview_token
                 }
                 onClick={handleConfirmImport}
               >
@@ -989,7 +1016,12 @@ const activePreviewRows = (previewData?.rows || [])
         }
       >
         <div className="students-page__import-card">
-          <div className="students-page__import-heading">
+          <ImportProgress preview={Boolean(previewData)} busy={previewLoading || importing} importing={importing}/>
+          {excludedRows.length > 0 && <div className="identity-directory-context"><span>{excludedRows.length} baris dikecualikan</span><Button variant="secondary" disabled={previewLoading || importing} onClick={()=>{setExcludedRows([]);handlePreviewImport([])}}>Pulihkan semua baris</Button></div>}
+          <details className="identity-import-settings" open={!previewData && !previewLoading}>
+            <summary><span>File &amp; pengaturan</span><span className="identity-import-filename">{selectedExcel?.name || 'Pilih file'}</span></summary>
+            <div className="identity-import-settings-body">
+          <details className="identity-import-guide"><summary>Ketentuan file dan template</summary>          <div className="students-page__import-heading">
             <h3>Petunjuk Import</h3>
             <p>
               Gunakan file Excel asli hasil ekspor Data Peserta Didik
@@ -1007,11 +1039,12 @@ const activePreviewRows = (previewData?.rows || [])
             <br />
             Maksimal data: 1.000 baris
             <br />
-            Kolom wajib: Nama, NIPD, JK, NISN.
+            Header: Nama, NIPD, JK, NISN, dan kolom template lainnya. Nama dan NISN wajib terisi.
             <br />
             NISN wajib tersedia dan tidak boleh duplikat.
           </div>
 
+<Button variant="secondary" disabled={previewLoading || importing || downloadingTemplate} loading={downloadingTemplate} onClick={handleDownloadTemplate}>Unduh template Siswa</Button></details>
           <div className="students-page__file-control">
             <label
               htmlFor="student-excel-file"
@@ -1036,6 +1069,9 @@ const activePreviewRows = (previewData?.rows || [])
             )}
           </div>
 
+            </div>
+          </details>
+
           {importError && (
             <div
               className="students-page__import-error"
@@ -1056,7 +1092,7 @@ const activePreviewRows = (previewData?.rows || [])
 
               <div className="students-page__preview-summary">
                 <div className="students-page__preview-stat">
-                  <span>Total Data</span>
+                  <span>Baris disertakan</span>
                   <strong>
                     {previewSummary.total_rows }
                   </strong>
@@ -1077,27 +1113,22 @@ const activePreviewRows = (previewData?.rows || [])
                 </div>
               </div>
 
-              <div className="students-page__preview-table-wrapper">
+              <ImportPreviewScroll className="students-page__preview-table-wrapper" label="Preview import Siswa">
   <table className="students-page__preview-table">
     <thead>
       <tr>
         <th>Baris</th>
+        <th>Aksi</th>
         <th>NISN</th>
         <th>NIPD</th>
         <th>Nama Lengkap</th>
-        <th>Status</th>
+        <th>Status / Tindakan</th>
         <th>Keterangan</th>
-        <th>Aksi</th>
       </tr>
     </thead>
 
    <tbody>
-  {(previewData.rows || []).map((row) => {
-    const isDuplicate = row.errors?.some((error) =>
-      error.includes('Duplikat: nama lengkap dan NISN sama') ||
-      error.includes('Potensi duplikat: nama lengkap sama'),
-    )
-
+  {displayRows.map((row) => {
     const isExcluded = excludedRows.includes(Number(row.row))
 
     const activeRow = activePreviewRows.find(
@@ -1113,6 +1144,18 @@ const activePreviewRows = (previewData?.rows || [])
     return (
       <tr key={row.row}>
         <td>{row.row}</td>
+        <td>
+          {(isExcluded || !isValid) && (
+            <Button
+              variant="secondary"
+              type="button"
+              disabled={previewLoading || importing}
+              onClick={() => toggleExcludedRow(Number(row.row))}
+            >
+              {isExcluded ? 'Batalkan' : 'Keluarkan'}
+            </Button>
+          )}
+        </td>
         <td>{row.nisn || '-'}</td>
         <td>{row.nipd || '-'}</td>
         <td>{row.nama_lengkap || '-'}</td>
@@ -1121,7 +1164,7 @@ const activePreviewRows = (previewData?.rows || [])
           <span
             className={`students-page__preview-status ${
               isExcluded
-                ? 'students-page__preview-status--valid'
+                ? 'students-page__preview-status--excluded'
                 : isValid
                   ? 'students-page__preview-status--valid'
                   : 'students-page__preview-status--invalid'
@@ -1130,7 +1173,7 @@ const activePreviewRows = (previewData?.rows || [])
             {isExcluded
               ? 'Dikecualikan'
               : isValid
-                ? 'Valid'
+                ? (row.status === 'new' ? 'Daftar baru' : 'Pembaruan')
                 : 'Tidak Valid'}
           </span>
         </td>
@@ -1140,32 +1183,22 @@ const activePreviewRows = (previewData?.rows || [])
             ? rowErrors.join(' ')
             : isExcluded
               ? 'Baris dikeluarkan dari proses import.'
-              : '-'}
+              : row.status === 'updated' ? (Object.entries(row.changes || {}).map(([field, change]) => `${field}: ${change.before ?? 'kosong'} → ${change.after}`).join('; ') || 'Tidak ada perubahan; kolom kosong dipertahankan.') : 'Buat akun dan profil.'}
         </td>
 
-        <td>
-          {isDuplicate && (
-            <Button
-              type="button"
-              disabled={previewLoading || importing}
-              onClick={() => toggleExcludedRow(Number(row.row))}
-            >
-              {isExcluded ? 'Batalkan' : 'Keluarkan'}
-            </Button>
-          )}
-        </td>
+
       </tr>
     )
   })}
 </tbody>
   </table>
-</div>
+              </ImportPreviewScroll>
 
               {previewSummary.invalid_rows > 0 && (
                 <div className="students-page__preview-note">
                   Import belum dapat dilakukan karena masih ada{' '}
                   {previewSummary.invalid_rows} baris yang tidak
-                  valid. Perbaiki file Excel, kemudian unggah ulang.
+                  valid. Gunakan Keluarkan untuk mengecualikan baris, atau perbaiki file lalu unggah ulang.
                 </div>
               )}
 
@@ -1180,7 +1213,7 @@ const activePreviewRows = (previewData?.rows || [])
             </div>
           )}
         </div>
-      </Modal>
+      </WorkspaceModal>}
       
       <Modal
         open={Boolean(studentToDelete)}
@@ -1219,7 +1252,7 @@ const activePreviewRows = (previewData?.rows || [])
               <strong>{getStudentName(studentToDelete)}</strong>?
             </p>
             <p className="students-page__delete-warning">
-              Tindakan ini tidak dapat dibatalkan.
+              Profil hanya dapat dihapus jika belum memiliki histori akademik. Akun terkait akan dinonaktifkan, bukan dihapus.
             </p>
             {listError && (
               <div className="students-page__delete-error" role="alert">

@@ -55,7 +55,7 @@ class UserManagementTest extends TestCase
             'username' => 'akun_baru',
             'name' => 'Pengguna Baru',
             'email' => 'pengguna.baru@example.test',
-            'role_id' => Role::where('code', 'GURU')->firstOrFail()->id,
+            'role_id' => Role::where('code', 'KEPALA_SEKOLAH')->firstOrFail()->id,
             'password' => 'PasswordTest123!',
         ], $overrides);
     }
@@ -333,19 +333,19 @@ class UserManagementTest extends TestCase
 
         Sanctum::actingAs($tu);
 
-        $siswaRoleId = Role::where('code', 'SISWA')
+        $principalRoleId = Role::where('code', 'KEPALA_SEKOLAH')
             ->firstOrFail()
             ->id;
 
         $this->putJson("/api/users/{$target->id}", [
-            'role_id' => $siswaRoleId,
+            'role_id' => $principalRoleId,
         ])
             ->assertOk()
-            ->assertJsonPath('data.role.code', 'SISWA');
+            ->assertJsonPath('data.role.code', 'KEPALA_SEKOLAH');
 
         $this->assertDatabaseHas('users', [
             'id' => $target->id,
-            'role_id' => $siswaRoleId,
+            'role_id' => $principalRoleId,
         ]);
 
         $this->assertDatabaseMissing('guru', [

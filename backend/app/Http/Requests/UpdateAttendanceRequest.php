@@ -24,6 +24,7 @@ class UpdateAttendanceRequest extends FormRequest
             'tanggal' => [
                 'sometimes',
                 'date_format:Y-m-d',
+                'before_or_equal:'.today('Asia/Jakarta')->toDateString(),
             ],
 
             'status' => [
@@ -61,6 +62,11 @@ class UpdateAttendanceRequest extends FormRequest
                 $tanggal = $this->input('tanggal', $attendance->tanggal?->toDateString());
 
                 if (!is_string($tanggal)) {
+                    return;
+                }
+
+                if ($tanggal > today('Asia/Jakarta')->toDateString()) {
+                    $validator->errors()->add('tanggal', 'Tanggal presensi tidak boleh melebihi hari ini (WIB).');
                     return;
                 }
 

@@ -130,7 +130,7 @@ class HomeroomWorkspaceTest extends TestCase
         return AnggotaKelas::create([
             'kelas_id' => $class->id,
             'siswa_id' => $student->id,
-            'tanggal_mulai' => today()->subDay()->toDateString(),
+            'tanggal_mulai' => today('Asia/Jakarta')->subDay()->toDateString(),
             'tanggal_selesai' => null,
         ]);
     }
@@ -149,6 +149,10 @@ class HomeroomWorkspaceTest extends TestCase
 
     public function test_monitor_only_assigned_class_in_active_period(): void
     {
+        // UTC is still Nov 26 while the school's calendar is already Nov 27.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00', 'UTC'));
+        $this->assertSame('2026-11-26', today('UTC')->toDateString());
+        $this->assertSame('2026-11-27', today('Asia/Jakarta')->toDateString());
         [$user, $guru] = $this->createTeacher();
         [, $peer] = $this->createTeacher();
         [, $student] = $this->createStudent();
@@ -160,8 +164,8 @@ class HomeroomWorkspaceTest extends TestCase
         $schedule = $this->createSchedule($year, $class, $peer);
         $component = $this->createComponent($schedule);
         Nilai::create(['komponen_nilai_id'=>$component->id,'siswa_id'=>$student->id,'nilai'=>85]);
-        Presensi::create(['jadwal_pelajaran_id'=>$schedule->id,'siswa_id'=>$student->id,'tanggal'=>today()->toDateString(),'status'=>'HADIR']);
-        $assignment = WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today()->subDay()->toDateString(),'tanggal_selesai'=>null]);
+        Presensi::create(['jadwal_pelajaran_id'=>$schedule->id,'siswa_id'=>$student->id,'tanggal'=>today('Asia/Jakarta')->toDateString(),'status'=>'HADIR']);
+        $assignment = WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>null]);
         Sanctum::actingAs($user);
         $suffix = '?scope=homeroom&academic_year_id='.$year->id;
         $this->getJson('/api/homeroom-assignments'.$suffix)->assertOk()->assertJsonCount(1,'data')->assertJsonPath('data.0.id',$assignment->id);
@@ -173,7 +177,7 @@ class HomeroomWorkspaceTest extends TestCase
         $this->getJson('/api/grades/recap'.$suffix.'&class_id='.$outside->id)->assertForbidden();
         // Teaching access is independent of the explicit homeroom scope.
         $this->getJson('/api/classes/'.$outside->id.'/students')->assertOk();
-        foreach ([['tanggal_mulai'=>today()->addDay()->toDateString()],['tanggal_mulai'=>today()->subDay()->toDateString(),'tanggal_selesai'=>today()->toDateString()]] as $change) {
+        foreach ([['tanggal_mulai'=>today('Asia/Jakarta')->addDay()->toDateString()],['tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>today('Asia/Jakarta')->toDateString()]] as $change) {
             $assignment->update($change);
             $this->getJson('/api/homeroom-assignments'.$suffix)->assertOk()->assertJsonCount(0,'data');
             $this->getJson('/api/classes/'.$class->id.'/students'.$suffix)->assertForbidden();
@@ -189,7 +193,7 @@ class HomeroomWorkspaceTest extends TestCase
         $year=$this->createAcademicYear(2025,2026,'GANJIL',false);
         $active=$this->createAcademicYear();
         $class=$this->createClass($year);
-        WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today()->subDay()->toDateString(),'tanggal_selesai'=>null]);
+        WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString(),'tanggal_selesai'=>null]);
         Sanctum::actingAs($user);
         $suffix='?scope=homeroom&academic_year_id='.$year->id;
         $this->getJson('/api/homeroom-assignments'.$suffix)->assertOk()->assertJsonCount(0,'data');
@@ -201,5 +205,23 @@ class HomeroomWorkspaceTest extends TestCase
         $this->getJson('/api/homeroom-assignments'.$suffix)->assertForbidden();
         $this->getJson('/api/attendance/recap'.$suffix)->assertForbidden();
         $this->getJson('/api/classes/'.$class->id.'/students')->assertOk();
+    }
+    public function test_teacher_dashboard_and_homeroom_recap_exclude_future_and_foreign_class(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00','UTC'));
+        [$user,$guru]=$this->createTeacher();[, $peer]=$this->createTeacher();[, $student]=$this->createStudent();
+        $year=$this->createAcademicYear();$class=$this->createClass($year);$outside=$this->createClass($year,'Other');
+        $this->createMembership($student,$class);$this->createMembership($student,$outside);
+        $own=$this->createSchedule($year,$class,$peer);$foreign=$this->createSchedule($year,$outside,$guru);
+        foreach([[$own,'2026-11-27'],[$own,'2026-11-28'],[$foreign,'2026-11-27']] as [$schedule,$date]) Presensi::create(['jadwal_pelajaran_id'=>$schedule->id,'siswa_id'=>$student->id,'tanggal'=>$date,'status'=>'HADIR']);
+        $c=$this->createComponent($own);$other=$this->createComponent($foreign);
+        Nilai::create(['komponen_nilai_id'=>$c->id,'siswa_id'=>$student->id,'nilai'=>0]);
+        Nilai::create(['komponen_nilai_id'=>$other->id,'siswa_id'=>$student->id,'nilai'=>90]);
+        WaliKelas::create(['guru_id'=>$guru->id,'kelas_id'=>$class->id,'tahun_akademik_id'=>$year->id,'tanggal_mulai'=>'2026-11-26','tanggal_selesai'=>null]);
+        Sanctum::actingAs($user);$suffix='?scope=homeroom&academic_year_id='.$year->id.'&class_id='.$class->id;
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.wali_kelas.total_students',1)->assertJsonPath('data.wali_kelas.attendance_records',1)->assertJsonPath('data.wali_kelas.graded_records',1);
+        $this->getJson('/api/attendance/recap'.$suffix)->assertOk()->assertJsonPath('data.total',1)->assertJsonPath('data.hadir',1);
+        $this->getJson('/api/grades/recap'.$suffix)->assertOk()->assertJsonPath('data.total',1)->assertJsonPath('data.rata_rata',0);
+        $this->assertDatabaseCount('presensi',3);$this->assertDatabaseCount('nilai',2);
     }
 }

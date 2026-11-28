@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Link,
   Navigate,
-  useLocation,
   useNavigate,
 } from 'react-router-dom'
 
 import { useAuth } from '../../context/useAuth'
 import { apiClient, setAuthToken } from '../../services/apiClient'
 import './LoginPage.css'
+import {isStrongPassword, PASSWORD_POLICY_MESSAGE} from '../../components/security/passwordPolicy.js'
+import PasswordRequirements from '../../components/security/PasswordRequirements.jsx'
+import { getGoogleEnvironment, googleUnavailableMessage } from '../../utils/googleEnvironment.js'
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() || ''
@@ -203,13 +205,6 @@ function getChallengeError(error) {
   return 'Gagal menyiapkan verifikasi Google. Periksa koneksi dan coba kembali.'
 }
 
-function isStrongPassword(value) {
-  return value.length >= 12 &&
-    /[a-z]/.test(value) &&
-    /[A-Z]/.test(value) &&
-    /[0-9]/.test(value) &&
-    /[^A-Za-z0-9\s]/.test(value)
-}
 
 function getGoogleRecoveryError(error) {
   if (error?.status === 401) {
@@ -258,18 +253,12 @@ const recoveryStyles = {
   },
 }
 
-function safeDestination(pathname) {
-  // Cegah redirect ke URL eksternal atau area publik
-  // melalui state navigasi yang tidak diharapkan.
-  return typeof pathname === 'string' &&
-    (pathname === '/app' || pathname.startsWith('/app/'))
-    ? pathname
-    : '/app/dashboard'
-}
+// Setiap pergantian akun memulai konteks kerja dari Dashboard role baru.
+// Jangan membawa location.state.from milik akun yang baru logout.
+const AUTHENTICATED_HOME = '/app/dashboard'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { status, login } = useAuth()
 
   const [username, setUsername] = useState('')
@@ -296,9 +285,9 @@ export default function LoginPage() {
   const mountedRef = useRef(false)
   const busyRef = useRef(false)
 
-  const destination = safeDestination(
-    location.state?.from?.pathname
-  )
+  const destination = AUTHENTICATED_HOME
+  const googleEnvironment = getGoogleEnvironment(window.location.origin, GOOGLE_CLIENT_ID)
+  const googleAvailable = googleEnvironment.available
 
   useEffect(() => {
     mountedRef.current = true
@@ -356,9 +345,9 @@ export default function LoginPage() {
   async function handleStartPasswordRecovery() {
     if (busyRef.current || passwordChallenge || passwordGrant) return
 
-    if (!GOOGLE_CLIENT_ID) {
+    if (!googleAvailable) {
       setErrorTitle('Google belum tersedia')
-      setError('Google belum dikonfigurasi. Hubungi Tata Usaha sekolah.')
+      setError(googleUnavailableMessage(googleEnvironment, 'recovery'))
       return
     }
 
@@ -425,7 +414,7 @@ export default function LoginPage() {
 
     if (!isStrongPassword(resetPassword)) {
       setErrorTitle('Password belum memenuhi syarat')
-      setError('Gunakan minimal 12 karakter dengan huruf besar, huruf kecil, angka, dan simbol.')
+      setError(PASSWORD_POLICY_MESSAGE)
       return
     }
 
@@ -502,7 +491,7 @@ export default function LoginPage() {
 
   async function handleGoogleCredential(response, flow) {
     // Respons dari popup lama tidak boleh berpindah ke alur lain.
-    if (!response?.credential || busyRef.current || flow?.mode !== mode) return
+    if (!googleAvailable || !mountedRef.current || !response?.credential || busyRef.current || flow?.mode !== mode) return
 
     if (mode === 'password') {
       if (
@@ -612,7 +601,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (
       status === 'authenticated' ||
-      !GOOGLE_CLIENT_ID ||
+      !googleAvailable ||
       (mode === 'username' && recoveredUsername) ||
       (mode === 'password' && (!passwordChallenge || passwordGrant || passwordResetComplete))
     ) {
@@ -637,6 +626,7 @@ export default function LoginPage() {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: (credentialResponse) => {
+            if (cancelled) return
             googleCallbackRef.current?.(credentialResponse, {
               mode: expectedMode,
               challengeId: expectedChallengeId,
@@ -671,7 +661,7 @@ export default function LoginPage() {
       cancelled = true
       buttonContainer.replaceChildren()
     }
-  }, [status, mode, recoveredUsername, passwordChallenge, passwordGrant, passwordResetComplete])
+  }, [status, mode, recoveredUsername, passwordChallenge, passwordGrant, passwordResetComplete, googleAvailable])
 
   if (status === 'authenticated') {
     return <Navigate to={destination} replace />
@@ -878,7 +868,7 @@ export default function LoginPage() {
               </form>
             )}
 
-            {mode === 'username' && !recoveredUsername && (
+            {mode === 'username' && !recoveredUsername && googleAvailable && (
               <div className="login-recovery-guide">
                 <strong style={{ display: 'block', color: '#193e5e', marginBottom: 4 }}>
                   Verifikasi kepemilikan akun Google
@@ -924,7 +914,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {mode === 'password' && !passwordResetComplete && !passwordGrant && (
+            {mode === 'password' && !passwordResetComplete && !passwordGrant && googleAvailable && (
               <>
                 <div className="login-recovery-guide">
                   <strong style={{ display: 'block', color: '#193e5e', marginBottom: 4 }}>
@@ -1046,6 +1036,7 @@ export default function LoginPage() {
                       required
                     />
                   </div>
+                  <PasswordRequirements password={resetPassword} confirmation={resetPasswordConfirmation}/>
                   {error && (
                     <div className="login-error" role="alert">
                       <strong>{errorTitle}</strong>
@@ -1095,7 +1086,7 @@ export default function LoginPage() {
 
             {(mode === 'login' ||
               (mode === 'username' && !recoveredUsername) ||
-              (mode === 'password' && Boolean(passwordChallenge) && !passwordGrant && !passwordResetComplete)) && (
+              (mode === 'password' && (Boolean(passwordChallenge) || !googleAvailable) && !passwordGrant && !passwordResetComplete)) && (
             <>
             {mode === 'login' && (
             <div className="login-method-divider" aria-hidden="true">
@@ -1109,7 +1100,7 @@ export default function LoginPage() {
               className={`login-google ${isBusy ? 'login-google--busy' : ''}`}
               style={mode !== 'login' ? { marginTop: 18 } : undefined}
             >
-              {GOOGLE_CLIENT_ID ? (
+              {googleAvailable ? (
                 <>
                   <div
                     className="login-google-button"
@@ -1135,20 +1126,20 @@ export default function LoginPage() {
                   )}
                 </>
               ) : (
-                <p className="login-google-error" role="status">
-                  {mode === 'login'
-                    ? 'Login Google belum dikonfigurasi. Gunakan username dan password.'
-                    : 'Verifikasi Google belum dikonfigurasi. Hubungi Tata Usaha sekolah.'}
-                </p>
+                <div className="login-google-unavailable" role="status">
+                  <strong><LockIcon /> {mode === 'login' ? 'Login dengan Google tidak tersedia' : 'Pemulihan melalui Google tidak tersedia'}</strong>
+                  <p>{googleUnavailableMessage(googleEnvironment, mode === 'login' ? 'login' : 'recovery')}</p>
+                  {mode === 'login' && <p>Untuk menggunakan Google, buka localhost yang terdaftar atau domain HTTPS resmi sekolah.</p>}
+                </div>
               )}
-              <p className="login-google-hint">
+              {googleAvailable && <p className="login-google-hint">
                 <LockIcon />
                 {mode === 'username'
                   ? 'Google digunakan hanya untuk memverifikasi identitas dan menemukan username.'
                   : mode === 'password'
                     ? 'Google hanya memverifikasi akun; password baru dikirim ke Laravel setelah verifikasi.'
                     : 'Hanya untuk akun Google yang sudah ditautkan ke SIAKAD.'}
-              </p>
+              </p>}
             </div>
             </>
             )}

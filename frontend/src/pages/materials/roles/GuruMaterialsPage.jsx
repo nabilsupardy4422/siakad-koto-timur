@@ -7,7 +7,8 @@ import ToastNotification from '../../../components/ui/ToastNotification'
 import { materialApi } from '../../../services/materialApi'
 import { scheduleApi } from '../../../services/scheduleApi'
 import { academicYearApi } from '../../../services/academicYearApi'
-import SearchableSelect from '../../../components/ui/SearchableSelect'
+import TeacherListPager,{useTeacherPage} from '../../../components/ui/TeacherListPager'
+import SearchableSelect from '../../../components/ui/TeacherNativeSelect'
 import FileDropzone from '../../../components/ui/FileDropzone'
 import FileTypeIcon from '../../../components/ui/FileTypeIcon'
 import WorkspaceModal from '../../../components/ui/WorkspaceModal'
@@ -259,6 +260,7 @@ export default function GuruMaterialsPage() {
     })
   }, [materials, searchTerm, subjectFilter, levelFilter, classFilter, dateSort])
 
+  const materialPage=useTeacherPage(filteredMaterials,JSON.stringify([selectedYearId,searchTerm,subjectFilter,levelFilter,classFilter,dateSort]))
   const hasActiveFilters = Boolean(searchTerm || subjectFilter || levelFilter || classFilter || dateSort !== 'newest')
 
   function resetFilters() {
@@ -276,7 +278,7 @@ export default function GuruMaterialsPage() {
     async function loadAcademicYears() {
       try {
         const years = await collectPages(page => academicYearApi.getAll({ per_page: 100, page }))
-        const activeYear = years.find(
+        const activeYears = years.filter(
           (year) =>
             year.is_active === true ||
             year.is_active === 1 ||
@@ -284,8 +286,9 @@ export default function GuruMaterialsPage() {
         )
 
         if (cancelled) return
-
+        const activeYear=activeYears.length===1?activeYears[0]:null
         setAcademicYears(years)
+        if(activeYears.length>1)setError('Lebih dari satu periode aktif. Pilih periode eksplisit; hubungi Tata Usaha.')
         setSelectedYearId((current) => {
           if (current && years.some(
             (year) => String(year.id) === String(current),
@@ -606,14 +609,15 @@ export default function GuruMaterialsPage() {
       <SearchableSelect label="Kelas" value={classFilter} options={[{value:'',label:'Semua kelas'},...filterOptions.classes]} onChange={setClassFilter} disabled={loading}/>
       <SearchableSelect label="Urutkan tanggal" value={dateSort} options={[{value:'newest',label:'Terbaru'},{value:'oldest',label:'Terlama'}]} onChange={setDateSort}/>
     </div></section>
-    <div className="gm-section-head gm-results"><div><h2>Daftar bahan ajar</h2><p aria-live="polite">{loading ? 'Memuat materi…' : `Menampilkan ${filteredMaterials.length} dari ${materials.length} materi`}</p></div></div>
-    {loading ? <div className="gm-state" role="status">Memuat bahan ajar…</div> : error && !materials.length ? <div className="gm-state"><h3>Data belum dapat dimuat</h3><button className="gm-btn gm-secondary" type="button" onClick={load}>Coba lagi</button></div> : !materials.length ? <div className="gm-state"><BookIcon/><h3>Belum ada bahan ajar</h3><p>Tambahkan materi dan lampiran untuk kelas yang Anda ajar.</p><button className="gm-btn gm-primary" type="button" onClick={openCreate} disabled={!schedules.length || busy || deleting}>＋ Tambah bahan ajar</button></div> : !filteredMaterials.length ? <div className="gm-state"><h3>Materi tidak ditemukan</h3><p>Coba kata kunci atau filter lainnya.</p><button className="gm-btn gm-secondary" type="button" onClick={resetFilters}>Reset filter</button></div> : <div className="gm-list">{filteredMaterials.map((material,index) => {
+    <div className="gm-section-head gm-results"><div><h2>Daftar bahan ajar</h2><p aria-live="polite">{loading ? 'Memuat materi…' : `${filteredMaterials.length} dari ${materials.length} materi cocok`}</p></div></div>
+    {loading ? <div className="gm-state" role="status">Memuat bahan ajar…</div> : error && !materials.length ? <div className="gm-state"><h3>Data belum dapat dimuat</h3><button className="gm-btn gm-secondary" type="button" onClick={load}>Coba lagi</button></div> : !materials.length ? <div className="gm-state"><BookIcon/><h3>Belum ada bahan ajar</h3><p>Tambahkan materi dan lampiran untuk kelas yang Anda ajar.</p><button className="gm-btn gm-primary" type="button" onClick={openCreate} disabled={!schedules.length || busy || deleting}>＋ Tambah bahan ajar</button></div> : !filteredMaterials.length ? <div className="gm-state"><h3>Materi tidak ditemukan</h3><p>Coba kata kunci atau filter lainnya.</p><button className="gm-btn gm-secondary" type="button" onClick={resetFilters}>Reset filter</button></div> : <div className="gm-list">{materialPage.rows.map((material,index) => {
       const d = scheduleDetails(material.jadwal_pelajaran || {})
       const isOpen = expanded[material.id] ?? (index === 0)
       const attachments = materialAttachments(material)
       return <article className="gm-card" key={material.id}><div className="gm-card-top"><span className="gm-book"><BookIcon/></span><div className="gm-card-content"><h3>{material.judul || 'Bahan ajar tanpa judul'}</h3><p className="gm-meta">{d.mapel} · Diunggah {formatUploadDate(material.created_at)}</p><div className="gm-tags"><span>{classLabel(d)}</span>{(d.hari || d.waktu) && <span>{[d.hari,d.waktu].filter(Boolean).join(' · ')}</span>}</div>{material.deskripsi && <p className="gm-description">{material.deskripsi}</p>}</div><div className="gm-row-actions gm-card-actions"><button className="gm-btn gm-secondary" type="button" onClick={() => openEdit(material)}>Edit</button><button className="gm-btn gm-danger" type="button" onClick={() => confirmRemove(material)}>Hapus</button></div></div>
       <div className="gm-attachment-box"><button type="button" className="gm-attachment-toggle" aria-expanded={isOpen} aria-controls={`gm-files-${material.id}`} onClick={() => setExpanded(old => ({...old,[material.id]:!isOpen}))}><span>▤ &nbsp; Lampiran ({attachments.length})</span><span>{isOpen ? 'Sembunyikan ↑' : 'Tampilkan ↓'}</span></button><div id={`gm-files-${material.id}`} hidden={!isOpen}>{fileRows(material)}</div></div></article>
     })}</div>}
+    {!loading&&<TeacherListPager data={materialPage} label="materi"/>}
     {modalOpen && <WorkspaceModal className="gm-v2" eyebrow="PERPUSTAKAAN PEMBELAJARAN" title={editing !== null ? 'Edit bahan ajar' : 'Tambah bahan ajar'} description="Lengkapi informasi materi dan kelola lampiran pembelajaran." onClose={closeModal} busy={busy} footer={<><button type="button" className="gm-btn gm-secondary" onClick={closeModal} disabled={busy}>Batal</button><button type="submit" form="gm-material-form" className="gm-btn gm-primary" disabled={busy}>{saving ? 'Menyimpan…' : editing !== null ? 'Simpan perubahan' : 'Tambah bahan ajar'}</button></>}>
       <form id="gm-material-form" noValidate onSubmit={handleSubmit} className="gm-editor">
         {error && <div className="gm-alert gm-error" role="alert">{error}</div>}{notice && <div className="gm-alert gm-success" role="status">{notice}</div>}

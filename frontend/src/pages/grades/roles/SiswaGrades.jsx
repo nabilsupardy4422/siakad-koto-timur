@@ -3,25 +3,10 @@ import { academicYearApi } from '../../../services/academicYearApi'
 import { studentGradeWorkspaceApi } from '../../../services/studentGradeWorkspaceApi'
 import { formatGrade, formatWeight, uniqueTeacherNames, validateWorkspace } from './studentGradeView'
 import '../styles/SiswaGrades.css'
-
-function unwrap(response) {
-  const p = response?.data ?? response
-  return Array.isArray(p) ? { rows: p, meta: response?.meta ?? {} } :
-    Array.isArray(p?.data) ? { rows: p.data, meta: p.meta ?? response?.meta ?? {} } : { rows: [], meta: {} }
-}
-
-async function fetchYears() {
-  const years = []
-  let page = 1
-  while (true) {
-    const { rows, meta } = unwrap(await academicYearApi.getAll({ page, per_page: 100 }))
-    years.push(...rows)
-    const last = Number(meta.last_page ?? 1)
-    if (!Number.isInteger(last) || last < page || last > 1000) throw new Error('Pagination periode tidak valid.')
-    if (page >= last) return years
-    page += 1
-  }
-}
+import {periodCatalog,strictGradeWorkspace} from '../../../utils/studentWorkspace.js'
+import TeacherListPager,{useTeacherPage} from '../../../components/ui/TeacherListPager.jsx'
+import '../../../components/ui/student-workspace.css'
+import HorizontalScrollControls from '../../../components/ui/HorizontalScrollControls.jsx'
 
 export default function SiswaGrades() {
   const [years, setYears] = useState([])
@@ -32,17 +17,20 @@ export default function SiswaGrades() {
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const seq = useRef(0)
+  const gradesScrollRef = useRef(null)
   const initialYear = years.find((year) => String(year.id) === yearId)
   const selected = workspace?.subjects.find((subject) => subject.key === subjectKey) ?? null
+  const [search,setSearch]=useState('')
+  const rows=(selected?.components??[]).filter(c=>`${c.name} ${c.teacher} ${c.note??''}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const paging=useTeacherPage(rows,`${yearId}:${subjectKey}:${search}`)
+  useEffect(()=>setSearch(''),[subjectKey])
 
   useEffect(() => {
     let current = true
-    fetchYears().then((list) => {
+    academicYearApi.getAll().then((response) => {
       if (!current) return
-      setYears(list)
-      const active = list.find((year) => year.is_active === true) ?? list[0]
-      if (active) setYearId(String(active.id))
-      else { setLoading(false); setError('Belum ada tahun akademik.') }
+      const {years:list,activeId}=periodCatalog(response)
+      setYears(list);setYearId(activeId);if(!activeId)setLoading(false)
     }).catch((err) => { if (current) { setError(err.message || 'Gagal memuat periode.'); setLoading(false) } })
     return () => { current = false }
   }, [])
@@ -54,8 +42,9 @@ export default function SiswaGrades() {
     setError('')
     try {
       const response = await studentGradeWorkspaceApi.get(yearId)
-      const data = validateWorkspace(response)
+      const data = strictGradeWorkspace(validateWorkspace(response))
       if (requestId !== seq.current) return
+      if(String(data.year.id)!==yearId)throw new Error('Periode respons berbeda.')
       setWorkspace(data)
       setSubjectKey((key) => key && data.subjects.some((s) => s.key === key) ? key : null)
     } catch (err) {
@@ -73,6 +62,7 @@ export default function SiswaGrades() {
     setWorkspace(null)
     setSubjectKey(null)
     if (yearId) refresh()
+    else {setLoading(false);setUpdating(false)}
     return () => { seq.current += 1 }
   }, [yearId, refresh])
 
@@ -89,7 +79,7 @@ export default function SiswaGrades() {
       <section className="sg-period" aria-label="Periode akademik">
         <label><span>PERIODE AKADEMIK</span>
           <select value={yearId} onChange={(e) => setYearId(e.target.value)} disabled={years.length === 0}>
-            {years.map((year) => <option key={year.id} value={year.id}>{year.tahun_mulai}/{year.tahun_selesai} · {year.semester === 'GANJIL' ? 'Ganjil' : 'Genap'}{year.is_active ? ' (Aktif)' : ''}</option>)}
+            <option value="">Pilih periode akademik</option>{years.map((year) => <option key={year.id} value={year.id}>{year.tahun_mulai}/{year.tahun_selesai} · {year.semester === 'GANJIL' ? 'Ganjil' : 'Genap'}{year.is_active ? ' (Aktif)' : ''}</option>)}
           </select>
         </label>
         <div><span>KELAS TERKAIT</span><strong>{workspace?.classes.map((c) => c.name).join(', ') || '—'}</strong></div>
@@ -115,8 +105,14 @@ export default function SiswaGrades() {
         </section> : <section className="sg-detail">
           <button className="sg-button sg-back" type="button" onClick={() => setSubjectKey(null)}>← Semua mata pelajaran</button>
           <div className="sg-section-heading"><div><span className="sg-eyebrow">RINCIAN NILAI</span><h2>{selected.subject}</h2><p>{selected.class_name} · {uniqueTeacherNames(selected.teachers)}</p></div><small>{selected.components.length} komponen</small></div>
-          <div className="sg-table-scroll"><table><thead><tr><th>Komponen</th><th>Guru pengampu</th><th>Bobot</th><th>Nilai</th><th>Catatan guru</th><th>Status</th></tr></thead>
-            <tbody>{selected.components.map((component) => <tr key={component.id}><td><strong>{component.name}</strong><small>{component.day} · {component.start}–{component.end}</small></td><td>{component.teacher}</td><td>{formatWeight(component.weight)}</td><td><strong>{formatGrade(component.score)}</strong></td><td>{component.note || '—'}</td><td><span className={component.assessed ? 'sg-chip sg-chip-success' : 'sg-chip'}>{component.assessed ? 'Sudah dinilai' : 'Belum dinilai'}</span></td></tr>)}</tbody></table></div>
+          <label className="student-search">Cari komponen atau guru<input type="search" value={search} onChange={e=>setSearch(e.target.value)}/></label>
+          <TeacherListPager data={paging} label="komponen"/>
+          <div className="student-mobile-cards">{paging.rows.map(c=><article key={c.id}><strong>{c.name}</strong><p>{c.teacher} · {c.day} {c.start}–{c.end}</p><dl><dt>Bobot</dt><dd>{formatWeight(c.weight)}</dd><dt>Nilai</dt><dd>{formatGrade(c.score)}</dd><dt>Status</dt><dd>{c.assessed?'Sudah dinilai':'Belum dinilai'}</dd><dt>Catatan guru</dt><dd>{c.note||'—'}</dd></dl></article>)}</div>
+          <div className="sg-table-shell student-desktop-table">
+            <HorizontalScrollControls scrollRef={gradesScrollRef} label="Geser tabel rincian nilai hingga kolom Status" stepSelector="th" />
+            <div className="sg-table-scroll" ref={gradesScrollRef} role="region" tabIndex={0} aria-label="Tabel rincian nilai, dapat digeser horizontal"><table><thead><tr><th>Komponen</th><th>Guru pengampu</th><th>Bobot</th><th>Nilai</th><th>Catatan guru</th><th>Status</th></tr></thead>
+            <tbody>{paging.rows.map((component) => <tr key={component.id}><td><strong>{component.name}</strong><small>{component.day} · {component.start}–{component.end}</small></td><td>{component.teacher}</td><td>{formatWeight(component.weight)}</td><td><strong>{formatGrade(component.score)}</strong></td><td>{component.note || '—'}</td><td><span className={component.assessed ? 'sg-chip sg-chip-success' : 'sg-chip'}>{component.assessed ? 'Sudah dinilai' : 'Belum dinilai'}</span></td></tr>)}</tbody></table></div>
+          </div>
         </section>}
         <p className="sg-note">Nilai 0 adalah nilai sah. Tanda — berarti belum ada nilai. Bobot hanya informasi; halaman ini tidak menghitung nilai akhir atau rapor otomatis.</p>
       </>}

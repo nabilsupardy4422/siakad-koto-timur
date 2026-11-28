@@ -24,7 +24,7 @@ class StoreClassMemberRequest extends FormRequest
 
             'tanggal_mulai' => [
                 'required',
-                'date',
+                'date_format:Y-m-d',
             ],
         ];
     }
@@ -33,6 +33,7 @@ class StoreClassMemberRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty()) return;
                 $class = $this->route('class');
 
                 if (! $class instanceof Kelas) {

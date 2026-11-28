@@ -1,0 +1,64 @@
+.tu-academic-monitoring .sch-picker { display:flex; flex-direction:column; gap:.45rem; min-width:0; }
+.tu-academic-monitoring .sch-picker label { font-size:.8rem; font-weight:650; color:#28445d; }
+.tu-academic-monitoring .sch-picker button,.tu-academic-monitoring .sch-picker input { box-sizing:border-box; font:inherit; min-height:44px; max-width:100%; border:1px solid #c9d7e5; background:#fff; color:#173651; border-radius:8px; touch-action:manipulation; }
+.tu-academic-monitoring .sch-picker button { cursor:pointer; padding:.6rem .75rem; text-align:left; }
+.tu-academic-monitoring .sch-picker button:disabled { opacity:.55; cursor:not-allowed; }
+.tu-academic-monitoring .sch-picker button:focus-visible,.tu-academic-monitoring .sch-picker input:focus-visible,.tu-academic-monitoring .sch-tabs button:focus-visible { outline:2px solid #2870a8; outline-offset:2px; }
+.tu-academic-monitoring .sch-picker__trigger,.tu-academic-monitoring .sch-picker__option { display:flex; align-items:center; justify-content:space-between; gap:.5rem; width:100%; overflow-wrap:anywhere; }
+.tu-academic-monitoring .sch-picker__trigger[aria-expanded=true] { border-color:#356b97; background:#f2f7fb; }
+.tu-academic-monitoring .sch-picker__panel { display:flex; flex-direction:column; gap:.45rem; border:1px solid #d2dfea; background:#f4f8fb; border-radius:10px; padding:.65rem; min-width:0; }
+.tu-academic-monitoring .sch-picker input { width:100%; padding:.55rem .65rem; }
+.tu-academic-monitoring .sch-picker small { display:block; font-size:.73rem; color:#536d83; line-height:1.4; }
+.tu-academic-monitoring .sch-picker__option[aria-pressed=true] { background:#e2eef9; border-color:#81a8cb; }
+.tu-academic-monitoring .sch-picker__pages { display:flex; gap:.4rem; }
+.tu-academic-monitoring .sch-picker__pages button { flex:1; min-width:0; text-align:center; padding:.4rem; font-size:.78rem; }
+.tu-academic-monitoring .sch-picker__close { text-align:center!important; font-size:.8rem!important; }
+.tu-academic-monitoring .sch-picker__error { color:#a32828!important; }
+.tu-academic-monitoring .sch-picker__trigger {font-size:.85rem;}
+.tu-academic-monitoring .sch-picker__dialog {position:fixed; inset:0; margin:auto; padding:0; width:min(440px,calc(100% - 32px)); max-width:none; max-height:calc(100dvh - 32px); border:1px solid #cbd9e6; border-radius:14px; color:#173651; background:#fff; box-shadow:0 18px 60px #16324f33; overflow:auto; overscroll-behavior:contain;}
+.tu-academic-monitoring .sch-picker__dialog:not([open]) {display:none;}
+.tu-academic-monitoring .sch-picker__dialog::backdrop {background:#152c4659;}
+.tu-academic-monitoring .sch-picker__dialog .sch-picker__panel {border:0; border-radius:0; background:#fff; padding:1rem; gap:.65rem;}
+.tu-academic-monitoring .sch-picker__heading {display:flex; align-items:center; justify-content:space-between; gap:1rem;}
+.tu-academic-monitoring .sch-picker__heading h3 {margin:.15rem 0; font-size:1.12rem; color:#173651;}
+.tu-academic-monitoring .sch-picker__heading .sch-picker__x {width:44px; flex:none; text-align:center; font-size:1.45rem; padding:0;}
+.tu-academic-monitoring .sch-picker__choices {display:grid; gap:.45rem;}
+.tu-academic-monitoring .sch-picker__dialog input {font-size:16px;}
+.tu-academic-monitoring .sch-picker__dialog .sch-picker__close {background:#eaf2f9; color:#194568; font-weight:650;}
+@media(max-width:640px){
+  .tu-academic-monitoring .sch-picker__dialog {inset:auto 0 0; margin:0 auto; width:100%; max-height:calc(100dvh - 12px); border-radius:16px 16px 0 0; padding-bottom:env(safe-area-inset-bottom);}
+  .tu-academic-monitoring .sch-picker__dialog .sch-picker__panel {padding:1rem;}
+}
+.tu-academic-monitoring {--tam-ink:#183650;--tam-muted:#53697e;display:grid;gap:16px;min-width:0;color:var(--tam-ink);font-size:14px;line-height:1.5}
+.tu-academic-monitoring .tam-panel,.tu-academic-monitoring .tam-stat {background:#fff;border:1px solid #dbe4ed;border-radius:12px;min-width:0;box-shadow:0 2px 8px #18365008}
+.tu-academic-monitoring .tam-panel{padding:18px;display:grid;gap:14px}
+.tu-academic-monitoring .tam-period{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px;align-items:end}
+.tu-academic-monitoring .tam-period>div:last-child{display:grid;gap:4px;padding:4px 0}.tu-academic-monitoring .tam-period small{font-size:10px;color:var(--tam-muted);letter-spacing:.07em}
+.tu-academic-monitoring .tam-tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #dbe4ed;padding-bottom:10px}
+.tu-academic-monitoring button,.tu-academic-monitoring .tam-actions a{min-height:44px;border:1px solid #d0dce8;background:white;color:#234e72;border-radius:8px;padding:8px 12px;font:inherit;font-weight:600;cursor:pointer;touch-action:manipulation;text-decoration:none}
+.tu-academic-monitoring button:disabled{opacity:.48;cursor:not-allowed}.tu-academic-monitoring button:focus-visible,.tu-academic-monitoring input:focus-visible,.tu-academic-monitoring a:focus-visible{outline:2px solid #2870a8;outline-offset:2px}
+.tu-academic-monitoring .tam-tabs button{border-color:transparent;background:#f3f6f9}.tu-academic-monitoring .tam-tabs button[aria-pressed=true]{background:#193d60;color:#fff}
+.tu-academic-monitoring .tam-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.tu-academic-monitoring .tam-field{display:grid;gap:.45rem;font-size:.8rem;font-weight:650;min-width:0;color:#28445d}
+.tu-academic-monitoring .tam-field input,.tu-academic-monitoring select{min-height:44px;width:100%;min-width:0;border:1px solid #c9d7e5;border-radius:8px;background:#fff;color:#173651;padding:8px;font:inherit;box-sizing:border-box}
+.tu-academic-monitoring .tam-search{display:flex;gap:8px;align-items:end;min-width:0}.tu-academic-monitoring .tam-search label{flex:1}
+.tu-academic-monitoring .tam-actions,.tu-academic-monitoring .tam-pages{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tu-academic-monitoring .tam-actions a{background:#193d60;color:white;display:inline-flex;align-items:center}
+.tu-academic-monitoring .tam-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:10px}.tu-academic-monitoring .tam-stat{padding:14px;display:grid;gap:5px;align-content:start}.tu-academic-monitoring .tam-stat-icon{width:36px;height:36px;background:#edf4f9;color:#315b80;display:grid;place-items:center;border-radius:9px}.tu-academic-monitoring .tam-stat>span:nth-child(2){color:var(--tam-muted);font-size:12px}.tu-academic-monitoring .tam-stat strong{font-size:25px;line-height:1.15;font-variant-numeric:tabular-nums}
+.tu-academic-monitoring .tam-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}.tu-academic-monitoring h2{font-size:17px;margin:0}.tu-academic-monitoring p{margin:0}.tu-academic-monitoring .tam-muted,.tu-academic-monitoring .tam-heading small{font-size:12px;color:var(--tam-muted)}
+.tu-academic-monitoring .tam-table-scroll{max-width:100%;overflow:auto;overscroll-behavior-x:contain}.tu-academic-monitoring table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}.tu-academic-monitoring th{background:#edf3f8;font-size:11px;letter-spacing:.02em;color:#39576e}.tu-academic-monitoring td,.tu-academic-monitoring th{padding:11px 12px;border-bottom:1px solid #e2eaf0;vertical-align:top;overflow-wrap:anywhere}.tu-academic-monitoring td{min-width:64px;max-width:250px}.tu-academic-monitoring .tam-status{display:inline-block;background:#edf3f8;color:#28445d;border-radius:5px;padding:3px 7px;white-space:normal}.tu-academic-monitoring .tam-pages{justify-content:flex-end}.tu-academic-monitoring .tam-warning,.tu-academic-monitoring .tam-error{padding:12px 14px;border-radius:8px;background:#fff4e2;color:#79551a;border:1px solid #efdbb1;overflow-wrap:anywhere}.tu-academic-monitoring .tam-error{background:#fff0f0;color:#942f35;border-color:#f1c9cc}.tu-academic-monitoring .tam-empty{text-align:center;color:var(--tam-muted);padding:24px}.tu-academic-monitoring .tam-export summary{cursor:pointer;font-weight:650;padding:8px 0}.tu-academic-monitoring .tam-export p{margin:8px 0}.tu-academic-monitoring .tam-export label{display:flex;align-items:center;gap:8px}.tu-academic-monitoring .tam-export select{width:auto}
+@media(max-width:850px){.tu-academic-monitoring .tam-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.tu-academic-monitoring .tam-panel{padding:13px}.tu-academic-monitoring .tam-period,.tu-academic-monitoring .tam-filters{grid-template-columns:minmax(0,1fr)}.tu-academic-monitoring .tam-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.tu-academic-monitoring .tam-field input{font-size:16px}.tu-academic-monitoring .tam-tabs button{flex:1 1 auto}.tu-academic-monitoring .tam-table-scroll{overflow:visible}.tu-academic-monitoring table,.tu-academic-monitoring tbody,.tu-academic-monitoring tr,.tu-academic-monitoring td{display:block;width:100%;box-sizing:border-box;min-width:0;max-width:none}.tu-academic-monitoring thead{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}.tu-academic-monitoring tr{border:1px solid #dbe4ed;border-radius:10px;margin-bottom:10px;padding:6px}.tu-academic-monitoring td{display:grid;grid-template-columns:minmax(0,42%) minmax(0,1fr);gap:8px;padding:7px 8px}.tu-academic-monitoring td::before{content:attr(data-label);font-size:11px;font-weight:600;color:#53697e}.tu-academic-monitoring td:last-child{border:0}.tu-academic-monitoring .tam-pages{justify-content:space-between}.tu-academic-monitoring .tam-pages button{padding:8px;font-size:12px}}
+
+.tu-academic-monitoring {font-family:var(--font-body,Inter,system-ui,sans-serif)}
+.tu-academic-monitoring .ui-page-header{margin-bottom:0}
+.tu-academic-monitoring.tam-attendance .tam-summary{grid-template-columns:repeat(6,minmax(0,1fr))}
+.tu-academic-monitoring.tam-grade .tam-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
+.tu-academic-monitoring .tam-summary[data-view=detail]{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+@media(max-width:950px){.tu-academic-monitoring.tam-attendance .tam-summary,.tu-academic-monitoring.tam-grade .tam-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.tu-academic-monitoring.tam-attendance .tam-summary,.tu-academic-monitoring.tam-grade .tam-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.tu-academic-monitoring .tam-status[data-state="Lengkap"],.tu-academic-monitoring .tam-status[data-state="Tercatat"],.tu-academic-monitoring .tam-status[data-state="HADIR"],.tu-academic-monitoring .tam-status[data-state="Valid"]{background:#e7f4ec;color:#226247}
+.tu-academic-monitoring .tam-status[data-state="Anomali"],.tu-academic-monitoring .tam-status[data-state="ALPA"]{background:#fff0f0;color:#942f35}
+.tu-academic-monitoring .tam-status[data-state="Sebagian"],.tu-academic-monitoring .tam-status[data-state="Belum dinilai"],.tu-academic-monitoring .tam-status[data-state="Belum lengkap"],.tu-academic-monitoring .tam-status[data-state="Belum tercatat"]{background:#fff4e2;color:#79551a}
+
+@media(max-width:600px){.tu-academic-monitoring .ks-grade-scroll{display:none}}

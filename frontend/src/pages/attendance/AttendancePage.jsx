@@ -1,6 +1,7 @@
 import { useAuth } from '../../context/useAuth'
 import GuruAttendancePage from './roles/GuruAttendancePage'
 import TUAttendancePage from './roles/TUAttendancePage'
+import KepalaSekolahAttendancePage from './roles/KepalaSekolahAttendancePage'
 import SiswaAttendancePage from './roles/SiswaAttendancePage'
 
 function roleCode(role) {
@@ -12,8 +13,12 @@ export default function AttendancePage() {
   const auth = useAuth()
   const currentRole = roleCode(auth?.role)
 
-  if (currentRole === 'TU' || currentRole === 'KEPALA_SEKOLAH') {
+  if (currentRole === 'TU') {
     return <TUAttendancePage />
+  }
+
+  if (currentRole === 'KEPALA_SEKOLAH') {
+    return <KepalaSekolahAttendancePage />
   }
 
   if (currentRole === 'GURU') {

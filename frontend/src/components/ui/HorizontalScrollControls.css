@@ -1,0 +1,30 @@
+/* One mobile interaction for Siswa's weekly grid, history and grade tables. */
+.siakad-hscroll-controls { display:none; }
+@media(max-width:900px) {
+  .siakad-hscroll-controls {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    min-width:0; max-width:100%; margin:0 0 9px; padding:9px 10px;
+    border:1px solid #c8dce9; border-radius:9px;
+    background:#f0f7fb; color:#28536e;
+    font-size:11px; font-weight:600; line-height:1.4;
+  }
+  .siakad-hscroll-hint { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  .siakad-hscroll-actions { display:flex; flex:none; align-items:center; gap:6px; }
+  .siakad-hscroll-actions button {
+    display:grid; place-items:center; min-width:40px; min-height:40px;
+    padding:0; border-radius:8px; border:1px solid #b8d3e6;
+    background:#fff; color:#235b7b; font:inherit; font-size:25px;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .siakad-hscroll-actions button:disabled { opacity:.38; cursor:not-allowed; }
+  .siakad-hscroll-actions button:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
+}
+
+/* Preserve every column while keeping the hint and action controls readable. */
+@media(max-width:900px){
+  .siakad-hscroll-controls { flex-wrap:wrap; }
+  .siakad-hscroll-hint { flex:1 1 120px; font-size:12px; }
+  .siakad-hscroll-actions { max-width:100%; flex-wrap:wrap; }
+  .siakad-hscroll-actions button { min-width:var(--ui-touch); min-height:var(--ui-touch); }
+  .siakad-hscroll-actions .siakad-hscroll-end { font-size:12px; padding:0 10px; }
+}

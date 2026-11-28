@@ -27,3 +27,5 @@
   .app-breadcrumb { font-size: 14px; gap: 7px; }
   .app-breadcrumb span[aria-current="page"] { max-width: 36vw; }
 }
+
+.app-breadcrumb { font-family:var(--ui-font); }

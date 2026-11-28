@@ -603,7 +603,7 @@ class AssignmentController extends Controller
                     ->whereHas('kelas.anggotaKelas', fn (Builder $members) => $members
                         ->where('siswa_id', $studentId)
                         ->whereDate('tanggal_mulai', '<=', now('Asia/Jakarta')->toDateString())
-                        ->whereNull('tanggal_selesai'));
+                        ->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',now('Asia/Jakarta')->toDateString())));
             });
             return;
         }

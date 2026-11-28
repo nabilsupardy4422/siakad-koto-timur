@@ -266,4 +266,30 @@ class AttendanceTeachingScopeTest extends TestCase
             $this->getJson($url)->assertForbidden();
         }
     }
+    public function test_future_attendance_is_rejected_in_all_write_paths_and_wib_boundary(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00','UTC'));
+        $c=$this->createTeachingContext(); Sanctum::actingAs($c['user']);
+        $payload=['jadwal_pelajaran_id'=>$c['schedule']->id,'siswa_id'=>$c['student']->id,'tanggal'=>'2026-11-28','status'=>'HADIR'];
+        $this->postJson('/api/attendance',$payload)->assertUnprocessable();
+        $this->postJson('/api/attendance/bulk',['jadwal_pelajaran_id'=>$c['schedule']->id,'tanggal'=>'2026-11-28','presensi'=>[['siswa_id'=>$c['student']->id,'status'=>'HADIR']]])->assertUnprocessable();
+        $this->getJson('/api/attendance/roster?schedule_id='.$c['schedule']->id.'&date=2026-11-28')->assertUnprocessable();
+        $this->assertDatabaseCount('presensi',0);
+        $payload['tanggal']='2026-11-27'; $this->postJson('/api/attendance',$payload)->assertCreated();
+        $existing=Presensi::firstOrFail();$this->putJson('/api/attendance/'.$existing->id,['tanggal'=>'2026-11-28'])->assertUnprocessable();
+        $payload['tanggal']='2026-11-28';$legacy=Presensi::create($payload);
+        $this->putJson('/api/attendance/'.$legacy->id,['status'=>'ALPA'])->assertUnprocessable();
+        $this->assertSame('HADIR',$legacy->fresh()->status);
+        $this->getJson('/api/attendance/roster?schedule_id='.$c['schedule']->id.'&date=2026-11-27')->assertOk();
+        $this->assertDatabaseCount('presensi',2);
+    }
+    public function test_teacher_dashboard_never_falls_back_to_history(): void
+    {
+        $c=$this->createTeachingContext(); Sanctum::actingAs($c['user']);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.context_status','active')->assertJsonPath('data.summary.teaching_schedule_count',1);
+        $c['academicYear']->update(['is_active'=>false]);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.context_status','none')->assertJsonPath('data.summary.teaching_schedule_count',null)->assertJsonCount(0,'data.today_schedule');
+        $c['academicYear']->update(['is_active'=>true]);$this->createAcademicYear(['semester'=>'GENAP']);
+        $this->getJson('/api/dashboard')->assertOk()->assertJsonPath('data.context_status','conflict')->assertJsonPath('data.summary.teaching_schedule_count',null)->assertJsonCount(0,'data.recent.materials');
+    }
 }

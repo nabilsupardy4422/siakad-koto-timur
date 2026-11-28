@@ -1,0 +1,8 @@
+import {test} from 'node:test'
+import assert from 'node:assert/strict'
+import {readFileSync} from 'node:fs'
+const read=p=>readFileSync(new URL('../src/'+p,import.meta.url),'utf8')
+test('TU picker uses native top layer, explicit selection, and no blur dismissal',()=>{const p=read('pages/schedules/components/SchedulePicker.jsx');assert.match(p,/node\.showModal\(\)/);assert.match(p,/<dialog/);assert.match(p,/onClick=\{\(\)=>choose\(o.value\)\}/);assert.match(p,/stopPropagation\(\)/);assert.doesNotMatch(p,/onBlur=|onMouseLeave=|autoFocus=/)})
+test('dialog outside document flow and mobile bottom sheet remain scoped to TU',()=>{const c=read('pages/schedules/styles/admin-schedule.css');assert.match(c,/\.admin-schedule \.sch-picker__dialog \{position:fixed/);assert.match(c,/\.sch-picker__dialog \{inset:auto 0 0/);assert.match(c,/\.sch-picker__dialog:not\(\[open\]\)/)})
+test('semester copy uses explicit complete mappings and a distinct preview commit',()=>{const p=read('pages/schedules/components/ScheduleContinuationDialog.jsx');assert.match(p,/origins\.every/);assert.match(p,/new Set\(Object.values\(mapping\)\)/);assert.match(p,/mode:commit\?'commit':'preview'/);assert.match(p,/token:preview.token/);assert.match(p,/setPreview\(null\)/);assert.match(p,/pending.current/)})
+test('copy action uses whole period snapshot, and Excel modal preserves prior operations',()=>{const p=read('pages/schedules/roles/AdminSchedule.jsx');assert.match(p,/rows=\{rows\}/);assert.match(p,/semester!==\'GANJIL\'/);assert.match(p,/Modal open=\{excelOpen\}/);assert.match(p,/handleImportExcel\(event,true\)/);assert.match(p,/scheduleApi\.exportExcel/)})

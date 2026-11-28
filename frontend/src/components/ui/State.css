@@ -174,3 +174,6 @@
       font-size: 12px;
     }
   }
+
+.ui-state__content { overflow-wrap:anywhere; }
+@media(max-width:767px){ .ui-state__button { min-height:var(--ui-touch); max-width:100%; text-align:center; } }

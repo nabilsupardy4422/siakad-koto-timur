@@ -13,8 +13,9 @@ use App\Support\HomeroomReadAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
+use App\Services\HomeroomAssignmentService;
+use App\Models\Kelas;
+use App\Models\TahunAkademik;
 
 class WaliKelasController extends Controller
 {
@@ -107,13 +108,7 @@ class WaliKelasController extends Controller
     ): JsonResponse {
         $validated = $request->validated();
 
-        $assignment = DB::transaction(
-            function () use ($validated): WaliKelas {
-                return WaliKelas::query()->create(
-                    $validated
-                );
-            }
-        );
+        $assignment = app(HomeroomAssignmentService::class)->create($validated);
 
         $assignment->load([
             'guru',
@@ -180,16 +175,7 @@ class WaliKelasController extends Controller
     ): JsonResponse {
         $validated = $request->validated();
 
-        DB::transaction(
-            function () use (
-                $assignment,
-                $validated
-            ): void {
-                $assignment->update(
-                    $validated
-                );
-            }
-        );
+        $assignment = app(HomeroomAssignmentService::class)->update($assignment, $validated);
 
         $assignment->refresh()->load([
             'guru',
@@ -211,40 +197,54 @@ class WaliKelasController extends Controller
      * Route dibatasi untuk TU.
      * Assignment tidak dihapus agar riwayat tetap tersedia.
      */
-    public function destroy(
-        WaliKelas $assignment
-    ): JsonResponse {
-        if ($assignment->tanggal_selesai !== null) {
-            return ApiResponse::message(
-                'Assignment Wali Kelas sudah berakhir.'
-            );
-        }
+    public function destroy(Request $request, WaliKelas $assignment): JsonResponse
+    {
+        $data = $request->validate(['version' => ['sometimes', 'required', 'string', 'size:64'], 'as_of'=>['sometimes','required','date_format:Y-m-d']]);
+        app(HomeroomAssignmentService::class)->end($assignment, $data['version'] ?? null, $data['as_of'] ?? null);
+        return ApiResponse::message('Penugasan Wali Kelas berhasil diakhiri.');
+    }
 
-        $today = Carbon::today();
+    public function replace(Request $request, WaliKelas $assignment): JsonResponse
+    {
+        $data = $request->validate(['guru_id'=>['required','integer','exists:guru,id'], 'version'=>['required','string','size:64'], 'as_of'=>['sometimes','required','date_format:Y-m-d']]);
+        $new = app(HomeroomAssignmentService::class)->replace($assignment, (int) $data['guru_id'], $data['version'], $data['as_of'] ?? null);
+        return ApiResponse::message('Pergantian Wali Kelas berhasil.', new WaliKelasResource($new->load(['guru','kelas','tahunAkademik'])), 201);
+    }
 
-        if (
-            $assignment->tanggal_mulai !== null &&
-            $assignment->tanggal_mulai->greaterThan($today)
-        ) {
-            return response()->json([
-                'message' => 'Assignment belum dimulai sehingga tidak dapat diakhiri.',
-            ], 422);
-        }
+    public function cancel(Request $request, WaliKelas $assignment): JsonResponse
+    {
+        $data = $request->validate(['version'=>['required','string','size:64'], 'as_of'=>['required','date_format:Y-m-d'], 'reason'=>['required','string','max:500']]);
+        app(HomeroomAssignmentService::class)->cancel($assignment, $data['version'], $data['as_of'], (int)$request->user()->id, $data['reason']);
+        return ApiResponse::message('Penugasan dibatalkan. Riwayat tetap tersimpan.');
+    }
 
-        DB::transaction(
-            function () use (
-                $assignment,
-                $today
-            ): void {
-                $assignment->update([
-                    'tanggal_selesai' => $today,
-                ]);
-            }
-        );
+    public function continuation(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'source_id'=>['required','integer','exists:tahun_akademik,id'],
+            'target_id'=>['required','integer','exists:tahun_akademik,id'],
+            'tanggal_mulai'=>['required','date_format:Y-m-d'],
+            'rows'=>['required','array','min:1','max:100'],
+            'rows.*.assignment_id'=>['required','integer','distinct','exists:wali_kelas,id'],
+            'rows.*.class_id'=>['required','integer','distinct','exists:kelas,id'],
+            'token'=>['sometimes','required','string','max:256'],
+        ]);
+        $service = app(\App\Services\HomeroomContinuationService::class);
+        return ApiResponse::success($service->run($data, (int)$request->user()->id))->header('Cache-Control','private, no-store');
+    }
 
-        return ApiResponse::message(
-            'Assignment Wali Kelas berhasil diakhiri.'
-        );
+    public function workspace(Request $request): JsonResponse
+    {
+        $data = $request->validate(['academic_year_id'=>['required','integer','exists:tahun_akademik,id']]);
+        return ApiResponse::success(app(HomeroomAssignmentService::class)->workspace(TahunAkademik::findOrFail($data['academic_year_id'])))
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    public function candidates(Request $request): JsonResponse
+    {
+        $data = $request->validate(['class_id'=>['required','integer','exists:kelas,id'], 'tanggal_mulai'=>['required','date_format:Y-m-d'], 'replace_id'=>['sometimes','required','integer','exists:wali_kelas,id']]);
+        return ApiResponse::success(app(HomeroomAssignmentService::class)->candidates(Kelas::findOrFail($data['class_id']), $data['tanggal_mulai'], isset($data['replace_id']) ? (int) $data['replace_id'] : null))
+            ->header('Cache-Control', 'private, no-store');
     }
 
     /**

@@ -48,7 +48,8 @@ class TeacherExcelController extends Controller
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
-        // NIP dan nomor telepon diperlakukan sebagai teks.
+        // Username, NIP dan nomor telepon diperlakukan sebagai teks.
+        $sheet->getStyle('A:A')->getNumberFormat()->setFormatCode('@');
         $sheet->getStyle('B:B')->getNumberFormat()->setFormatCode('@');
         $sheet->getStyle('E:E')->getNumberFormat()->setFormatCode('@');
 
@@ -68,6 +69,8 @@ class TeacherExcelController extends Controller
     public function preview(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'registration_mode' => ['sometimes', 'in:new_account,existing_account'],
+            'preview_token' => ['sometimes', 'required', 'string', 'size:64'],
             'file' => [
                 'required',
                 'file',
@@ -76,7 +79,8 @@ class TeacherExcelController extends Controller
             ],
         ]);
 
-        $result = $this->readAndValidate($validated['file']->getRealPath());
+        $mode = $validated['registration_mode'] ?? 'existing_account';
+        $result = $this->readAndValidate($validated['file']->getRealPath(), $mode);
 
         if (isset($result['error'])) {
             return ApiResponse::message(
@@ -91,6 +95,7 @@ class TeacherExcelController extends Controller
             [
                 'summary' => $result['summary'],
                 'rows' => $result['rows'],
+                'preview_token' => $this->previewToken($result, $mode, (int) $request->user()->id),
             ]
         );
     }
@@ -98,6 +103,8 @@ class TeacherExcelController extends Controller
     public function import(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'registration_mode' => ['sometimes', 'in:new_account,existing_account'],
+            'preview_token' => ['required', 'string', 'size:64'],
             'file' => [
                 'required',
                 'file',
@@ -106,7 +113,8 @@ class TeacherExcelController extends Controller
             ],
         ]);
 
-        $result = $this->readAndValidate($validated['file']->getRealPath());
+        $mode = $validated['registration_mode'] ?? 'existing_account';
+        $result = $this->readAndValidate($validated['file']->getRealPath(), $mode);
 
         if (isset($result['error'])) {
             return ApiResponse::message(
@@ -114,6 +122,10 @@ class TeacherExcelController extends Controller
                 $result['data'] ?? null,
                 422
             );
+        }
+
+        if (isset($validated['preview_token']) && ! hash_equals($this->previewToken($result, $mode, (int) $request->user()->id), $validated['preview_token'])) {
+            return ApiResponse::message('Data berubah sejak preview. Lakukan preview ulang.', null, 409);
         }
 
         if ($result['summary']['valid_rows'] === 0) {
@@ -136,63 +148,34 @@ class TeacherExcelController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($result): void {
-                $usernames = collect($result['rows'])
-                    ->pluck('username')
-                    ->all();
-
-                $users = User::query()
-                    ->with(['role', 'guru'])
-                    ->whereIn('username', $usernames)
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('username');
-
-                $nips = collect($result['rows'])
-                    ->pluck('nip')
-                    ->all();
-
-                $existingNips = Guru::query()
-                    ->whereIn('nip', $nips)
-                    ->lockForUpdate()
-                    ->pluck('nip')
-                    ->all();
-
-                if (count($existingNips) > 0) {
-                    throw new \RuntimeException(
-                        'Terdapat NIP yang sudah digunakan. Silakan preview ulang file.'
-                    );
-                }
-
+            DB::transaction(function () use ($result, $mode): void {
+                $identity = app(\App\Services\AcademicIdentityService::class);
                 foreach ($result['rows'] as $row) {
-                    $user = $users->get($row['username']);
-
-                    if (
-                        !$user ||
-                        !$user->role ||
-                        $user->role->code !== 'GURU' ||
-                        $user->account_status !== 'active' ||
-                        $user->guru
-                    ) {
-                        throw new \RuntimeException(
-                            "Akun {$row['username']} sudah tidak memenuhi ketentuan import. Silakan preview ulang."
-                        );
-                    }
-                }
-
-                foreach ($result['rows'] as $row) {
-                    $user = $users->get($row['username']);
-
-                    Guru::create([
-                        'user_id' => $user->id,
+                    $data = [
+                        'registration_mode' => $mode,
                         'nip' => $row['nip'],
                         'nama_lengkap' => $row['nama_lengkap'],
                         'jenis_kelamin' => $row['jenis_kelamin'] ?: null,
                         'no_telepon' => $row['no_telepon'] ?: null,
                         'alamat' => $row['alamat'] ?: null,
-                    ]);
+                    ];
+                    if ($mode === 'existing_account') {
+                        $user = User::query()->where('username', $row['username'])->lockForUpdate()->first();
+                        if (! $user || $user->id !== $row['existing_user_id'] || $user->name !== $row['existing_name']) {
+                            throw new \RuntimeException('Akun berubah. Silakan preview ulang file.');
+                        }
+                        $data['user_id'] = $user->id;
+                    } else {
+                        $data['username'] = $row['username'];
+                    }
+                    $identity->register('GURU', $data);
                 }
-            });
+            }, 3);
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            return ApiResponse::message('Import dibatalkan. Periksa ulang konflik identitas.', ['errors' => $exception->errors()], 422);
+        } catch (\Illuminate\Database\QueryException $exception) {
+            // Never return SQL, bindings, or imported biodata to the browser.
+            return ApiResponse::message('Import dibatalkan karena konflik penyimpanan. Periksa ulang data sebelum mencoba kembali.', null, 409);
         } catch (\RuntimeException $exception) {
             return ApiResponse::message(
                 $exception->getMessage(),
@@ -217,11 +200,16 @@ class TeacherExcelController extends Controller
         );
     }
 
-    private function readAndValidate(string $path): array
+    private function previewToken(array $result, string $mode, int $actor): string
+    {
+        return hash_hmac('sha256', json_encode([$actor, $mode, $result['rows']], JSON_THROW_ON_ERROR), (string) config('app.key'));
+    }
+
+    private function readAndValidate(string $path, string $mode): array
     {
         try {
             $reader = IOFactory::createReader('Xlsx');
-            $reader->setReadDataOnly(true);
+            $reader->setReadDataOnly(false);
 
             $spreadsheet = $reader->load($path);
         } catch (ReaderException | SpreadsheetException $exception) {
@@ -281,7 +269,10 @@ class TeacherExcelController extends Controller
                         $values['formula_error'] = true;
                     }
 
-                    $values[] = trim((string) $cell->getFormattedValue());
+                    $values[] = $cell->getDataType() === DataType::TYPE_FORMULA ? '[FORMULA]' : trim((string) $cell->getFormattedValue());
+                    if (in_array($column, ['A','B','E'], true) && $cell->getDataType() === DataType::TYPE_NUMERIC && abs((float) $cell->getValue()) >= 1e15) {
+                        $values['precision_error'] = true;
+                    }
                 }
 
                 // Lewati baris kosong.
@@ -300,12 +291,16 @@ class TeacherExcelController extends Controller
 
                 $errors = [];
 
+                if (isset($values['precision_error'])) $errors[] = 'Identifier angka panjang wajib disimpan sebagai teks Excel.';
                 if (isset($values['formula_error'])) {
                     $errors[] = 'Formula Excel tidak diperbolehkan.';
                 }
 
+                if ($mode === 'new_account' && $data['username'] === '') {
+                    $data['username'] = $data['nip'];
+                }
                 $validator = Validator::make($data, [
-                    'username' => ['required', 'string', 'max:255'],
+                    'username' => ['required', 'string', 'max:100'],
                     'nip' => ['required', 'string', 'max:50'],
                     'nama_lengkap' => ['required', 'string', 'max:255'],
                     'jenis_kelamin' => ['nullable', 'in:L,P'],
@@ -368,7 +363,7 @@ class TeacherExcelController extends Controller
                 ->all();
 
             $users = User::query()
-                ->with(['role', 'guru'])
+                ->with(['role', 'guru', 'siswa'])
                 ->whereIn('username', $usernames)
                 ->get()
                 ->keyBy('username');
@@ -393,7 +388,9 @@ class TeacherExcelController extends Controller
                 $errors = $row['errors'];
                 $user = $users->get($row['username']);
 
-                if (!$user && $row['username'] !== '') {
+                if ($mode === 'new_account') {
+                    if ($user) $errors[] = 'Username sudah digunakan. Gunakan mode penghubungan jika identitasnya sesuai.';
+                } elseif (!$user && $row['username'] !== '') {
                     $errors[] = 'Username tidak ditemukan.';
                 } elseif ($user) {
                     if (!$user->role || $user->role->code !== 'GURU') {
@@ -404,17 +401,22 @@ class TeacherExcelController extends Controller
                         $errors[] = 'Akun Guru tidak aktif.';
                     }
 
-                    if ($user->guru) {
+                    if ($user->guru || $user->siswa) {
                         $errors[] = 'Akun sudah memiliki profil Guru.';
                     }
                 }
 
+                if (($nipOccurrences[$row['nip']] ?? 0) > 1) $errors[] = 'NIP duplikat dalam file Excel.';
+                if (($usernameOccurrences[$row['username']] ?? 0) > 1) $errors[] = 'Username duplikat dalam file Excel.';
                 if (isset($existingNips[$row['nip']])) {
                     $errors[] = 'NIP sudah digunakan oleh Guru lain.';
                 }
 
                 $rows[] = [
                     'row' => $row['row'],
+                    'registration_mode' => $mode,
+                    'existing_user_id' => $mode === 'existing_account' ? $user?->id : null,
+                    'existing_name' => $mode === 'existing_account' ? $user?->name : null,
                     'username' => $row['username'],
                     'nip' => $row['nip'],
                     'nama_lengkap' => $row['nama_lengkap'],

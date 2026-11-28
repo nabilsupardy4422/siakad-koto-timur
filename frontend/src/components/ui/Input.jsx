@@ -1,8 +1,9 @@
+import { useId } from 'react'
 import './Field.css'
 import './Input.css'
 
 export default function Input({
-  id,
+  id: explicitId,
   name,
   label,
   type = 'text',
@@ -19,8 +20,10 @@ export default function Input({
   onChange,
   onBlur,
 }) {
+  const generatedId = useId()
+  const id = explicitId || generatedId
   const describedBy = [
-    hint && `${id}-hint`,
+    hint && !error && `${id}-hint`,
     error && `${id}-error`,
   ]
     .filter(Boolean)

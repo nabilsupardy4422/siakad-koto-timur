@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import "./Modal.css";
+import { containDialogTab } from "./dialogFocus.js";
 
 export default function Modal({
   open = false,
@@ -11,6 +12,8 @@ export default function Modal({
   size = "medium",
 }) {
   const dialogRef = useRef(null);
+  const panelRef = useRef(null);
+  const id = useId();
   const onCloseRef = useRef(onClose);
 
   // Simpan callback terbaru tanpa menjalankan ulang efek fokus modal.
@@ -22,30 +25,36 @@ export default function Modal({
   useEffect(() => {
     if (!open) return;
 
+    const node = dialogRef.current;
     const previousActiveElement = document.activeElement;
-
-    dialogRef.current?.focus();
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        onCloseRef.current?.();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
+    if (!node.open) node.showModal();
+    panelRef.current?.focus({ preventScroll: true });
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      previousActiveElement?.focus?.();
+      if (node.open) node.close();
+      if (previousActiveElement?.isConnected) {
+        previousActiveElement.focus({ preventScroll: true });
+      }
     };
   }, [open]);
 
   if (!open) return null;
 
   return (
-    <div
+    <dialog
+      ref={dialogRef}
       className="ui-modal"
-      role="presentation"
+      aria-modal="true"
+      aria-labelledby={title ? `${id}-title` : undefined}
+      aria-label={title ? undefined : "Dialog"}
+      aria-describedby={description ? `${id}-description` : undefined}
+      onCancel={(event) => {
+        if (event.target !== event.currentTarget) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current?.();
+      }}
+      onKeyDown={containDialogTab}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onCloseRef.current?.();
@@ -53,24 +62,20 @@ export default function Modal({
       }}
     >
       <div
-        ref={dialogRef}
+        ref={panelRef}
         className={`ui-modal__dialog ui-modal__dialog--${size}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ui-modal-title"
-        aria-describedby={description ? "ui-modal-description" : undefined}
         tabIndex={-1}
       >
         <header className="ui-modal__header">
           <div className="ui-modal__heading">
             {title && (
-              <h2 id="ui-modal-title" className="ui-modal__title">
+              <h2 id={`${id}-title`} className="ui-modal__title">
                 {title}
               </h2>
             )}
 
             {description && (
-              <p id="ui-modal-description" className="ui-modal__description">
+              <p id={`${id}-description`} className="ui-modal__description">
                 {description}
               </p>
             )}
@@ -103,6 +108,6 @@ export default function Modal({
 
         {footer && <footer className="ui-modal__footer">{footer}</footer>}
       </div>
-    </div>
+    </dialog>
   );
 }

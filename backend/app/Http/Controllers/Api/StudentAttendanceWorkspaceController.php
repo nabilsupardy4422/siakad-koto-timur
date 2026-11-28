@@ -21,8 +21,8 @@ final class StudentAttendanceWorkspaceController extends Controller
             'subject_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
-            'date_from' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
-            'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+            'date_from' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:'.Carbon::today('Asia/Jakarta')->toDateString()],
+            'date_to' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:'.Carbon::today('Asia/Jakarta')->toDateString(), 'after_or_equal:date_from'],
         ]);
 
         $years = TahunAkademik::query()->where('is_active', true)->limit(2)->get();
@@ -55,7 +55,7 @@ final class StudentAttendanceWorkspaceController extends Controller
             ->where('siswa_id', $studentId)
             ->whereIn('jadwal_pelajaran_id', $scheduleIds)
             ->whereDate('tanggal', '<=', $today)
-            ->whereIn('status', ['HADIR', 'IZIN', 'SAKIT', 'ALPA'])
+            ->whereIn('presensi.id', \App\Services\TeacherMonitoringIntegrity::attendanceIds())
             ->whereExists(function ($q) use ($classId, $studentId): void {
                 $q->selectRaw('1')->from('anggota_kelas as ak')
                     ->where('ak.kelas_id', $classId)->where('ak.siswa_id', $studentId)
@@ -69,8 +69,8 @@ final class StudentAttendanceWorkspaceController extends Controller
         if (!empty($filters['date_from'])) $base->whereDate('tanggal', '>=', $filters['date_from']);
         if (!empty($filters['date_to'])) $base->whereDate('tanggal', '<=', $filters['date_to']);
 
-        $summaries = (clone $base)->select('jadwal_pelajaran_id', 'status', DB::raw('COUNT(*) as total'))
-            ->groupBy('jadwal_pelajaran_id', 'status')->get();
+        $summaries = (clone $base)->select('jadwal_pelajaran_id', DB::raw('UPPER(status) as status'), DB::raw('COUNT(*) as total'))
+            ->groupBy('jadwal_pelajaran_id', DB::raw('UPPER(status)'))->get();
         $counts = [];
         foreach ($summaries as $item) {
             $id = (int) $item->jadwal_pelajaran_id;
@@ -111,7 +111,7 @@ final class StudentAttendanceWorkspaceController extends Controller
         $rows = $page->getCollection()->map(function ($record) {
             $schedule = $record->jadwalPelajaran;
             return ['id' => $record->id, 'date' => $record->tanggal->toDateString(),
-                'status' => $record->status, 'note' => $record->catatan,
+                'status' => strtoupper($record->status), 'note' => $record->catatan,
                 'teacher' => $schedule?->guru?->nama_lengkap ?? 'Belum ditentukan',
                 'day' => $schedule?->hari, 'start' => $schedule?->jam_mulai,
                 'end' => $schedule?->jam_selesai, 'subject' => $schedule?->mapel?->nama];

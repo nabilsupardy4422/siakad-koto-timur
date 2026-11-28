@@ -39,6 +39,6 @@ final class AssignmentTeachingAccess
         if (! $student || ! $schedule || $year === null || (int) $schedule->tahun_akademik_id !== $year) return false;
         return $student->anggotaKelas()->where('kelas_id', $schedule->kelas_id)
             ->whereDate('tanggal_mulai', '<=', now('Asia/Jakarta')->toDateString())
-            ->whereNull('tanggal_selesai')->exists();
+            ->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai','>=',now('Asia/Jakarta')->toDateString()))->exists();
     }
 }

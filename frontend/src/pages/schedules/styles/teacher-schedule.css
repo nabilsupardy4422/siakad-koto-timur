@@ -1030,3 +1030,31 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+/* Mobile Guru — arrows directly control the real Senin–Minggu grid. */
+.teacher-schedule .timetable--guru .timetable__week-scroll-shell { width:100%; max-width:100%; min-width:0; }
+.teacher-schedule .timetable--guru .timetable__week-scroll-shell > .timetable__grid-scroll {
+  display:block; width:100%; max-width:100%; min-width:0;
+  overflow-x:auto; overflow-y:hidden;
+  -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain;
+  touch-action:pan-x pan-y; scroll-behavior:auto;
+}
+.teacher-schedule .timetable--guru .timetable__week-scroll-shell .timetable__time-grid { min-width:850px; width:100%; }
+.teacher-schedule .timetable--guru .timetable__week-scroll-controls { display:none; }
+@media(max-width:900px) {
+  .teacher-schedule .timetable--guru .timetable__week-scroll-controls {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 10px; margin-bottom:9px; border-radius:9px;
+    border:1px solid #cbddeb; background:#edf5fc;
+    color:#234d70; font-size:11px; line-height:1.4; font-weight:650;
+  }
+  .teacher-schedule .timetable--guru .timetable__week-scroll-buttons { display:flex; flex:0 0 auto; gap:6px; }
+  .teacher-schedule .timetable--guru .timetable__week-scroll-buttons button {
+    display:grid; place-items:center; min-width:40px; min-height:40px;
+    border:1px solid #b8d1e4; border-radius:8px;
+    background:#fff; color:#215580; font-size:24px; cursor:pointer; touch-action:manipulation;
+  }
+  .teacher-schedule .timetable--guru .timetable__week-scroll-buttons button:focus-visible { outline:2px solid #215580; outline-offset:2px; }
+}
+
+.teacher-schedule .teacher-schedule-modes{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 16px;background:white;border:1px solid #d1deea;border-radius:9px;margin-bottom:14px}.teacher-schedule-modes>div{display:flex;gap:6px}.teacher-schedule-modes button{min-height:44px;border:1px solid #bfd1e0;background:white;border-radius:7px;padding:8px 14px;color:#17344e;font-weight:650}.teacher-schedule-modes button[aria-pressed=true]{background:#116b70;color:white;border-color:#116b70}.teacher-schedule .timetable__event.ps-scale__group{background:#dcefeb;color:#185a5b;border-top-color:#16847f;justify-content:center}.teacher-schedule .teacher-schedule-list{min-width:0;width:100%;max-width:100%}

@@ -28,9 +28,12 @@ class UpdateSubjectRequest extends FormRequest
                 'string',
                 'max:255',
             ],
+            'version' => ['nullable', 'string', 'size:64'],
             'kkm' => [
                 'nullable',
                 'numeric',
+                'between:0,100',
+                'decimal:0,2',
             ],
         ];
     }

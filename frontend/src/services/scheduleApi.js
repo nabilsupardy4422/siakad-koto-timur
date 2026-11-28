@@ -33,6 +33,10 @@ function buildQuery(params = {}) {
  * Import dan export digunakan untuk pengelolaan Excel.
  */
 export const scheduleApi = {
+  copySemester(payload) {
+    return apiClient.post('/schedules/copy-semester', payload)
+  },
+
   /**
    * Mengambil seluruh jadwal
    * beserta filter yang dikirim.
@@ -75,9 +79,9 @@ export const scheduleApi = {
   /**
    * Menghapus jadwal.
    */
-  delete(id) {
+  delete(id, version) {
     return apiClient.delete(
-      `/schedules/${id}`
+      `/schedules/${id}`, version ? { version } : undefined
     )
   },
 
@@ -87,9 +91,9 @@ export const scheduleApi = {
    * Endpoint backend:
    * GET /schedules/template
    */
-  downloadTemplate() {
+  downloadTemplate(params = {}) {
     return apiClient.getBlob(
-      '/schedules/template'
+      `/schedules/template${buildQuery(params)}`
     )
   },
 
@@ -102,7 +106,7 @@ export const scheduleApi = {
    * Parameter:
    * file = File Excel dari input file.
    */
-  importExcel(file) {
+  importExcel(file, params) {
     if (!(file instanceof File)) {
       throw new TypeError(
         'File Excel harus berupa objek File.'
@@ -112,6 +116,7 @@ export const scheduleApi = {
     const formData = new FormData()
 
     formData.append('file', file)
+    Object.entries(params).forEach(([key,value]) => { if (value != null) formData.append(key, String(value)) })
 
     return apiClient.postForm(
       '/schedules/import',

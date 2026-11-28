@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\UserImportPreviewController;
 use App\Http\Controllers\Api\UserImportController;
 use App\Http\Controllers\Api\Profile\GoogleAccountController;
 use App\Http\Controllers\Api\Profile\ProfilePhotoController;
+use App\Http\Controllers\Api\Profile\PersonalProfileController;
 use App\Http\Controllers\Api\UserActivationCodeStatusController;
 use App\Http\Controllers\Api\CancelUserActivationCodeController;
 use App\Http\Controllers\Api\SubmissionAttachmentController;
@@ -89,11 +90,32 @@ Route::middleware([
     EnsureAccountIsUsable::class,
 ])->group(function (): void {
     Route::get('/me', MeController::class);
+    Route::get('/principal/dashboard-workspace', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'dashboard'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/principal/attendance-daily', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'daily'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/principal/attendance-summary', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'attendance'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/principal/grade-summary', [\App\Http\Controllers\Api\PrincipalDashboardWorkspaceController::class,'grades'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/principal/grade-monitoring', \App\Http\Controllers\Api\PrincipalGradeMonitoringController::class)->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/student/reports/{reportType}/preview', [ReportController::class,'preview'])->middleware('role:SISWA')->name('student.reports.preview');
+    Route::get('/student/reports/{reportType}/export', [ReportController::class,'index'])->middleware('role:SISWA')->name('student.reports.export');
+    Route::get('/principal/reports/{reportType}/preview', [\App\Http\Controllers\Api\PrincipalReportWorkspaceController::class,'preview'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/principal/reports/{reportType}/export', [\App\Http\Controllers\Api\PrincipalReportWorkspaceController::class,'export'])->middleware('role:KEPALA_SEKOLAH');
+    Route::get('/tu/dashboard-workspace', \App\Http\Controllers\Api\TuDashboardController::class)->middleware('role:TU');
+    Route::get('/tu/attendance-monitoring', \App\Http\Controllers\Api\TuAttendanceMonitoringController::class)->middleware('role:TU');
+    Route::get('/tu/grade-monitoring', \App\Http\Controllers\Api\TuGradeMonitoringController::class)->middleware('role:TU');
+    Route::get('/tu/reports/student-options', [\App\Http\Controllers\Api\TuReportController::class,'studentOptions'])->middleware('role:TU');
+    Route::get('/tu/reports/{reportType}/preview', [\App\Http\Controllers\Api\TuReportController::class,'preview'])->middleware('role:TU');
+    Route::get('/tu/reports/{reportType}/export', [\App\Http\Controllers\Api\TuReportController::class,'export'])->middleware('role:TU');
     Route::post('/logout', LogoutController::class);
+
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get('/profile', [PersonalProfileController::class, 'show']);
+        Route::put('/profile', [PersonalProfileController::class, 'update'])->middleware('throttle:20,1,profile-contact:');
+        Route::put('/profile/password', [PersonalProfileController::class, 'password'])->middleware('throttle:5,1,profile-password:');
+    });
 
     /*
     |--------------------------------------------------------------------------
-    | Google Account Linking ΓÇö Semua Role SIAKAD
+    | Google Account Linking — Semua Role SIAKAD
     |--------------------------------------------------------------------------
     | Akun TU, Kepala Sekolah, Guru, dan Siswa dapat menautkan Google
     | setelah login. Middleware EnsureAccountIsUsable tetap berlaku.
@@ -118,7 +140,7 @@ Route::middleware([
 
     /*
     |--------------------------------------------------------------------------
-    | Foto Profil ΓÇö Semua Role SIAKAD
+    | Foto Profil — Semua Role SIAKAD
     |--------------------------------------------------------------------------
     | Hanya pengguna yang sedang login dan memiliki akun aktif
     | yang dapat melihat, mengunggah, dan menghapus foto sendiri.
@@ -162,50 +184,50 @@ Route::middleware([
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:TU')->group(function (): void {
-    Route::get(
-        '/academic-years/template',
-        [AcademicYearExcelController::class, 'template']
-    );
+        Route::get(
+            '/academic-years/template',
+            [AcademicYearExcelController::class, 'template']
+        );
 
-    Route::post(
-        '/academic-years/import/preview',
-        [AcademicYearExcelController::class, 'preview']
-    );
+        Route::post(
+            '/academic-years/import/preview',
+            [AcademicYearExcelController::class, 'preview']
+        );
 
-    Route::post(
-        '/academic-years/import',
-        [AcademicYearExcelController::class, 'import']
-    );
+        Route::post(
+            '/academic-years/import',
+            [AcademicYearExcelController::class, 'import']
+        );
 
-    // Academic Year CRUD - TU Only
-    Route::post(
-        '/academic-years',
-        [AcademicYearController::class, 'store']
-    );
+        // Academic Year CRUD - TU Only
+        Route::post(
+            '/academic-years',
+            [AcademicYearController::class, 'store']
+        );
 
-    Route::put(
-        '/academic-years/{academicYear}',
-        [AcademicYearController::class, 'update']
-    );
+        Route::put(
+            '/academic-years/{academicYear}',
+            [AcademicYearController::class, 'update']
+        );
 
-    Route::delete(
-        '/academic-years/{academicYear}',
-        [AcademicYearController::class, 'destroy']
-    );
-});
+        Route::delete(
+            '/academic-years/{academicYear}',
+            [AcademicYearController::class, 'destroy']
+        );
+    });
 
-// Academic Year Read - Semua Role
-Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
-    Route::get(
-        '/academic-years',
-        [AcademicYearController::class, 'index']
-    );
+    // Academic Year Read - Semua Role
+    Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
+        Route::get(
+            '/academic-years',
+            [AcademicYearController::class, 'index']
+        );
 
-    Route::get(
-        '/academic-years/{academicYear}',
-        [AcademicYearController::class, 'show']
-    );
-});
+        Route::get(
+            '/academic-years/{academicYear}',
+            [AcademicYearController::class, 'show']
+        );
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -213,21 +235,21 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:TU')->group(function (): void {
-    Route::get(
-        '/teachers/template',
-        [TeacherExcelController::class, 'template']
-    );
+        Route::get(
+            '/teachers/template',
+            [TeacherExcelController::class, 'template']
+        );
 
-    Route::post(
-        '/teachers/import/preview',
-        [TeacherExcelController::class, 'preview']
-    );
+        Route::post(
+            '/teachers/import/preview',
+            [TeacherExcelController::class, 'preview']
+        );
 
-    Route::post(
-        '/teachers/import',
-        [TeacherExcelController::class, 'import']
-    );
-});
+        Route::post(
+            '/teachers/import',
+            [TeacherExcelController::class, 'import']
+        );
+    });
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/teachers', [TeacherController::class, 'index']);
         Route::get('/teachers/{teacher}', [TeacherController::class, 'show']);
@@ -251,21 +273,21 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     */
 
     Route::middleware('role:TU')->group(function (): void {
-    Route::get(
-        '/students/template',
-        [StudentExcelController::class, 'template']
-    );
+        Route::get(
+            '/students/template',
+            [StudentExcelController::class, 'template']
+        );
 
-    Route::post(
-        '/students/import/preview',
-        [StudentExcelController::class, 'preview']
-    );
+        Route::post(
+            '/students/import/preview',
+            [StudentExcelController::class, 'preview']
+        );
 
-    Route::post(
-        '/students/import',
-        [StudentExcelController::class, 'import']
-    );
-});
+        Route::post(
+            '/students/import',
+            [StudentExcelController::class, 'import']
+        );
+    });
 
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
         Route::get('/students', [StudentController::class, 'index']);
@@ -329,6 +351,13 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     // Penempatan anggota kelas dan impor Excel adalah kewenangan TU.
     // Guru dan Wali Kelas hanya membaca data sesuai scope yang diizinkan.
     Route::middleware('role:TU')->group(function (): void {
+        Route::get('/membership-directory', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'directory']);
+        Route::get('/membership-history/{student}', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'history']);
+        Route::post('/academic-transitions/preview', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'preview']);
+        Route::post('/academic-transitions', [\App\Http\Controllers\Api\AcademicTransitionController::class, 'commit']);
+        Route::get('/classes/{class}/students/candidates', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'candidates']);
+        Route::post('/classes/{class}/students/bulk/preview', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'preview']);
+        Route::post('/classes/{class}/students/bulk', [\App\Http\Controllers\Api\ClassMemberBulkController::class, 'store']);
         Route::post('/classes/{class}/students', [ClassMemberController::class, 'store']);
         Route::delete('/classes/{class}/students/{student}', [ClassMemberController::class, 'destroy']);
 
@@ -348,6 +377,11 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
     });
 
     Route::middleware('role:TU')->group(function (): void {
+        Route::get('/homeroom-management', [WaliKelasController::class, 'workspace']);
+        Route::get('/homeroom-management/candidates', [WaliKelasController::class, 'candidates']);
+        Route::post('/homeroom-management/continuation', [WaliKelasController::class, 'continuation']);
+        Route::post('/homeroom-assignments/{assignment}/cancel', [WaliKelasController::class, 'cancel']);
+        Route::post('/homeroom-assignments/{assignment}/replace', [WaliKelasController::class, 'replace']);
         Route::post('/homeroom-assignments', [WaliKelasController::class, 'store']);
         Route::put('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'update']);
         Route::delete('/homeroom-assignments/{assignment}', [WaliKelasController::class, 'destroy']);
@@ -377,6 +411,8 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
             [ScheduleExcelController::class, 'export']
         );
     });
+
+    Route::post('/schedules/copy-semester', \App\Http\Controllers\Api\ScheduleContinuationController::class)->middleware('role:TU');
 
     // Schedule Read
     Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void {
@@ -418,6 +454,19 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
         '/attendance/class-recap',
         [AttendanceController::class, 'classRecap']
     )->middleware('role:TU,KEPALA_SEKOLAH');
+
+    // Analitik presensi per pertemuan dan mata pelajaran.
+    // Khusus Kepala Sekolah, hanya akses baca.
+    Route::get(
+        '/attendance/principal-insights',
+        [\App\Http\Controllers\Api\PrincipalAttendanceInsightsController::class, 'index']
+    )->middleware('role:KEPALA_SEKOLAH');
+
+    // Monitoring pengisian presensi per jadwal (baca saja, Kepala Sekolah).
+    Route::get(
+        '/attendance/principal-schedule-coverage',
+        [\App\Http\Controllers\Api\PrincipalScheduleCoverageController::class, 'index']
+    )->middleware('role:KEPALA_SEKOLAH');
 
     /*
     |--------------------------------------------------------------------------
@@ -562,6 +611,10 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
 
     Route::middleware('role:TU')->group(function (): void {
         Route::post('/report-cards', [ReportCardController::class, 'store']);
+        Route::get('/tu/report-card-workspace', [\App\Http\Controllers\Api\TuReportCardWorkspaceController::class, 'index']);
+        Route::post('/report-cards/{reportCard}/revision', [ReportCardController::class, 'revise']);
+        Route::get('/report-cards/{reportCard}/history', [ReportCardController::class, 'history']);
+        Route::get('/report-cards/{reportCard}/history/{event}/download', [ReportCardController::class, 'archiveDownload'])->whereNumber('event');
         Route::delete('/report-cards/{reportCard}', [ReportCardController::class, 'destroy']);
     });
 
@@ -639,7 +692,22 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
             [UserController::class, 'index']
         )->middleware('permission:users.view');
 
+        // Batch actions: static routes must precede /users/{user}.
+        Route::post('/users/bulk/preview', [\App\Http\Controllers\Api\BulkAccountController::class, 'preview'])
+            ->middleware(['permission:users.view', 'throttle:20,1,account-bulk-preview:']);
+        Route::post('/users/bulk/activation-codes', [\App\Http\Controllers\Api\BulkAccountController::class, 'issue'])
+            ->middleware(['permission:users.reset_password', 'throttle:5,1,account-bulk-issue:']);
+        Route::post('/users/bulk/deactivate', [\App\Http\Controllers\Api\BulkAccountController::class, 'deactivate'])
+            ->middleware(['permission:users.deactivate', 'throttle:5,1,account-bulk-deactivate:']);
+        Route::get('/users/activation-summary', [UserController::class, 'activationSummary'])
+            ->middleware('permission:users.view');
+
         // Detail pengguna.
+        Route::get(
+            '/users/roles',
+            [UserController::class, 'roles']
+        )->middleware('permission:users.view');
+
         Route::get(
             '/users/{user}',
             [UserController::class, 'show']
@@ -686,7 +754,7 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
         Route::post(
             '/users/{user}/activation-code',
             IssueUserActivationCodeController::class
-        )->middleware('permission:users.reset_password');
+        )->middleware(['permission:users.reset_password', 'throttle:5,1,account-single-issue:']);
 
         // TU memeriksa apakah akun memiliki
         // kode aktivasi yang masih berlaku.
@@ -721,9 +789,7 @@ Route::middleware('role:TU,KEPALA_SEKOLAH,GURU,SISWA')->group(function (): void 
             '/users/{user}/reset-password',
             [UserController::class, 'resetPassword']
         )->middleware('permission:users.reset_password');
-
     });
-
 });
 
 Route::get('/health', HealthController::class);

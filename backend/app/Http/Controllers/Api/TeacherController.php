@@ -13,32 +13,32 @@ use App\Models\Guru;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\WaliKelas;
 
 class TeacherController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $isTu = $request->user()?->role?->code === 'TU';
         $teachers = Guru::query()
             ->with('user')
             ->when(
                 $request->filled('search'),
-                function ($query) use ($request): void {
+                function ($query) use ($request, $isTu): void {
                     $search = $request->string('search')->toString();
 
-                    $query->where(function ($query) use ($search): void {
+                    $query->where(function ($query) use ($search, $isTu): void {
                         $query->where('nip', 'like', "%{$search}%")
                             ->orWhere('nama_lengkap', 'like', "%{$search}%")
-                            ->orWhereHas('user', function ($query) use ($search): void {
+                            ->when($isTu, fn ($query) => $query->orWhereHas('user', function ($query) use ($search): void {
                                 $query->where('username', 'like', "%{$search}%")
                                     ->orWhere('name', 'like', "%{$search}%")
                                     ->orWhere('email', 'like', "%{$search}%");
-                            });
+                            }));
                     });
                 }
             )
             ->when(
-                $request->filled('status'),
+                $isTu && $request->filled('status'),
                 function ($query) use ($request): void {
                     $query->whereHas('user', function ($query) use ($request): void {
                         $query->where(
@@ -48,8 +48,10 @@ class TeacherController extends Controller
                     });
                 }
             )
-            ->latest('id')
-            ->paginate($request->integer('page_size', 15))
+            ->when($isTu, fn ($query) => \App\Support\IdentityDirectory::apply($query, $request, false))
+            ->orderBy('nama_lengkap', $request->input('sort_order') === 'desc' ? 'desc' : 'asc')
+            ->orderBy('id')
+            ->paginate(min(100, max(1, $request->integer('page_size', $request->integer('per_page', 15)))))
             ->withQueryString();
 
         return ApiResponse::collection(
@@ -65,7 +67,7 @@ class TeacherController extends Controller
 
     public function store(StoreTeacherRequest $request): JsonResponse
     {
-        $teacher = Guru::create($request->validated());
+        $teacher = app(\App\Services\AcademicIdentityService::class)->register('GURU', $request->validated());
 
         $teacher->load('user');
 
@@ -88,7 +90,7 @@ class TeacherController extends Controller
         UpdateTeacherRequest $request,
         Guru $teacher
     ): JsonResponse {
-        $teacher->update($request->validated());
+        $teacher = app(\App\Services\AcademicIdentityService::class)->update($teacher, $request->validated());
 
         $teacher->load('user');
 
@@ -99,17 +101,7 @@ class TeacherController extends Controller
 
     public function destroy(Guru $teacher): JsonResponse
     {
-        $hasHomeroomHistory = WaliKelas::query()
-            ->where('guru_id', $teacher->id)
-            ->exists();
-
-        if ($hasHomeroomHistory) {
-            return response()->json([
-                'message' => 'Data guru tidak dapat dihapus karena masih memiliki riwayat penugasan Wali Kelas.',
-            ], 422);
-        }
-
-        $teacher->delete();
+        app(\App\Services\AcademicIdentityService::class)->remove($teacher);
 
         return ApiResponse::message(
             'Data guru berhasil dihapus.'
@@ -124,7 +116,7 @@ class TeacherController extends Controller
             ->whereHas('role', function (Builder $query): void {
                 $query->where('code', 'GURU');
             })
-            ->whereDoesntHave('guru')
+            ->whereDoesntHave('guru')->whereDoesntHave('siswa')
             ->orderBy('name')
             ->get();
 

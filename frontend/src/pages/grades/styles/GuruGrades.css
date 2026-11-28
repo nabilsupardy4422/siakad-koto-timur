@@ -6,3 +6,7 @@
 @media(prefers-reduced-motion:reduce){.gg-v2 *,.gg-modal *{transition:none!important}}
 
 .gg-v2 .gg-filters .ss-trigger{min-height:42px;padding:7px 10px}.gg-v2 .gg-filters .ss-icon{width:25px;height:25px}.gg-v2 .gg-filters .ss-copy strong{font-size:12px}.gg-context .ss-trigger{min-height:55px}
+
+.gg-v2 .gg-book-foot{align-items:center;flex-wrap:wrap;padding:14px 0 0}.gg-v2 .gg-book-foot .gg-btn{min-height:44px}.gg-v2 .gg-context .teacher-native-field{max-width:760px}.gg-v2 .gg-component-actions button{min-height:44px}.gg-v2 .gg-components{min-width:0}@media(max-width:600px){.gg-v2 .gg-book-foot .gg-btn{width:100%}.gg-v2 .gg-cell input,.gg-v2 .gg-field input,.gg-modal .gg-field input{font-size:16px}.gg-v2 .gg-row-actions .gg-btn{min-height:48px}}
+
+.gg-v2 .gg-batch-bar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 0 12px;padding:12px;background:#eef5f6;border:1px solid #cde0e3;border-radius:8px;font-size:12px;color:var(--gg-muted)}.gg-v2 .gg-batch-bar button{min-height:44px}.gg-v2 .siakad-toast-v2{pointer-events:none}.gg-v2 .siakad-toast-v2 button{pointer-events:auto}@media(max-width:600px){.gg-v2 .gg-batch-bar button{width:100%}}

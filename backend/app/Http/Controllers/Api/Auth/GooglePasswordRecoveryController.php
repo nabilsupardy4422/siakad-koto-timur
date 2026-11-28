@@ -9,7 +9,8 @@ use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rules\Password;
+use Illuminate\Support\Facades\Hash;
+use App\Support\SchoolPasswordPolicy;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -30,15 +31,7 @@ class GooglePasswordRecoveryController extends Controller
                 'string',
                 'regex:/\A[a-f0-9]{64}\z/D',
             ],
-            'password' => [
-                'required',
-                'string',
-                'confirmed',
-                Password::min(12)
-                    ->mixedCase()
-                    ->numbers()
-                    ->symbols(),
-            ],
+            'password' => SchoolPasswordPolicy::rules(),
         ]);
 
         // Hanya grant yang terbit dari verifikasi Google + nonce yang sah
@@ -78,6 +71,10 @@ class GooglePasswordRecoveryController extends Controller
                 return 403;
             }
 
+            if (! hash_equals($grantData['credential_version'], hash_hmac('sha256', $user->password, (string) config('app.key')))) {
+                return 403;
+            }
+
             // Tautan Google HARUS masih sama dengan saat verifikasi.
             // Alamat email tidak pernah dipakai sebagai kunci identitas.
             $currentGoogleSubject = $user->google_id;
@@ -93,9 +90,10 @@ class GooglePasswordRecoveryController extends Controller
                 return 403;
             }
 
-            // Model User memakai cast 'password' => 'hashed'.
+            // Hash explicitly: a password that resembles a hash is still plaintext input.
             $user->forceFill([
-                'password' => $validated['password'],
+                'password' => Hash::make($validated['password']),
+                'remember_token' => null,
             ])->save();
 
             // Cabut semua Sanctum personal access token lama.

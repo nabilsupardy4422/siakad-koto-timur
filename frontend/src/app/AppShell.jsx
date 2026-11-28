@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import RouteContentBoundary from '../routes/RouteContentBoundary.jsx'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import './AppShell.css'
@@ -104,7 +105,7 @@ export default function AppShell() {
       <div className="app-shell__content" ref={contentRef}>
         <Topbar open={sidebarOpen} onMenuClick={() => setSidebarOpen(true)} />
         <main className="app-shell__main" id="main-content" tabIndex={-1}>
-          <Outlet />
+          <RouteContentBoundary><Outlet /></RouteContentBoundary>
         </main>
       </div>
     </div>

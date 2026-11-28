@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import './SearchableSelect.css'
 
 // Pilihan berbasis tombol + pencarian, dapat digunakan ulang tanpa library.
-export default function SearchableSelect({ label, value, options = [], onChange, placeholder = 'Pilih opsi', disabled = false, required = false }) {
+export default function SearchableSelect({ label, value, options = [], onChange, placeholder = 'Pilih opsi', disabled = false, required = false, searchPlaceholder = 'Cari kelas, tingkat, atau pelajaran...' }) {
   const id = useId()
   const root = useRef(null)
   const trigger = useRef(null)
@@ -34,7 +34,7 @@ export default function SearchableSelect({ label, value, options = [], onChange,
       <span className="ss-chevron" aria-hidden="true">⌄</span>
     </button>
     {open && !disabled && <div className="ss-popover" id={`${id}-panel`} role="group" aria-label={`Pilihan ${label}`}>
-      <div className="ss-search"><input ref={search} type="search" aria-label={`Cari ${label}`} value={query} onChange={event => setQuery(event.target.value)} placeholder="Cari kelas, tingkat, atau pelajaran..." /></div>
+      <div className="ss-search"><input ref={search} type="search" aria-label={`Cari ${label}`} value={query} onChange={event => setQuery(event.target.value)} placeholder={searchPlaceholder} /></div>
       <div className="ss-option-label">{label}</div>
       <div className="ss-options">
         {filtered.length ? filtered.map(option => <button key={option.value} type="button" className="ss-option" aria-pressed={String(option.value) === String(value)} onClick={() => { onChange(String(option.value)); close() }}><span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>{String(option.value) === String(value) && <span className="ss-check" aria-hidden="true">✓</span>}</button>) : <p className="ss-empty" role="status">Tidak ada pilihan yang cocok.</p>}

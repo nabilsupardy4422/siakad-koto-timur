@@ -839,9 +839,9 @@ class ClassMemberTest extends TestCase
         $this->createTeachingSchedule($peer, $oldClass, $old);
         $newClass = $this->createClass($new);
         [, $student] = $this->createStudent();
-        $this->createMembership($oldClass, $student, today()->subDays(2)->toDateString());
+        $this->createMembership($oldClass, $student, today('Asia/Jakarta')->subDays(2)->toDateString());
         $assignment = $this->assignWaliKelas($guru, $oldClass, $old);
-        $assignment->update(['tanggal_mulai'=>today()->subDays(2)->toDateString()]);
+        $assignment->update(['tanggal_mulai'=>today('Asia/Jakarta')->subDays(2)->toDateString()]);
         Sanctum::actingAs($user);
         $this->getJson('/api/me')->assertOk()->assertJsonPath('data.assignments.0.academic_year_id',$old->id);
         $this->getJson("/api/classes/{$oldClass->id}/students?scope=homeroom&membership_status=all")->assertOk()->assertJsonCount(1,'data');
@@ -862,7 +862,7 @@ class ClassMemberTest extends TestCase
         $this->getJson('/api/homeroom-assignments?scope=homeroom')->assertOk()->assertJsonCount(0,'data');
         $this->assertDatabaseHas('wali_kelas',['id'=>$assignment->id,'tanggal_selesai'=>null]);
         $next = $this->assignWaliKelas($guru, $newClass, $new);
-        $next->update(['tanggal_mulai'=>today()->subDay()->toDateString()]);
+        $next->update(['tanggal_mulai'=>today('Asia/Jakarta')->subDay()->toDateString()]);
         $this->getJson('/api/me')->assertOk()->assertJsonPath('data.assignments.0.academic_year_id',$new->id);
         $this->getJson("/api/classes/{$newClass->id}/students?scope=homeroom")->assertOk();
         $this->getJson("/api/classes/{$oldClass->id}/students?scope=homeroom")->assertForbidden();
@@ -870,23 +870,27 @@ class ClassMemberTest extends TestCase
 
     public function test_homeroom_history_requires_effective_assignment_and_legacy_roster_is_unchanged(): void
     {
+        // UTC is still Nov 26 while the school's calendar is already Nov 27.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-26 18:00:00', 'UTC'));
+        $this->assertSame('2026-11-26', today('UTC')->toDateString());
+        $this->assertSame('2026-11-27', today('Asia/Jakarta')->toDateString());
         [$user,$guru]=$this->createTeacher();
         $year=$this->createAcademicYear();
         $class=$this->createClass($year);
         $outside=$this->createClass($year,'Outside');
         $assignment=$this->assignWaliKelas($guru,$class,$year);
-        $assignment->update(['tanggal_mulai'=>today()->subDays(10)->toDateString()]);
+        $assignment->update(['tanggal_mulai'=>today('Asia/Jakarta')->subDays(10)->toDateString()]);
         [, $student]=$this->createStudent();
         [, $future]=$this->createStudent();
-        $this->createMembership($class,$student,today()->subDays(3)->toDateString(),today()->subDay()->toDateString());
-        $this->createMembership($class,$future,today()->addDay()->toDateString());
+        $this->createMembership($class,$student,today('Asia/Jakarta')->subDays(3)->toDateString(),today('Asia/Jakarta')->subDay()->toDateString());
+        $this->createMembership($class,$future,today('Asia/Jakarta')->addDay()->toDateString());
         Sanctum::actingAs($user);
         $all="/api/classes/{$class->id}/students?scope=homeroom&membership_status=all";
-        $this->getJson($all)->assertOk()->assertJsonCount(2,'data')->assertJsonPath('meta.as_of',today()->toDateString());
+        $this->getJson($all)->assertOk()->assertJsonCount(2,'data')->assertJsonPath('meta.as_of',today('Asia/Jakarta')->toDateString());
         $this->getJson("/api/classes/{$class->id}/students?scope=homeroom")->assertOk()->assertJsonCount(0,'data');
         $this->getJson("/api/classes/{$class->id}/students?membership_status=all")->assertForbidden();
         $this->getJson("/api/classes/{$outside->id}/students?scope=homeroom&membership_status=all")->assertForbidden();
-        $assignment->update(['tanggal_selesai'=>today()->toDateString()]);
+        $assignment->update(['tanggal_selesai'=>today('Asia/Jakarta')->toDateString()]);
         $this->getJson($all)->assertForbidden();
     }
 }

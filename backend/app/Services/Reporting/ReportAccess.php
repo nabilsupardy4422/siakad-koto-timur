@@ -20,7 +20,8 @@ final class ReportAccess
     public static function allowsType(User $user, string $type): bool
     {
         return in_array($type, match ($user->role?->code) {
-            'TU', 'KEPALA_SEKOLAH' => self::TYPES,
+            'TU' => [...self::TYPES, 'attendance-daily','attendance-monthly','attendance-coverage','grade-coverage','grade-components'],
+            'KEPALA_SEKOLAH' => self::TYPES,
             'GURU' => ['students', 'schedules', 'attendance', 'grades', 'semester-recap'],
             // students is a personal identity report here, never a roster.
             'SISWA' => ['students', 'schedules', 'attendance', 'grades', 'semester-recap'],
@@ -74,6 +75,10 @@ final class ReportAccess
         self::require(! isset($filters['semester']) || strcasecmp($filters['semester'], $year->semester) === 0);
         if (isset($filters['semester'])) $filters['semester'] = $year->semester;
         $classes = self::classIds($user, $filters);
+        if ($scope === 'own' && $year->is_active) {
+            self::require(TahunAkademik::where('is_active', true)->count() === 1);
+            self::require(\App\Support\StudentScheduleAccess::resolve((int) $user->siswa->id, $year)['status'] !== 'ambiguous');
+        }
         if ($scope === 'homeroom') {
             self::require($classes->isNotEmpty());
         }
@@ -92,7 +97,7 @@ final class ReportAccess
         if ($scope !== 'own' && isset($filters['student_id'])) {
             $studentClasses = isset($filters['subject_id']) || isset($filters['schedule_id']) ? self::schedules($user, $filters)->pluck('kelas_id') : $classes;
             self::require(AnggotaKelas::query()->where('siswa_id', $filters['student_id'])
-                ->whereDate('tanggal_mulai', '<=', today())
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
                 ->whereIn('kelas_id', $studentClasses)
                 ->when(isset($filters['class_id']), fn (Builder $q) => $q->where('kelas_id', $filters['class_id']))
                 ->exists());
@@ -124,7 +129,8 @@ final class ReportAccess
                 ->where('tahun_akademik_id', $year)->pluck('kelas_id'),
             'homeroom' => HomeroomReadAccess::currentAssignments((int) $user->guru->id, $year)->pluck('kelas_id'),
             'own' => AnggotaKelas::query()->where('siswa_id', $user->siswa->id)
-                ->whereDate('tanggal_mulai', '<=', today())->pluck('kelas_id'),
+                ->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
+                ->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai','>=','tanggal_mulai'))->pluck('kelas_id'),
             default => collect(),
         };
         return Kelas::query()->where('tahun_akademik_id', $year)->whereIn('id', $ids)
@@ -142,7 +148,8 @@ final class ReportAccess
             $query->whereIn('kelas_id', $ids);
         }
         if ($filters['scope'] === 'school' && (isset($filters['subject_id']) || isset($filters['schedule_id']))) {
-            $schedules = JadwalPelajaran::query();
+            $schedules = JadwalPelajaran::query()
+                ->whereHas('kelas', fn (Builder $q) => $q->whereColumn('kelas.tahun_akademik_id', 'jadwal_pelajaran.tahun_akademik_id'));
             if (isset($filters['subject_id'])) $schedules->where('mapel_id', $filters['subject_id']);
             if (isset($filters['schedule_id'])) $schedules->whereKey($filters['schedule_id']);
             if (isset($filters['academic_year_id'])) $schedules->where('tahun_akademik_id', $filters['academic_year_id']);
@@ -152,11 +159,12 @@ final class ReportAccess
         if (isset($filters['academic_year_id'])) {
             $query->whereHas('kelas', fn (Builder $q) => $q->where('tahun_akademik_id', $filters['academic_year_id']));
         }
+        if ($filters['scope'] === 'own') $query->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai','>=','tanggal_mulai'));
         if ($activeOnly) {
-            $query->whereDate('tanggal_mulai', '<=', today())
-                ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today()));
+            $query->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'))
+                ->where(fn (Builder $q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', today('Asia/Jakarta')));
         } elseif ($filters['scope'] !== 'school') {
-            $query->whereDate('tanggal_mulai', '<=', today());
+            $query->whereDate('tanggal_mulai', '<=', today('Asia/Jakarta'));
         }
     }
 }

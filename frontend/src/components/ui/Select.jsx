@@ -1,8 +1,9 @@
+import { useId } from 'react'
 import './Field.css'
 import './Select.css'
 
 export default function Select({
-    id,
+    id: explicitId,
     name,
     label,
     value = '',
@@ -14,8 +15,10 @@ export default function Select({
     hint = '',
     onChange,
   }) {
+    const generatedId = useId()
+    const id = explicitId || generatedId
     const describedBy = [
-      hint && `${id}-hint`,
+      hint && !error && `${id}-hint`,
       error && `${id}-error`,
     ]
       .filter(Boolean)

@@ -1,0 +1,158 @@
+/* V1.9.1 — mobile horizontal scrolling, strictly Principal workspace only. */
+.principal-schedule--v19 .principal-schedule__mobile-timetable { min-width: 0; max-width: 100%; }
+.principal-schedule--v19 .timetable__grid-scroll,
+.principal-schedule--v19 .timetable__month-view {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: #9cb8cc #f1f6fa;
+  scroll-behavior: smooth;
+}
+.principal-schedule--v19 .timetable__grid-scroll::-webkit-scrollbar,
+.principal-schedule--v19 .timetable__month-view::-webkit-scrollbar { height: 7px; }
+.principal-schedule--v19 .timetable__grid-scroll::-webkit-scrollbar-thumb,
+.principal-schedule--v19 .timetable__month-view::-webkit-scrollbar-thumb { background: #9cb8cc; border-radius: 99px; }
+.principal-schedule--v19 .principal-schedule__mobile-scroll-controls { display: none; }
+
+@media (max-width: 700px) {
+  .principal-schedule--v19 .principal-schedule__mobile-scroll-controls {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #eef8f7;
+    border: 1px solid #c9e4df;
+    border-radius: 10px;
+  }
+  .principal-schedule--v19 .principal-schedule__mobile-scroll-hint {
+    min-width: 0;
+    color: #246262;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.4;
+  }
+  .principal-schedule--v19 .principal-schedule__mobile-scroll-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+  .principal-schedule--v19 .principal-schedule__mobile-scroll-actions button {
+    display: grid;
+    place-items: center;
+    min-width: 42px;
+    min-height: 42px;
+    border-radius: 9px;
+    border: 1px solid #b2d7d0;
+    background: #fff;
+    color: #08776f;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .principal-schedule--v19 .principal-schedule__mobile-scroll-actions button:focus-visible {
+    outline: 3px solid #7fd0c2;
+    outline-offset: 2px;
+  }
+  /* The outer page stays in place; only the 850px timetable content moves. */
+  .principal-schedule--v19 .timetable__main,
+  .principal-schedule--v19 .timetable__panel { min-width: 0; max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .principal-schedule--v19 .timetable__grid-scroll,
+  .principal-schedule--v19 .timetable__month-view { scroll-behavior: auto; }
+}
+
+/* V1.9.2 — swipe months in the MINI CALENDAR, not the timetable grid. */
+.principal-schedule--v19 .timetable__mini-swipe-hint { display: none; }
+@media (max-width: 700px) {
+  .principal-schedule--v19 .timetable__mini-grid.is-swipeable {
+    min-width: 0;
+    max-width: 100%;
+    /* Vertical page scrolling still works; horizontal gestures reach React. */
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+  }
+  .principal-schedule--v19 .timetable__mini-grid.is-swipeable:active { cursor: grabbing; }
+  .principal-schedule--v19 .timetable__mini-swipe-hint {
+    display: block;
+    margin: 10px 0 0;
+    color: #52788c;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+  }
+}
+
+/* V1.9.3 — REAL 7-DAY GRID: principal only. The scrollable node and arrows
+   live together inside TimeGrid, immediately beneath the week navigation. */
+.principal-schedule--v19 .timetable__week-scroll-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.principal-schedule--v19 .timetable__week-scroll-shell > .timetable__grid-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scroll-behavior: auto;
+}
+.principal-schedule--v19 .timetable__week-scroll-shell .timetable__time-grid {
+  min-width: 850px;
+  width: 100%;
+}
+/* Old controls were above the timetable card and could be missed on mobile.
+   Prevent a second, confusing pair of arrow buttons. */
+.principal-schedule--v19 .principal-schedule__mobile-scroll-controls { display: none !important; }
+.principal-schedule--v19 .timetable__week-scroll-controls { display: none; }
+@media (max-width: 1050px) {
+  .principal-schedule--v19 .timetable__week-scroll-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 10px;
+    margin: 0 0 9px;
+    border: 1px solid #c9e4df;
+    border-radius: 10px;
+    background: #eef8f7;
+    color: #246262;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+  .principal-schedule--v19 .timetable__week-scroll-buttons {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+  .principal-schedule--v19 .timetable__week-scroll-buttons button {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #b2d7d0;
+    border-radius: 9px;
+    background: #fff;
+    color: #08776f;
+    font: inherit;
+    font-size: 24px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .principal-schedule--v19 .timetable__week-scroll-buttons button:focus-visible {
+    outline: 2px solid #08776f;
+    outline-offset: 2px;
+  }
+}

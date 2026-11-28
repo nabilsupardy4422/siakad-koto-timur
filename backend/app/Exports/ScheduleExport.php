@@ -81,7 +81,7 @@ class ScheduleExport extends DefaultValueBinder implements
             )
             ->orderBy('tahun_akademik_id')
             ->orderBy('kelas_id')
-            ->orderBy('hari')
+            ->orderByRaw("CASE UPPER(hari) WHEN 'SENIN' THEN 1 WHEN 'SELASA' THEN 2 WHEN 'RABU' THEN 3 WHEN 'KAMIS' THEN 4 WHEN 'JUMAT' THEN 5 WHEN 'SABTU' THEN 6 WHEN 'MINGGU' THEN 7 ELSE 8 END")
             ->orderBy('jam_mulai');
     }
 
@@ -145,7 +145,7 @@ class ScheduleExport extends DefaultValueBinder implements
      */
     public function bindValue(Cell $cell, $value): bool
     {
-        if ($cell->getColumn() === 'F' && $value !== null) {
+        if (is_string($value) || ($cell->getColumn() === 'F' && $value !== null)) {
             $cell->setValueExplicit(
                 (string) $value,
                 DataType::TYPE_STRING

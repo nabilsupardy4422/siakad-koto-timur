@@ -10,12 +10,12 @@ use App\Models\Kelas;
 use App\Models\Siswa;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Services\ClassMembershipService;
 use App\Support\HomeroomReadAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 
 class ClassMemberController extends Controller
@@ -41,16 +41,47 @@ class ClassMemberController extends Controller
             ], 403);
         }
 
-        $today = Carbon::today();
-        $allMemberships = $request->input('membership_status') === 'all';
+        $today = Carbon::today('Asia/Jakarta');
+        $status = $request->input('membership_status') ?? 'effective';
+        $allMemberships = $status === 'all';
+        $admin = $user->role?->code === 'TU';
+        if ($admin) $request->validate(['membership_status'=>'nullable|in:all,effective,scheduled,historical,conflict','search'=>'nullable|string|max:100','sort_order'=>'nullable|in:asc,desc','as_of'=>'nullable|date_format:Y-m-d']);
+        if (!$admin) abort_if(!in_array($status,['effective','all'],true),403);
+        // Alternate date is administrative read-only, never an authorization input.
+        if ($admin && $request->filled('as_of')) $today=Carbon::parse($request->input('as_of'),'Asia/Jakarta');
         if ($allMemberships) {
-            abort_unless($request->input('scope') === 'homeroom', 403);
+            abort_unless($user->role?->code === 'TU' || $request->input('scope') === 'homeroom', 403);
         }
 
         $query = AnggotaKelas::query()
             ->with('siswa.user')
             ->where('kelas_id', $class->id);
-        if (! $allMemberships) {
+        $summary = null;
+        $conflictIds = [];
+        if ($admin) {
+            $history = AnggotaKelas::whereHas('kelas',fn($q)=>$q->where('tahun_akademik_id',$class->tahun_akademik_id))->get()->groupBy('siswa_id');
+            foreach($history as $records) foreach($records as $i=>$m) {
+                $a=$m->tanggal_mulai?->toDateString();$b=$m->tanggal_selesai?->toDateString();
+                if(!$a||($b&&$b<$a)) $conflictIds[$m->id]=true;
+                foreach($records->slice($i+1) as $other) if(\App\Support\AcademicTransitionRules::overlap($a,$b,$other->tanggal_mulai?->toDateString(),$other->tanggal_selesai?->toDateString())) { $conflictIds[$m->id]=true;$conflictIds[$other->id]=true; }
+            }
+            $conflictIds=array_keys($conflictIds);
+        }
+        if ($user->role?->code === 'TU') {
+            $valid = (clone $query)->whereNotNull('tanggal_mulai')->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai', '>=', 'tanggal_mulai'));
+            $summary = [
+                'total_records' => (clone $query)->count(),
+                'effective_records' => (clone $valid)->whereDate('tanggal_mulai', '<=', $today)->where(fn ($q) => $q->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today))->count(),
+                'scheduled_records' => (clone $valid)->whereDate('tanggal_mulai', '>', $today)->count(),
+                'historical_records' => (clone $valid)->whereDate('tanggal_selesai', '<', $today)->count(),
+                'conflict_records'=>(clone $query)->whereIn('id',$conflictIds)->count(),
+            ];
+        }
+        if ($admin && $status === 'conflict') $query->whereIn('id',$conflictIds);
+        elseif ($admin && in_array($status,['scheduled','historical'],true)) {
+            $query->whereNotNull('tanggal_mulai')->where(fn($q)=>$q->whereNull('tanggal_selesai')->orWhereColumn('tanggal_selesai','>=','tanggal_mulai'));
+            $status==='scheduled' ? $query->whereDate('tanggal_mulai','>',$today) : $query->whereDate('tanggal_selesai','<',$today);
+        } elseif (! $allMemberships) {
             $query->whereDate('tanggal_mulai', '<=', $today)
                 ->where(function (Builder $query) use ($today): void {
                     $query->whereNull('tanggal_selesai')->orWhereDate('tanggal_selesai', '>=', $today);
@@ -72,11 +103,17 @@ class ClassMemberController extends Controller
             $query->where('siswa_id', $studentId);
         }
 
+        if ($admin && ($keyword=trim((string)$request->input('search','')))!=='') {
+            $pattern='%'.str_replace(['!','%','_'],['!!','!%','!_'],mb_strtolower($keyword)).'%';
+            $query->whereHas('siswa',fn($q)=>$q->whereRaw("LOWER(nama_lengkap) LIKE ? ESCAPE '!'",[$pattern])->orWhereRaw("nisn LIKE ? ESCAPE '!'",[$pattern])->orWhereRaw("nipd LIKE ? ESCAPE '!'",[$pattern]));
+        }
+        if($admin && $request->filled('sort_order')) $query->orderBy(Siswa::select('nama_lengkap')->whereColumn('siswa.id','anggota_kelas.siswa_id'),$request->input('sort_order'))->orderBy('id');
+        else $query->latest('id');
         $members = $query
-            ->latest('id')
-            ->paginate($request->integer('per_page', 15))
+            ->paginate(max(1, min(100, $request->integer('per_page', 15))))
             ->withQueryString();
 
+        if($admin) foreach($members as $member) $member->setAttribute('has_conflict',in_array($member->id,$conflictIds));
         return ApiResponse::collection(
             ClassMemberResource::collection($members->items()),
             [
@@ -84,7 +121,8 @@ class ClassMemberController extends Controller
                 'last_page' => $members->lastPage(),
                 'per_page' => $members->perPage(),
                 'total' => $members->total(),
-                ...($allMemberships ? ['as_of' => $today->toDateString()] : []),
+                ...($summary !== null ? ['summary' => $summary] : []),
+                ...($allMemberships || $user->role?->code === 'TU' ? ['as_of' => $today->toDateString()] : []),
             ]
         );
     }
@@ -105,76 +143,7 @@ class ClassMemberController extends Controller
 
         $validated = $request->validated();
 
-        $membership = DB::transaction(function () use (
-            $validated,
-            $class
-        ): AnggotaKelas|JsonResponse {
-            /*
-             * Lock siswa selama pengecekan dan insert.
-             */
-            $student = Siswa::query()
-                ->lockForUpdate()
-                ->find($validated['siswa_id']);
-
-            if (! $student) {
-                return response()->json([
-                    'message' => 'Siswa tidak ditemukan.',
-                ], 404);
-            }
-
-            $startDate = Carbon::parse(
-                $validated['tanggal_mulai']
-            )->startOfDay();
-
-            $today = Carbon::today();
-
-            /*
-             * Periksa keanggotaan yang benar-benar berlaku
-             * pada tahun akademik kelas tujuan.
-             *
-             * Keanggotaan yang belum mulai tidak dianggap aktif.
-             * Keanggotaan yang sudah selesai sebelum hari ini
-             * juga tidak dianggap aktif.
-             */
-            $existingActiveMembership = AnggotaKelas::query()
-                ->where('siswa_id', $student->id)
-                ->whereDate('tanggal_mulai', '<=', $today)
-                ->where(function (Builder $query) use ($today): void {
-                    $query
-                        ->whereNull('tanggal_selesai')
-                        ->orWhereDate(
-                            'tanggal_selesai',
-                            '>=',
-                            $today
-                        );
-                })
-                ->whereHas('kelas', function (
-                    Builder $query
-                ) use ($class): void {
-                    $query->where(
-                        'tahun_akademik_id',
-                        $class->tahun_akademik_id
-                    );
-                })
-                ->exists();
-
-            if ($existingActiveMembership) {
-                return response()->json([
-                    'message' => 'Siswa sudah memiliki kelas aktif pada tahun akademik ini.',
-                ], 422);
-            }
-
-            return AnggotaKelas::create([
-                'kelas_id' => $class->id,
-                'siswa_id' => $student->id,
-                'tanggal_mulai' => $startDate,
-                'tanggal_selesai' => null,
-            ]);
-        });
-
-        if ($membership instanceof JsonResponse) {
-            return $membership;
-        }
+        $membership = app(ClassMembershipService::class)->place($class, [(int)$validated['siswa_id']], Carbon::parse($validated['tanggal_mulai'])->toDateString(), (int)$user->id)[0];
 
         return ApiResponse::message(
             'Siswa berhasil ditambahkan ke kelas.',
@@ -200,50 +169,8 @@ class ClassMemberController extends Controller
             ], 403);
         }
 
-        $today = Carbon::today();
-
-        /*
-         * Cari keanggotaan yang benar-benar aktif hari ini.
-         */
-        $membership = AnggotaKelas::query()
-            ->where('kelas_id', $class->id)
-            ->where('siswa_id', $student->id)
-            ->whereDate('tanggal_mulai', '<=', $today)
-            ->where(function (Builder $query) use ($today): void {
-                $query
-                    ->whereNull('tanggal_selesai')
-                    ->orWhereDate(
-                        'tanggal_selesai',
-                        '>=',
-                        $today
-                    );
-            })
-            ->latest('tanggal_mulai')
-            ->first();
-
-        if (! $membership) {
-            return response()->json([
-                'message' => 'Siswa bukan anggota aktif dari kelas ini.',
-            ], 404);
-        }
-
-        /*
-         * Tanggal selesai tidak boleh lebih awal dari
-         * tanggal mulai keanggotaan.
-         */
-        $startDate = Carbon::parse(
-            $membership->tanggal_mulai
-        )->startOfDay();
-
-        if ($today->lessThan($startDate)) {
-            return response()->json([
-                'message' => 'Keanggotaan belum dimulai sehingga tidak dapat diakhiri.',
-            ], 422);
-        }
-
-        $membership->update([
-            'tanggal_selesai' => $today,
-        ]);
+        $data = $request->validate(['membership_id' => ['nullable', 'integer', 'min:1']]);
+        app(ClassMembershipService::class)->end($class, $student, isset($data['membership_id']) ? (int)$data['membership_id'] : null);
 
         return ApiResponse::message(
             'Keanggotaan siswa pada kelas berhasil diakhiri.'
@@ -264,7 +191,7 @@ class ClassMemberController extends Controller
             return true;
         }
 
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Jakarta');
 
         if ($role === 'SISWA') {
             $studentId = $user->siswa?->id;

@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { readClassTarget } from '../../classes/classDirectoryLogic.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import PageHeader from '../../../components/ui/PageHeader'
 import Card from '../../../components/ui/Card'
 import Table from '../../../components/ui/Table'
-import Select from '../../../components/ui/Select'
+import Select from '../components/SchedulePicker.jsx'
+import ScheduleContinuationDialog from '../components/ScheduleContinuationDialog.jsx'
+import {loadScheduleSnapshot, filterRows, scheduleSummary, teacherDistribution, isActive} from './adminScheduleWorkspace.js'
+import {loadClassCatalog} from '../../classes/classDirectoryLogic.js'
 import Input from '../../../components/ui/Input'
 import Button from '../../../components/ui/Button'
 import Modal from '../../../components/ui/Modal'
@@ -18,6 +22,8 @@ import { teacherApi } from '../../../services/teacherApi'
 import { subjectApi } from '../../../services/subjectApi'
 
 import '../styles/admin-schedule.css'
+
+const EMPTY_ROWS = Object.freeze([])
 
 const initialForm = {
   tahun_akademik_id: '',
@@ -48,11 +54,6 @@ const DAYS = [
   { value: 'JUMAT', label: 'Jumat' },
   { value: 'SABTU', label: 'Sabtu' },
   { value: 'MINGGU', label: 'Minggu' },
-]
-
-const SEMESTERS = [
-  { value: 'GANJIL', label: 'Ganjil' },
-  { value: 'GENAP', label: 'Genap' },
 ]
 
 const columns = [
@@ -174,24 +175,29 @@ function validationMessages(errors) {
 }
 
 
+async function loadTeacherCatalog() {
+  return loadClassCatalog(page => teacherApi.getAll({per_page:100,page}))
+}
+
+function StatIcon({kind}) {
+  const paths={total:'M4 6h16v14H4z M8 3v6 M16 3v6 M4 11h16',teachers:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-4 M16 3a4 4 0 0 1 0 8',classes:'M3 21h18 M5 21V9l7-6 7 6v12 M10 21v-6h4v6',subjects:'M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1z M12 5v15',empty:'M4 6h16v14H4z M8 3v6 M16 3v6 M4 11h16 M9 16h6',conflicts:'M12 3l9 5v5c0 5-4 7-9 9-5-2-9-4-9-9V8z M9 12l2 2 4-4'}
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={paths[kind]}/></svg>
+}
+
 export default function AdminSchedule() {
   const canManage = true
 
-  const [schedules, setSchedules] = useState([])
+  const [snapshot, setSnapshot] = useState(null)
+  const [view,setView] = useState('list')
+  const [excelOpen,setExcelOpen] = useState(false)
+  const [copyOpen,setCopyOpen] = useState(false)
   const [years, setYears] = useState([])
   const [classes, setClasses] = useState([])
   const [teachers, setTeachers] = useState([])
   const [subjects, setSubjects] = useState([])
 
-  const [filters, setFilters] = useState(initialFilters)
+  const [filters, setFilters] = useState(() => ({...initialFilters,...readClassTarget(window.location.search)}))
   const [page, setPage] = useState(1)
-
-  const [meta, setMeta] = useState({
-    current_page: 1,
-    last_page: 1,
-    per_page: 20,
-    total: 0,
-  })
 
   const [loading, setLoading] = useState(true)
   const [optionsLoading, setOptionsLoading] = useState(true)
@@ -209,6 +215,9 @@ export default function AdminSchedule() {
   const [deletingId, setDeletingId] = useState(null)
   const [successMessage, setSuccessMessage] = useState('')
   const [selectedExcel, setSelectedExcel] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [includeInactive, setIncludeInactive] = useState(false)
+  const listRequest = useRef(0)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [downloadingTemplate, setDownloadingTemplate] = useState(false)
@@ -228,12 +237,22 @@ export default function AdminSchedule() {
         subjectResponse,
       ] = await Promise.all([
         academicYearApi.getAll({ per_page: 100 }),
-        classApi.getAll({ per_page: 100 }),
-        teacherApi.getAll({ per_page: 100 }),
-        subjectApi.getAll({ per_page: 100 }),
+        classApi.getCatalog(),
+        loadTeacherCatalog(),
+        subjectApi.getCatalog(),
       ])
 
-      setYears(Array.isArray(yearResponse?.data) ? yearResponse.data : [])
+      const yearRows = Array.isArray(yearResponse?.data) ? yearResponse.data : []
+      setYears(yearRows)
+      setFilters(current => {
+        if (!current.academic_year_id) {
+          const active = yearRows.filter(isActive)
+          return active.length === 1 ? {...current, academic_year_id:String(active[0].id), semester:String(active[0].semester).toUpperCase()} : current
+        }
+        if (current.semester) return current
+        const year = yearRows.find(item => String(item.id) === current.academic_year_id)
+        return year ? {...current, semester: String(year.semester).toUpperCase()} : current
+      })
       setClasses(Array.isArray(classResponse?.data) ? classResponse.data : [])
       setTeachers(
         Array.isArray(teacherResponse?.data) ? teacherResponse.data : [],
@@ -248,42 +267,32 @@ export default function AdminSchedule() {
     }
   }, [])
 
+  const period = filters.academic_year_id
+  const semester = filters.semester
+  const selectedPeriod = years.find(y=>String(y.id)===period && String(y.semester).toUpperCase()===semester)
+  const periodClasses = useMemo(()=>classes.filter(c=>String(c.tahun_akademik_id)===period),[classes,period])
   const loadSchedules = useCallback(async () => {
-    setLoading(true)
-    setListError(null)
-
+    const requestId = ++listRequest.current
+    setLoading(true);setListError(null);setSnapshot(null)
+    if (!period || !semester) {setLoading(false);return}
     try {
-      const response = await scheduleApi.getAll({
-        academic_year_id: filters.academic_year_id,
-        semester: filters.semester,
-        class_id: filters.class_id,
-        subject_id: filters.subject_id,
-        teacher_id: filters.teacher_id,
-        day: filters.day,
-        page,
-        per_page: 20,
-      })
-
-      setSchedules(Array.isArray(response?.data) ? response.data : [])
-
-      setMeta((current) => ({
-        ...current,
-        ...(response?.meta || {}),
-      }))
-    } catch (error) {
-      setListError(error)
-    } finally {
-      setLoading(false)
-    }
-  }, [filters, page])
-
-  useEffect(() => {
-    loadOptions()
-  }, [loadOptions])
-
-  useEffect(() => {
-    loadSchedules()
-  }, [loadSchedules])
+      const rows=await loadScheduleSnapshot(params=>scheduleApi.getAll(params),period,semester)
+      if(requestId===listRequest.current)setSnapshot({period,semester,rows})
+    } catch(error) {
+      if(requestId===listRequest.current)setListError(error)
+    } finally {if(requestId===listRequest.current)setLoading(false)}
+  },[period,semester])
+  useEffect(()=>{loadOptions()},[loadOptions])
+  useEffect(()=>{loadSchedules();return()=>{listRequest.current++}},[loadSchedules])
+  const ready=Boolean(selectedPeriod && !optionsLoading && !optionsError && !loading && !listError && snapshot?.period===period && snapshot?.semester===semester)
+  const rows=ready?snapshot.rows:EMPTY_ROWS
+  const filtered=useMemo(()=>filterRows(rows,filters),[rows,filters])
+  const summary=useMemo(()=>ready?scheduleSummary(rows,periodClasses):null,[ready,rows,periodClasses])
+  const distribution=useMemo(()=>teacherDistribution(filtered),[filtered])
+  const lastPage=Math.max(1,Math.ceil(filtered.length/20))
+  const currentPage=Math.min(page,lastPage)
+  const schedules=filtered.slice((currentPage-1)*20,currentPage*20)
+  const meta={total:filtered.length,current_page:currentPage,last_page:lastPage}
 
   function resetForm() {
     setForm(initialForm)
@@ -293,12 +302,18 @@ export default function AdminSchedule() {
   }
 
   function openCreateModal() {
+    if (!selectedPeriod || importing) return
     resetForm()
     setSuccessMessage('')
 
     setForm({
       ...initialForm,
       tahun_akademik_id: filters.academic_year_id,
+      semester: filters.semester,
+      kelas_id: filters.class_id,
+      mapel_id: filters.subject_id,
+      guru_id: filters.teacher_id && teachers.some(t=>String(t.id)===filters.teacher_id&&t.user?.account_status==='active')?filters.teacher_id:'',
+      hari: filters.day,
     })
 
     setModalOpen(true)
@@ -316,11 +331,11 @@ export default function AdminSchedule() {
 
     setForm({
       tahun_akademik_id: yearId === '-' ? '' : String(yearId),
-      semester: item.semester || '',
+      semester: item.tahun_akademik?.semester || item.semester || '',
       kelas_id: classId === '-' ? '' : String(classId),
       mapel_id: subjectId === '-' ? '' : String(subjectId),
       guru_id: teacherId === '-' ? '' : String(teacherId),
-      hari: item.hari || 'SENIN',
+      hari: String(item.hari || 'SENIN').toUpperCase(),
       jam_mulai:
         displayTime(item.jam_mulai) === '-'
           ? ''
@@ -342,6 +357,7 @@ export default function AdminSchedule() {
   }
 
   function handleFormChange(event) {
+    if (saving) return
     const { name, value } = event.target
 
     setForm((current) => ({
@@ -362,6 +378,8 @@ export default function AdminSchedule() {
   }
 
   function handleFilterChange(name, value) {
+    if (importing) return
+    setPreview(null)
     if (name === 'academic_period') {
       if (!value) {
         setFilters((current) => ({
@@ -391,7 +409,10 @@ export default function AdminSchedule() {
   }
 
   function resetFilters() {
-    setFilters(initialFilters)
+    if (importing) return
+    setPreview(null)
+    const active = years.filter(isActive)
+    setFilters(active.length === 1 ? {...initialFilters, academic_year_id:String(active[0].id), semester:String(active[0].semester).toUpperCase()} : initialFilters)
     setPage(1)
     setSuccessMessage('')
   }
@@ -407,13 +428,18 @@ export default function AdminSchedule() {
     }
   }
 
+  function closeExcel() {
+    if (importing || exporting || downloadingTemplate) return
+    setExcelOpen(false); setPreview(null); setSelectedExcel(null); setExcelError(''); setExcelValidationErrors([])
+  }
+
   async function handleDownloadTemplate() {
     setDownloadingTemplate(true)
     setExcelError('')
     setExcelValidationErrors([])
 
     try {
-      const blob = await scheduleApi.downloadTemplate()
+      const blob = await scheduleApi.downloadTemplate({academic_year_id:filters.academic_year_id})
       downloadBlob(blob, 'template-jadwal-pelajaran.xlsx')
       setSuccessMessage('Template Excel berhasil diunduh.')
     } catch (error) {
@@ -423,12 +449,13 @@ export default function AdminSchedule() {
     }
   }
 
-  async function handleImportExcel(event) {
+  async function handleImportExcel(event, commit = false) {
     event.preventDefault()
     setExcelError('')
     setExcelValidationErrors([])
     setSuccessMessage('')
 
+    if (!selectedPeriod) { setExcelError('Pilih periode akademik pada filter terlebih dahulu.'); return }
     if (!selectedExcel) {
       setExcelError('Pilih file Excel yang akan diimpor terlebih dahulu.')
       return
@@ -441,10 +468,13 @@ export default function AdminSchedule() {
       return
     }
 
+    if (importing || (commit && !preview?.token)) return
     setImporting(true)
 
     try {
-      const response = await scheduleApi.importExcel(selectedExcel)
+      const response = await scheduleApi.importExcel(selectedExcel, {academic_year_id:filters.academic_year_id, mode:commit?'commit':'preview', token:commit?preview?.token:null})
+      if (!commit) { setPreview(response.data); return }
+      setPreview(null)
       setSuccessMessage(
         response?.message || 'Data jadwal berhasil diimpor.',
       )
@@ -454,12 +484,10 @@ export default function AdminSchedule() {
         fileInputRef.current.value = ''
       }
 
-      if (page !== 1) {
-        setPage(1)
-      } else {
-        await loadSchedules()
-      }
+      setPage(1)
+      await loadSchedules()
     } catch (error) {
+      setPreview(null)
       const errors = extractValidationErrors(error)
 
       setExcelError(apiMessage(error, 'Import Excel gagal.'))
@@ -469,14 +497,15 @@ export default function AdminSchedule() {
     }
   }
 
-  async function handleExportExcel() {
+  async function handleExportExcel(format = "data") {
     setExporting(true)
     setExcelError('')
     setExcelValidationErrors([])
 
     try {
-      const blob = await scheduleApi.exportExcel(getExportFilters())
-      downloadBlob(blob, 'jadwal-pelajaran.xlsx')
+      const params = format === 'data' ? getExportFilters() : {academic_year_id:filters.academic_year_id, format, teacher_id:format==='teacher'?filters.teacher_id:null, class_id:format==='class'?filters.class_id:null, include_inactive:includeInactive?1:0}
+      const blob = await scheduleApi.exportExcel(params)
+      downloadBlob(blob, format==='batch'?'jadwal-mengajar-guru.zip':format==='teacher'?'jadwal-guru-'+filters.teacher_id+'.xlsx':format==='class'?'jadwal-rombel-'+filters.class_id+'.xlsx':'jadwal-pelajaran.xlsx')
       setSuccessMessage('Data jadwal berhasil diekspor ke Excel.')
     } catch (error) {
       setExcelError(apiMessage(error, 'Export Excel gagal.'))
@@ -492,6 +521,7 @@ export default function AdminSchedule() {
 
     const errors = {}
 
+    if (saving) return
     if (!form.tahun_akademik_id) {
       errors.tahun_akademik_id = 'Tahun akademik wajib dipilih.'
     }
@@ -554,7 +584,7 @@ export default function AdminSchedule() {
 
     try {
       if (editingSchedule) {
-        await scheduleApi.update(editingSchedule.id, payload)
+        await scheduleApi.update(editingSchedule.id, {...payload, version:editingSchedule.version})
         setSuccessMessage('Jadwal berhasil diperbarui.')
       } else {
         await scheduleApi.create(payload)
@@ -566,10 +596,7 @@ export default function AdminSchedule() {
       await loadSchedules()
     } catch (error) {
       const responseErrors =
-        error?.response?.data?.errors ||
-        error?.data?.errors ||
-        error?.errors ||
-        {}
+        extractValidationErrors(error)
 
       setFieldErrors(responseErrors)
       setSubmitError(error)
@@ -587,16 +614,13 @@ export default function AdminSchedule() {
     setListError(null)
 
     try {
-      await scheduleApi.delete(target.id)
+      await scheduleApi.delete(target.id, target.version)
 
       setSuccessMessage('Jadwal berhasil dihapus.')
       setScheduleToDelete(null)
 
-      if (schedules.length === 1 && page > 1) {
-        setPage((current) => current - 1)
-      } else {
-        await loadSchedules()
-      }
+      setPage(Math.max(1,currentPage-(schedules.length===1?1:0)))
+      await loadSchedules()
     } catch (error) {
       setListError(error)
       setScheduleToDelete(null)
@@ -605,32 +629,21 @@ export default function AdminSchedule() {
     }
   }
 
-  function getScheduleYear(item) {
-    const relation = item.tahun_akademik || item.tahunAkademik
-
-    if (relation) return yearLabel(relation)
-
-    const id = relationId(item, 'tahun_akademik_id', 'tahun_akademik')
-    const year = years.find((entry) => String(entry.id) === String(id))
-
-    return year ? yearLabel(year) : `Tahun #${id}`
-  }
-
   return (
     <div className="admin-schedule">
       <PageHeader
         eyebrow="KEGIATAN AKADEMIK"
-        title="Jadwal Pelajaran"
-        description="Kelola jadwal pembelajaran berdasarkan tahun akademik, semester, kelas, mata pelajaran, dan guru."
+        title="Manajemen Jadwal"
+        description="Susun jadwal, pantau distribusi mengajar, dan siapkan dokumen akademik."
         actions={
           canManage ? (
-            <Button
+            <div className="sch-header-actions"><Button type="button" variant="secondary" onClick={()=>setExcelOpen(true)} disabled={importing}>Kelola Excel</Button><Button type="button" variant="secondary" disabled={!ready || semester!=='GANJIL' || !rows.length || importing || rows.length>1000} onClick={()=>setCopyOpen(true)}>Salin Semester</Button><Button
               type="button"
               onClick={openCreateModal}
-              disabled={optionsLoading}
+              disabled={!selectedPeriod || optionsLoading || Boolean(optionsError) || importing}
             >
               + Tambah Jadwal
-            </Button>
+            </Button></div>
           ) : null
         }
       />
@@ -659,80 +672,13 @@ export default function AdminSchedule() {
         />
       )}
 
-      <Card>
-        <div className="admin-schedule__excel-heading">
-          <div>
-            <span className="admin-schedule__eyebrow">IMPORT &amp; EXPORT</span>
-            <h2>Pengelolaan Jadwal melalui Excel</h2>
-            <p>Unduh template, ekspor jadwal, atau impor data menggunakan file Excel.</p>
-          </div>
-        </div>
-
-        <div className="admin-schedule__excel-layout">
-          <div className="admin-schedule__excel-actions">
-            <Button type="button" onClick={handleDownloadTemplate}
-              loading={downloadingTemplate}
-              disabled={downloadingTemplate || importing || exporting}>
-              Download Template
-            </Button>
-            <Button type="button" onClick={handleExportExcel}
-              loading={exporting}
-              disabled={exporting || importing || downloadingTemplate}>
-              Export Excel
-            </Button>
-          </div>
-
-          <form className="admin-schedule__import-form" onSubmit={handleImportExcel}>
-            <div className="admin-schedule__file-control">
-              <label htmlFor="schedule-excel-file" className="admin-schedule__file-label">
-                File Excel Jadwal
-              </label>
-              <input ref={fileInputRef} id="schedule-excel-file"
-                className="admin-schedule__file-input" type="file" accept=".xlsx,.xls"
-                onChange={(event) => {
-                  setSelectedExcel(event.target.files?.[0] || null)
-                  setExcelError('')
-                  setExcelValidationErrors([])
-                }}
-                disabled={importing || exporting || downloadingTemplate}
-              />
-              {selectedExcel && (
-                <p className="admin-schedule__selected-file">
-                  File dipilih: <strong>{selectedExcel.name}</strong>
-                </p>
-              )}
-            </div>
-            <div className="admin-schedule__import-actions">
-              <Button type="submit" loading={importing}
-                disabled={!selectedExcel || importing || exporting || downloadingTemplate}>
-                Import Excel
-              </Button>
-            </div>
-          </form>
-        </div>
-
-        {excelError && (
-          <div className="admin-schedule__import-result" role="alert">
-            <div className="admin-schedule__form-error">
-              <ErrorState message={excelError} />
-
-              {excelValidationErrors.length > 0 && (
-                <div className="admin-schedule__error-details">
-                  <h3>Rincian Kesalahan</h3>
-                  <ul>
-                    {excelValidationErrors.map((item, index) => (
-                      <li key={`${index}-${item.field}-${item.message}`}>
-                        <strong>{item.field}:</strong> {item.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Card>
-
+      <section className="sch-period" aria-label="Konteks akademik">
+        <div><span className="admin-schedule__eyebrow">PERIODE AKADEMIK</span><h2>{selectedPeriod?`${yearLabel(selectedPeriod)} · ${semester==='GANJIL'?'Ganjil':'Genap'}`:'Pilih periode akademik'}</h2><p>Ringkasan seluruh periode, tidak berubah mengikuti filter guru atau rombel.</p></div>
+        {selectedPeriod&&<span className="sch-status">{isActive(selectedPeriod)?'Periode aktif':'Periode tidak aktif'}</span>}
+      </section>
+      <section className="sch-summary" aria-label="Ringkasan jadwal">
+        {[["Total jadwal","total","Entri pembelajaran"],["Guru terjadwal","teachers","Guru unik"],["Rombel terjadwal","classes","Rombel unik"],["Mata pelajaran","subjects","Mapel unik"],["Rombel kosong","empty","Belum ada jadwal"],["Jadwal konflik","conflicts","Entri terlibat bentrok"]].map(([label,key,hint])=><article key={key} className="sch-stat"><span className="sch-stat-icon" aria-hidden="true"><StatIcon kind={key}/></span><span>{label}</span><strong>{summary?.[key]??'—'}</strong><small>{hint}</small></article>)}
+      </section>
       <Card>
         <div className="admin-schedule__section-heading">
           <div>
@@ -746,7 +692,7 @@ export default function AdminSchedule() {
           </div>
         </div>
 
-        <div className="admin-schedule__filters">
+        <fieldset disabled={importing || optionsLoading || Boolean(optionsError)} className="admin-schedule__filters sch-fieldset">
           <Select
             label="Tahun Akademik"
             name="academic_period"
@@ -755,7 +701,7 @@ export default function AdminSchedule() {
                 ? `${filters.academic_year_id}::${filters.semester}`
                 : ''
             }
-            placeholder="Semua tahun akademik"
+            placeholder="Pilih periode"
             onChange={(event) =>
               handleFilterChange('academic_period', event.target.value)
             }
@@ -766,13 +712,14 @@ export default function AdminSchedule() {
 
               return {
                 value: `${year.id}::${semesterValue}`,
-                label: `${yearLabel(year)} • ${semesterValue}`,
+                label: `${yearLabel(year)} • ${semesterValue}${isActive(year)?" · Aktif":""}`,
               }
             })}
           />
 
           <Select
             label="Kelas"
+            key={`filter-class-${period}`}
             name="class_id"
             value={filters.class_id}
             placeholder="Semua kelas"
@@ -781,7 +728,7 @@ export default function AdminSchedule() {
             }
             options={classes
               .filter((item) => {
-                if (!filters.academic_year_id) return true
+                if (!filters.academic_year_id) return false
                 const yearId = relationId(
                   item,
                   'tahun_akademik_id',
@@ -819,7 +766,7 @@ export default function AdminSchedule() {
             }
             options={teachers.map((item) => ({
                 value: String(item.id),
-                label: teacherLabel(item),
+                label: teacherLabel(item), description: item.nip ? `NIP ${item.nip}` : "",
               }))}
           />
 
@@ -833,34 +780,124 @@ export default function AdminSchedule() {
             }
             options={DAYS}
           />
-        </div>
+        </fieldset>
 
         <div className="admin-schedule__filter-actions">
-          <Button type="button" onClick={resetFilters}>
+          <Button type="button" onClick={resetFilters} disabled={importing}>
             Reset Filter
           </Button>
 
           <Button
             type="button"
-            onClick={loadSchedules}
-            disabled={loading}
+            onClick={()=>{loadOptions();loadSchedules()}}
+            disabled={loading || importing || optionsLoading || !selectedPeriod}
           >
             {loading ? 'Memuat...' : 'Muat Ulang'}
           </Button>
         </div>
       </Card>
 
-      <Card>
+      <div className="sch-excel-overlay" hidden={!excelOpen}><Modal open={excelOpen} title="Kelola Excel" description="Import data dan distribusi jadwal pada konteks yang dipilih." size="large" onClose={closeExcel} footer={<Button variant="secondary" disabled={importing||exporting||downloadingTemplate} onClick={closeExcel}>Tutup Excel</Button>}><Card className="sch-excel-card">
+        <div className="sch-excel-context"><strong>{selectedPeriod?`${yearLabel(selectedPeriod)} · ${semester}`:'Pilih periode terlebih dahulu'}</strong><br/>Guru: {filters.teacher_id?teacherLabel(teachers.find(t=>String(t.id)===filters.teacher_id)):'Semua guru'} · Rombel: {filters.class_id?classLabel(classes.find(c=>String(c.id)===filters.class_id)):'Semua rombel'}</div>
+        <div className="admin-schedule__excel-heading">
+          <div>
+            <span className="admin-schedule__eyebrow">IMPORT &amp; EXPORT</span>
+            <h2>Pengelolaan Jadwal melalui Excel</h2>
+            <p>Unduh template, ekspor jadwal, atau impor data menggunakan file Excel.</p>
+          </div>
+        </div>
+
+        <div className="admin-schedule__excel-layout">
+          <div className="admin-schedule__excel-actions">
+            <div className="sch-excel-label">TEMPLATE &amp; DATA</div>
+            <Button type="button" variant="secondary" onClick={handleDownloadTemplate}
+              loading={downloadingTemplate}
+              disabled={!selectedPeriod || downloadingTemplate || importing || exporting}>
+              Download Template
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => handleExportExcel()}
+              loading={exporting}
+              disabled={!ready || exporting || importing || downloadingTemplate}>
+              Export Data Excel
+            </Button>
+            <div className="sch-excel-label">DISTRIBUSI JADWAL</div>
+            <Button type="button" onClick={() => handleExportExcel('teacher')} disabled={exporting || importing || !filters.academic_year_id || !filters.teacher_id}>Jadwal Guru (.xlsx)</Button>
+            <Button type="button" onClick={() => handleExportExcel('class')} disabled={exporting || importing || !filters.academic_year_id || !filters.class_id}>Jadwal Rombel (.xlsx)</Button>
+            <Button type="button" onClick={() => handleExportExcel('batch')} disabled={exporting || importing || !filters.academic_year_id}>Seluruh Guru (.zip)</Button>
+            <label className="admin-schedule__batch-option"><input type="checkbox" checked={includeInactive} onChange={e=>setIncludeInactive(e.target.checked)} disabled={exporting || importing}/> Sertakan guru nonaktif dalam ZIP (untuk audit)</label>
+            <p className="admin-schedule__excel-hint">Pilih periode dan guru/rombel di filter. Dokumen distribusi berisi seluruh jadwal pilihan tersebut, bukan hanya filter hari atau mapel.</p>
+          </div>
+
+          <form className="admin-schedule__import-form" onSubmit={event => handleImportExcel(event)}>
+            <div className="admin-schedule__file-control">
+              <label htmlFor="schedule-excel-file" className="admin-schedule__file-label">
+                File Excel Jadwal
+              </label>
+              <input ref={fileInputRef} id="schedule-excel-file"
+                className="admin-schedule__file-input" type="file" accept=".xlsx,.xls"
+                onChange={(event) => {
+                  setPreview(null)
+                  setSelectedExcel(event.target.files?.[0] || null)
+                  setExcelError('')
+                  setExcelValidationErrors([])
+                }}
+                disabled={importing || exporting || downloadingTemplate}
+              />
+              {selectedExcel && (
+                <p className="admin-schedule__selected-file">
+                  File dipilih: <strong>{selectedExcel.name}</strong>
+                </p>
+              )}
+            </div>
+            <div className="admin-schedule__import-actions">
+              <Button type="submit" loading={importing}
+                disabled={!selectedExcel || !filters.academic_year_id || importing || exporting || downloadingTemplate}>
+                Preview Import
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        {preview && <section className="admin-schedule__preview" aria-label="Preview import jadwal">
+          <h3>{preview.count} jadwal siap ditambahkan</h3>
+          <p>Belum tersimpan. Periksa data lalu konfirmasi dalam 5 menit. Jadwal lama tidak ditimpa.</p>
+          <div className="admin-schedule__preview-scroll" tabIndex={0} role="region" aria-label="Tabel preview import"><table><thead><tr>{['Baris','Guru','Rombel','Mapel','Hari','Jam','Status'].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{preview.rows.map(r=><tr key={r.row_number}><td>{r.row_number}</td><td>{r.teacher}</td><td>{r.class}</td><td>{r.subject}</td><td>{r.data.hari}</td><td>{displayTime(r.data.jam_mulai)}–{displayTime(r.data.jam_selesai)}</td><td>{r.account_state==='pending'?'Menunggu aktivasi':'Siap'}</td></tr>)}</tbody></table></div>
+          <div className="admin-schedule__excel-actions"><Button type="button" disabled={importing} onClick={()=>setPreview(null)}>Batal</Button><Button type="button" loading={importing} disabled={importing} onClick={event=>handleImportExcel(event,true)}>Konfirmasi Tambah Jadwal</Button></div>
+        </section>}
+        {excelError && (
+          <div className="admin-schedule__import-result" role="alert">
+            <div className="admin-schedule__form-error">
+              <ErrorState message={excelError} />
+
+              {excelValidationErrors.length > 0 && (
+                <div className="admin-schedule__error-details">
+                  <h3>Rincian Kesalahan</h3>
+                  <ul>
+                    {excelValidationErrors.map((item, index) => (
+                      <li key={`${index}-${item.field}-${item.message}`}>
+                        <strong>{item.field}:</strong> {item.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Card></Modal></div>
+      {copyOpen && selectedPeriod && <ScheduleContinuationDialog source={selectedPeriod} years={years} classes={classes} rows={rows} onClose={()=>setCopyOpen(false)} onDone={count=>{setCopyOpen(false);setSuccessMessage(`${count} jadwal berhasil disalin ke Genap. Periode aktif tidak berubah.`);loadSchedules()}}/>}
+      <Card className="sch-workspace">
+        <div className="sch-tabs" aria-label="Tampilan jadwal">{[['list','Daftar Jadwal'],['week','Jadwal Mingguan'],['teachers','Distribusi Guru']].map(([id,label])=><button type="button" key={id} aria-pressed={view===id} onClick={()=>setView(id)}>{label}</button>)}</div>
         <div className="admin-schedule__list-heading">
           <div>
             <span className="admin-schedule__eyebrow">
               DATA PEMBELAJARAN
             </span>
-            <h2>Daftar Jadwal</h2>
+            <h2>{view==='list'?'Daftar Jadwal':view==='week'?'Jadwal Mingguan':'Distribusi Guru'}</h2>
             <p>
               {loading
                 ? 'Memuat data jadwal...'
-                : `${meta.total} jadwal ditemukan`}
+                : ready ? `${meta.total} jadwal sesuai filter` : 'Pilih periode atau muat ulang data.'}
             </p>
           </div>
         </div>
@@ -879,16 +916,19 @@ export default function AdminSchedule() {
           <LoadingState message="Memuat jadwal pelajaran..." />
         )}
 
-        {!loading && !listError && schedules.length === 0 && (
+        {ready && filtered.length === 0 && (
           <EmptyState
             title="Belum ada jadwal"
-            description="Tidak ada jadwal yang cocok dengan filter saat ini. Coba ubah filter atau tambahkan jadwal baru."
+            message="Tidak ada jadwal yang cocok dengan filter saat ini. Coba ubah filter atau tambahkan jadwal baru."
           />
         )}
 
-        {!loading && !listError && schedules.length > 0 && (
+        {ready && filtered.length>0 && view==='week' && <div className="sch-week" aria-label="Jadwal dikelompokkan per hari">{DAYS.map(day=>{const entries=filtered.filter(r=>r.hari===day.value);return <section className="sch-day" key={day.value}><header><strong>{day.label}</strong><small>{entries.length} jadwal</small></header>{entries.length?entries.map(item=><article className="sch-lesson" key={item.id}><span>{displayTime(item.jam_mulai)}–{displayTime(item.jam_selesai)}</span><strong>{item.mapel.nama}</strong><small>{classLabel(item.kelas)}</small><small>{teacherLabel(item.guru)}</small></article>):<p>Belum ada jadwal</p>}</section>})}</div>}
+        {ready && filtered.length>0 && view==='teachers' && <div className="sch-distribution">{distribution.map(g=><article key={g.id}><div><strong>{g.name}</strong><small>{g.rows} jadwal · {g.classes} rombel · {g.subjects} mapel</small></div><strong>{Number(g.minutes.toFixed(2))} menit/minggu</strong><Button variant="secondary" disabled={importing} onClick={()=>{handleFilterChange('teacher_id',g.id);setView('list')}}>Lihat jadwal</Button></article>)}</div>}
+        {ready && schedules.length > 0 && view==='list' && (
           <>
-            <div className="admin-schedule__table-wrapper">
+            <div className="sch-mobile-list">{schedules.map(item=><article key={item.id}><div className="sch-mobile-time"><strong>{DAYS.find(d=>d.value===item.hari)?.label}</strong><span>{displayTime(item.jam_mulai)}–{displayTime(item.jam_selesai)}</span></div><h3>{item.mapel.nama}</h3><p>{classLabel(item.kelas)} · {teacherLabel(item.guru)}</p><div className="admin-schedule__row-actions"><Button variant="secondary" disabled={deletingId!==null||importing} onClick={()=>openEditModal(item)}>Edit</Button><Button variant="danger" disabled={deletingId!==null||importing} onClick={()=>setScheduleToDelete(item)}>Hapus</Button></div></article>)}</div>
+            <div className="admin-schedule__table-wrapper" tabIndex={0} role="region" aria-label="Tabel jadwal">
               <Table
                 columns={columns}
               data={schedules}
@@ -968,18 +1008,20 @@ export default function AdminSchedule() {
                       <div className="admin-schedule__row-actions">
                         <Button
                           type="button"
+                          variant="secondary"
                           onClick={() => openEditModal(item)}
-                          disabled={deletingId !== null}
+                          disabled={deletingId !== null || importing}
                         >
                           Edit
                         </Button>
 
                         <Button
                           type="button"
-                          disabled={deletingId !== null}
+                          disabled={deletingId !== null || importing}
                           loading={
                             String(deletingId) === String(item.id)
                           }
+                          variant="danger"
                           onClick={() => setScheduleToDelete(item)}
                         >
                           Hapus
@@ -1005,9 +1047,9 @@ export default function AdminSchedule() {
               <div>
                 <Button
                   type="button"
-                  disabled={page <= 1 || loading}
+                  disabled={currentPage <= 1 || loading}
                   onClick={() =>
-                    setPage((current) => Math.max(1, current - 1))
+                    setPage(Math.max(1,currentPage-1))
                   }
                 >
                   Sebelumnya
@@ -1016,9 +1058,9 @@ export default function AdminSchedule() {
                 <Button
                   type="button"
                   disabled={
-                    page >= (meta.last_page || 1) || loading
+                    currentPage >= (meta.last_page || 1) || loading
                   }
-                  onClick={() => setPage((current) => current + 1)}
+                  onClick={() => setPage(currentPage+1)}
                 >
                   Berikutnya
                 </Button>
@@ -1077,6 +1119,7 @@ export default function AdminSchedule() {
           >
             <Select
               label="Tahun Akademik"
+              disabled={saving}
               name="academic_period"
               value={
                 form.tahun_akademik_id && form.semester
@@ -1085,6 +1128,7 @@ export default function AdminSchedule() {
               }
               placeholder="Pilih tahun akademik dan semester"
               onChange={(event) => {
+                if(saving)return
                 const value = event.target.value
                 const [yearId, semester] = value ? value.split('::') : ['', '']
                 setForm((current) => ({
@@ -1107,7 +1151,7 @@ export default function AdminSchedule() {
 
                 return {
                   value: `${year.id}::${semesterValue}`,
-                  label: `${yearLabel(year)} • ${semesterValue}`,
+                  label: `${yearLabel(year)} • ${semesterValue}${isActive(year)?" · Aktif":""}`,
                 }
               })}
               error={
@@ -1118,6 +1162,8 @@ export default function AdminSchedule() {
 
             <Select
               label="Kelas"
+              key={`form-class-${form.tahun_akademik_id}`}
+              disabled={saving || !form.tahun_akademik_id}
               name="kelas_id"
               value={form.kelas_id}
               placeholder="Pilih kelas"
@@ -1125,7 +1171,7 @@ export default function AdminSchedule() {
               options={classes
                   .filter(
                     (item) => {
-                      if (!form.tahun_akademik_id) return true
+                      if (!form.tahun_akademik_id) return false
                       const yearId = relationId(
                         item,
                         'tahun_akademik_id',
@@ -1143,6 +1189,7 @@ export default function AdminSchedule() {
 
             <Select
               label="Mata Pelajaran"
+              disabled={saving}
               name="mapel_id"
               value={form.mapel_id}
               placeholder="Pilih mata pelajaran"
@@ -1156,19 +1203,21 @@ export default function AdminSchedule() {
 
             <Select
               label="Guru Pengajar"
+              disabled={saving}
               name="guru_id"
               value={form.guru_id}
               placeholder="Pilih guru"
               onChange={(event) => setFormField('guru_id', event.target.value)}
-              options={teachers.map((item) => ({
+              options={teachers.filter(item=>item.user?.account_status === "active").map((item) => ({
                   value: String(item.id),
-                  label: teacherLabel(item),
+                  label: teacherLabel(item)+(item.user?.requires_activation?" · Menunggu aktivasi":""), description:item.nip?`NIP ${item.nip}`:"",
                 }))}
               error={fieldError(fieldErrors, 'guru_id')}
             />
 
             <Select
               label="Hari"
+              disabled={saving}
               name="hari"
               value={form.hari}
               placeholder="Pilih hari"
@@ -1179,6 +1228,8 @@ export default function AdminSchedule() {
 
             <Input
               label="Jam Mulai"
+              id="schedule-start"
+              disabled={saving}
               name="jam_mulai"
               type="time"
               value={form.jam_mulai}
@@ -1188,6 +1239,8 @@ export default function AdminSchedule() {
 
             <Input
               label="Jam Selesai"
+              id="schedule-end"
+              disabled={saving}
               name="jam_selesai"
               type="time"
               value={form.jam_selesai}
@@ -1210,7 +1263,7 @@ export default function AdminSchedule() {
           <>
             <Button
               type="button"
-              disabled={deletingId !== null}
+              disabled={deletingId !== null || importing}
               onClick={() => setScheduleToDelete(null)}
             >
               Batal

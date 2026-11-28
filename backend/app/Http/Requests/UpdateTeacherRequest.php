@@ -20,6 +20,7 @@ class UpdateTeacherRequest extends FormRequest
             ?? $this->route('teacher');
 
         return [
+            'profile_version' => ['sometimes', 'required', 'string', 'size:64'],
             'user_id' => [
                 'required',
                 'integer',
@@ -57,6 +58,14 @@ class UpdateTeacherRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('user_id')) return;
+            $profile = $this->route('teacher');
+            if ($profile && (int) $profile->user_id !== (int) $this->input('user_id')) {
+                $validator->errors()->add('user_id', 'Relasi akun profil tidak dapat diubah.');
+            }
+            if ($validator->errors()->has('user_id') || ! $this->filled('user_id')) {
+                return;
+            }
             $user = User::with('role')->find($this->input('user_id'));
 
             if ($user !== null && $user->role?->code !== 'GURU') {

@@ -1,0 +1,168 @@
+/* V1.7 — scoped to Kepala Sekolah, independent of the other roles. */
+.principal-attendance__schedule-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.principal-attendance__schedule-heading,
+.principal-attendance__schedule-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.principal-attendance__schedule-heading p {
+  max-width: 680px;
+}
+.principal-attendance__schedule-summary {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+  gap: 1rem;
+}
+.principal-attendance__schedule-feature {
+  border: 1px solid #cce9e0;
+  border-radius: 17px;
+  padding: clamp(1.1rem, 2vw, 1.6rem);
+  background: linear-gradient(135deg, #ffffff, #e9f8f3);
+}
+.principal-attendance__schedule-feature > strong {
+  display: block;
+  color: #0e766e;
+  font-size: clamp(2rem, 3vw, 2.9rem);
+  letter-spacing: -0.055em;
+  line-height: 1.2;
+  margin: 0.45rem 0;
+}
+.principal-attendance__schedule-feature .principal-attendance__track {
+  margin: 1.15rem 0 0.75rem;
+}
+.principal-attendance__schedule-feature small {
+  font-size: 0.74rem;
+  color: #507773;
+  line-height: 1.5;
+  display: block;
+}
+.principal-attendance__schedule-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.principal-attendance__schedule-stats > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #dce9ee;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  border-top: 3px solid #b8d2dc;
+}
+.principal-attendance__schedule-stats > div:nth-child(2) {
+  border-top-color: #25a18e;
+}
+.principal-attendance__schedule-stats > div:nth-child(3) {
+  border-top-color: #edac59;
+}
+.principal-attendance__schedule-stats > div:nth-child(4) {
+  border-top-color: #d77f82;
+}
+.principal-attendance__schedule-stats small {
+  font-size: 0.75rem;
+  color: #60768a;
+}
+.principal-attendance__schedule-stats strong {
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+  color: #123c54;
+}
+.principal-attendance__schedule-details {
+  border: 1px solid #dce9ee;
+  border-radius: 16px;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  background: #fff;
+  min-width: 0;
+}
+.principal-attendance__schedule-topline {
+  margin-bottom: 1rem;
+  align-items: center;
+}
+.principal-attendance__schedule-topline h3 {
+  font-size: 0.98rem;
+  color: #113b50;
+  margin: 0;
+}
+.principal-attendance__schedule-topline > span {
+  font-size: 0.75rem;
+  color: #6a8192;
+}
+.principal-attendance__schedule-table {
+  min-width: 680px;
+}
+.principal-attendance__schedule-table th:first-child {
+  min-width: 145px;
+}
+.principal-attendance__schedule-table tbody th small {
+  display: block;
+  color: #668296;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding-top: 0.25rem;
+}
+.principal-attendance__schedule-chip {
+  display: inline-block;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.principal-attendance__schedule-chip--complete {
+  color: #096c59;
+  background: #e1f7ed;
+}
+.principal-attendance__schedule-chip--partial {
+  color: #9b6817;
+  background: #fff3d9;
+}
+.principal-attendance__schedule-chip--missing {
+  color: #9c5050;
+  background: #fff0f0;
+}
+.principal-attendance__schedule-chip--upcoming {
+  color: #546a81;
+  background: #e9f1f8;
+}
+.principal-attendance__schedule-chip--neutral {
+  color: #687887;
+  background: #edf0f3;
+}
+.principal-attendance__schedule-disclaimer {
+  border-left: 3px solid #249b90;
+  background: #edf7f5;
+  color: #3b6871;
+  padding: 1rem 1.2rem;
+  border-radius: 0 12px 12px 0;
+}
+.principal-attendance__schedule-disclaimer strong {
+  color: #164f53;
+  font-size: 0.83rem;
+}
+.principal-attendance__schedule-disclaimer p {
+  font-size: 0.76rem;
+}
+@media (max-width: 980px) {
+  .principal-attendance__schedule-summary {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .principal-attendance__schedule-heading,
+  .principal-attendance__schedule-topline {
+    flex-direction: column;
+  }
+  .principal-attendance__schedule-stats {
+    gap: 0.5rem;
+  }
+}

@@ -124,3 +124,14 @@
       padding: 0.875rem 1.125rem;
     }
   }
+
+/* Native top-layer overlay, keeping legacy internal class names. */
+.ui-modal { width:100%; height:100%; height:100dvh; max-width:none; max-height:none; margin:0; border:0; color:inherit; background:transparent; overflow:hidden; }
+.ui-modal:not([open]) { display:none; }
+.ui-modal[open] { display:flex; }
+.ui-modal::backdrop { background:rgb(15 23 42 / 0.48); }
+.ui-modal__dialog { max-height:calc(100dvh - 3rem); overscroll-behavior:contain; min-width:0; }
+.ui-modal__heading { overflow-wrap:anywhere; }
+.ui-modal__footer { flex-wrap:wrap; }
+@media(max-width:767px){ .ui-modal__close { width:var(--ui-touch); height:var(--ui-touch); } .ui-modal__footer > * { min-width:0; max-width:100%; } }
+@media(max-width:639px){ .ui-modal__dialog { max-height:calc(100dvh - 1.5rem); } .ui-modal__footer { padding-bottom:max(.875rem,env(safe-area-inset-bottom)); } }
